@@ -1,0 +1,9 @@
+[[plugin.deps]]
+use = "ndtoan96/ouch"
+rev = "cfe4f50"
+hash = "eff5702573b6cfba61e4ac8b1969629a"
+
+[[flavor.deps]]
+use = "yazi-rs/flavors:catppuccin-mocha"
+rev = "20b47bf"
+hash = "ce320f877fe709b189433941aba747c4"

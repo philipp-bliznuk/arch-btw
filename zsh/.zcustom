@@ -1,0 +1,86 @@
+# Insert-mode keybindings (survive zsh-vi-mode init)
+function zvm_after_init() {
+  # History search with arrow keys
+  bindkey '^[[A' history-search-backward
+  bindkey '^[[B' history-search-forward
+
+  # FZF widgets (zvm stomps these on init)
+  bindkey '^R' fzf-history-widget
+  bindkey '^T' fzf-file-widget
+}
+
+# Normal/visual-mode keybindings (load lazily on first ESC)
+function zvm_after_lazy_keybindings() {
+  # H/L for beginning/end of line
+  bindkey -M vicmd 'H' beginning-of-line
+  bindkey -M vicmd 'L' end-of-line
+
+  # Y to yank to end of line (consistent with D/C behavior)
+  bindkey -M vicmd 'Y' vi-yank-eol
+
+  # Ctrl+h/l to navigate words in normal mode
+  bindkey -M vicmd '^h' backward-word
+  bindkey -M vicmd '^l' forward-word
+
+  # Open command in $EDITOR with Ctrl+e
+  autoload -Uz edit-command-line
+  zle -N edit-command-line
+  bindkey -M vicmd '^e' edit-command-line
+
+  # U for redo (symmetry with u for undo)
+  bindkey -M vicmd 'U' redo
+}
+
+# FZF configuration (fzf 0.48+ built-in walker, no FZF_DEFAULT_COMMAND needed)
+show_file_or_dir_preview="if [ -d {} ]; then eza --tree --all --color=always {} | head -200; else bat -n --color=always --line-range :500 {}; fi"
+
+export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS \
+  --walker-skip=.git,.venv,.idea,node_modules,target,__pycache__,.ruff_cache,.DS_Store"
+
+export FZF_CTRL_T_OPTS="\
+  --walker=file,dir,hidden \
+  --preview '$show_file_or_dir_preview' \
+  --bind 'ctrl-/:change-preview-window(down|hidden|)'"
+
+export FZF_ALT_C_OPTS="\
+  --walker=dir,hidden \
+  --preview 'eza --tree --all --color=always {} | head -200'"
+
+export FZF_CTRL_R_OPTS="\
+  --preview 'echo {}' --preview-window=up:3:wrap \
+  --bind 'ctrl-y:execute-silent(echo -n {2..} | wl-copy)+abort'"
+
+# ** completion still uses these functions
+_fzf_compgen_path() {
+  fd --hidden --exclude .git --exclude .venv --exclude .idea --exclude node_modules --exclude target --exclude __pycache__ --exclude .ruff_cache --exclude .DS_Store . "$1"
+}
+
+_fzf_compgen_dir() {
+  fd --type=d --hidden --exclude .git --exclude .venv --exclude .idea --exclude node_modules --exclude target --exclude __pycache__ --exclude .ruff_cache --exclude .DS_Store . "$1"
+}
+
+_fzf_comprun() {
+  local command=$1
+  shift
+
+  case "$command" in
+    cd)           fzf --preview 'eza --tree --all --color=always {} | head -200' "$@" ;;
+    export|unset) fzf --preview "eval 'echo ${}'"         "$@" ;;
+    *)            fzf --preview "$show_file_or_dir_preview" "$@" ;;
+  esac
+}
+
+# Shortcut for Yazi that will cd into active dir when exiting
+function y() {
+  local tmp="$(mktemp -t "yazi-cwd.XXXXXX")" cwd
+  command yazi "$@" --cwd-file="$tmp"
+  IFS= read -r -d '' cwd < "$tmp"
+  [[ "$cwd" != "$PWD" ]] && [[ -d "$cwd" ]] && builtin cd -- "$cwd"
+  command rm -f -- "$tmp"
+}
+
+# Auto-attach to tmux session
+if (( ${+commands[tmux]} )) && [[ -z "$TMUX" ]]; then
+  tmux attach -t default 2>/dev/null || tmux new -s default
+  exit
+fi

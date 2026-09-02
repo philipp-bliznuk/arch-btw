@@ -1,0 +1,6 @@
+.DS_Store
+*.zwc
+zsh/.zplugins.zsh
+zsh/.zsh_sessions/
+keys/
+.ruff_cache/

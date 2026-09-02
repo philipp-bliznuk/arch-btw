@@ -1,0 +1,16 @@
+# Caching
+mroth/evalcache
+
+# Completions
+mattmc3/ez-compinit
+zsh-users/zsh-completions path:src kind:fpath
+aloxaf/fzf-tab kind:defer
+
+# Syntax highlighting
+zdharma-continuum/fast-syntax-highlighting kind:defer
+
+# Autosuggestions
+zsh-users/zsh-autosuggestions kind:defer
+
+# Misc
+jeffreytse/zsh-vi-mode

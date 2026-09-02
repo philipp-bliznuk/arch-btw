@@ -1,0 +1,21 @@
+# Dirs
+alias ..="cd .."
+alias ...="cd ../.."
+alias ....="cd ../../.."
+alias .....="cd ../../../.."
+alias ......="cd ../../../../.."
+
+# Eza (tiered)
+alias ls="eza --color=always --icons=always"
+alias ll="eza --color=always --long --git --icons=always"
+alias la="eza --color=always --long --git --all --icons=always"
+alias lt="eza --color=always --tree --level=2 --icons=always"
+
+alias pinentry='pinentry-curses'
+
+# Convenience
+alias n="nvim"
+alias dotf='cd "$HOME/projects/dotfiles/" && ${VISUAL:-${EDITOR:-nvim}}'
+
+# Yubikey resync
+alias yksync='gpg-connect-agent "scd serialno" "learn --force" /bye'
