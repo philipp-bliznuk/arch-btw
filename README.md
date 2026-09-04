@@ -176,11 +176,27 @@ ip addr show
 > a FIDO2 PIN set.
 
 ```bash
-# 1. Partition the disk
-#    p1: 2G  → EFI System
-#    p2: remainder → Linux filesystem
+# 1. Partition the disk interactively
 cfdisk $DISK
+```
 
+Walk through the `cfdisk` TUI (arrow keys to move, Enter to select):
+
+1. **Pick a label** — on a blank disk `cfdisk` asks for a label type. Choose
+   **`gpt`** (UEFI + systemd-boot require GPT; do not pick `dos`/MBR).
+2. **Partition 1 — EFI System (2G).** Select the `Free space` row → `[ New ]` →
+   size `2G` → Enter. Then `[ Type ]` → choose **`EFI System`**.
+3. **Partition 2 — LUKS container (rest of disk).** Select the remaining
+   `Free space` row → `[ New ]` → accept the default size (all that's left) →
+   Enter. Leave its type as the default **`Linux filesystem`** (the LUKS2
+   container lives inside it — no special type needed).
+4. **Commit.** `[ Write ]` → type `yes` → `[ Quit ]`. Nothing touches the disk
+   until you Write, so you can redo steps freely before then.
+
+Confirm the layout with `lsblk` — you should see `${DISK}1` (2G, EFI) and
+`${DISK}2` (remainder). Then format and encrypt:
+
+```bash
 # 2. Format the EFI partition
 mkfs.fat -F32 ${DISK}1
 
