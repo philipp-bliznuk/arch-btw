@@ -71,6 +71,66 @@ weeks.
 
 ---
 
+## Step 0 — Flash the Arch ISO to USB
+
+Download the ISO and its checksum from [archlinux.org/download](https://archlinux.org/download/),
+then verify before flashing:
+
+```sh
+# Both platforms — compare against sha256sums.txt from your mirror
+sha256sum archlinux-x86_64.iso        # Linux
+shasum -a 256 archlinux-x86_64.iso    # macOS
+```
+
+The Arch ISO is a hybrid image — raw `dd` is the intended method, no
+partitioning or formatting needed. **`dd` writes to a raw device with no
+confirmation; the wrong device name silently destroys that disk.** Identify the
+USB by size and double-check before pressing enter.
+
+### macOS
+
+```sh
+# 1. List disks — plug the USB in, run before/after to spot it by size
+diskutil list
+
+# 2. Unmount (not eject) — replace disk4 with your USB
+diskutil unmountDisk /dev/disk4
+
+# 3. Write. Note the raw device `rdisk4` (≈10× faster) and lowercase `bs=4m`
+sudo dd if=archlinux-x86_64.iso of=/dev/rdisk4 bs=4m status=progress
+
+# 4. Eject
+diskutil eject /dev/disk4
+```
+
+> **`rdisk` not `disk`.** `/dev/rdisk4` is the raw whole-disk node — far faster
+> and with no partition suffix (`s1`). macOS `dd` uses lowercase `bs=4m` (GNU
+> uses `4M`). If your `dd` rejects `status=progress`, drop it and press
+> `Ctrl-T` mid-write to print progress.
+
+### Linux
+
+```sh
+# 1. List block devices — identify the USB by size (e.g. /dev/sdb)
+lsblk
+
+# 2. Unmount any auto-mounted partitions (adjust the glob to your device)
+sudo umount /dev/sdb*   # ignore "not mounted" errors
+
+# 3. Write to the whole device (/dev/sdb, NOT a partition like /dev/sdb1)
+sudo dd if=archlinux-x86_64.iso of=/dev/sdb bs=4M status=progress oflag=sync
+
+# 4. Flush and eject
+sync
+sudo eject /dev/sdb
+```
+
+> **Write to the disk, not a partition** — `of=/dev/sdb`, never `/dev/sdb1`.
+> `bs=4M` (uppercase on GNU `dd`) sets a sane block size; `oflag=sync` plus the
+> trailing `sync` guarantee the write is flushed before you pull the stick.
+
+---
+
 ## Step 1 — Boot the Live Environment
 
 Boot the Arch ISO. You're now in a root shell on the live system.
