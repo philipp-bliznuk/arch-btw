@@ -10,7 +10,7 @@ This config is built from the ground up with a clear priority order:
 
 1. **Functionality** — every feature an IDE needs, nothing more
 2. **Performance** — 95ms bare startup, everything ready at first frame
-3. **Aesthetic** — consistent theming driven by a single `$THEME` env var
+3. **Aesthetic** — consistent catppuccin-mocha theming
 
 Core principles:
 
@@ -28,7 +28,7 @@ Core principles:
 - **Git** — gitsigns (gutter signs, hunk staging/reset, inline blame, diff) + lazygit via tmux popup
 - **Treesitter** — arborist.nvim for parser management, textobjects (`af/if/ac/ic/aa/ia`), sticky context header, autotag for HTML/JSX
 - **Session** — auto-save on quit, auto-restore on bare `nvim`
-- **8 colorschemes** — catppuccin, tokyonight, kanagawa, gruvbox, rose-pine, everforest, dracula, nord. Applied from `$THEME` env var on startup
+- **8 colorschemes** — catppuccin, tokyonight, kanagawa, gruvbox, rose-pine, everforest, dracula, nord. Defaults to catppuccin-mocha; `$THEME` overrides on startup
 - **File explorer** — yazi.nvim with LSP-aware rename/move (auto-updates imports)
 
 ## Screenshots
@@ -86,7 +86,7 @@ Core principles:
 | **mini.icons**                  | Filetype icons                      | Eager                       |
 | **mini.indentscope**            | Scope indent guide                  | On BufReadPost              |
 | **mini.surround**               | Add/delete/change surroundings      | On BufReadPost              |
-| **catppuccin/nvim**             | Colorscheme (or whichever $THEME)   | Eager (only active theme)   |
+| **catppuccin/nvim**             | Colorscheme (default)               | Eager (only active theme)   |
 
 ## LSP Servers
 
@@ -232,7 +232,7 @@ Leader key: `Space`
 
 ## Colorschemes
 
-Active theme reads from `$THEME` environment variable (set in `.zshenv`, propagated by `theme-switch` script). Only the active theme plugin is loaded at startup — others remain installed but not sourced.
+Defaults to `catppuccin-mocha`. Override by exporting `$THEME` before launch — only the active theme plugin is loaded at startup, others remain installed but not sourced.
 
 Supported values: `catppuccin-mocha`, `tokyo-night`, `kanagawa`, `gruvbox-dark`, `rose-pine`, `everforest`, `dracula`, `nord`
 

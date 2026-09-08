@@ -94,4 +94,4 @@ ya pkg upgrade
 - `ouch` — archive list/extract/compress
 - `yazi` — the file manager itself
 
-All installed via Brewfile.
+Installed via pacman (see the main install guide's Step 3 pacstrap).
