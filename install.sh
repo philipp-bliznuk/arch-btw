@@ -318,7 +318,7 @@ step_pacstrap() {
 	# SNAP_PAC_SKIP: snap-pac hook calls `ps` → "fatal library error, lookup self" in chroot (harmless)
 	SNAP_PAC_SKIP=yes pacstrap -K /mnt "${pkgs[@]}"
 	genfstab -U /mnt >>/mnt/etc/fstab
-	grep -q 'subvol=@' /mnt/etc/fstab || {
+	grep -qE 'subvol=/?@' /mnt/etc/fstab || { # kernel reports subvol=/@
 		err "fstab missing subvol entries."
 		exit 1
 	}
