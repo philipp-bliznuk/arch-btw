@@ -23,6 +23,7 @@ readonly LOG_FILE="/root/arch-install.log"
 
 PACKAGES=(
 	base linux linux-lts linux-firmware base-devel "<ucode>"
+	mkinitcpio dbus-broker-units crun pipewire-jack          # explicit providers: initramfs, dbus-units, oci-runtime, jack
 	git openssh btrfs-progs dosfstools neovim networkmanager # openssh = client only, no sshd
 	pipewire pipewire-pulse wireplumber
 	sudo zsh efibootmgr snapper snap-pac
@@ -311,7 +312,11 @@ _enroll_fido2() {
 step_pacstrap() {
 	pacman -Sy --noconfirm archlinux-keyring # stale ISO keyring → signature failures
 	local pkgs=("${PACKAGES[@]/<ucode>/$UCODE}")
-	pacstrap -K /mnt "${pkgs[@]}"
+	# Pre-create vconsole.conf: silences mkinitcpio "not found" warning during pacstrap's stock image build
+	mkdir -p /mnt/etc
+	echo "KEYMAP=${KEYMAP}" >/mnt/etc/vconsole.conf
+	# SNAP_PAC_SKIP: snap-pac hook calls `ps` → "fatal library error, lookup self" in chroot (harmless)
+	SNAP_PAC_SKIP=yes pacstrap -K /mnt "${pkgs[@]}"
 	genfstab -U /mnt >>/mnt/etc/fstab
 	grep -q 'subvol=@' /mnt/etc/fstab || {
 		err "fstab missing subvol entries."
