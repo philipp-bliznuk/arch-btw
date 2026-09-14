@@ -229,7 +229,9 @@ Scope {
                     highlightMoveDuration: 0
                     onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
 
+                    // qmllint disable unqualified
                     delegate: Rectangle {
+                        id: entry
                         required property var modelData
                         required property int index
                         width: list.width
@@ -246,7 +248,7 @@ Scope {
                             Item {
                                 width: 20
                                 height: parent.height
-                                readonly property string iconPath: parent.parent.modelData.icon ? Quickshell.iconPath(parent.parent.modelData.icon, true) : ""
+                                readonly property string iconPath: entry.modelData.icon ? Quickshell.iconPath(entry.modelData.icon, true) : ""
 
                                 IconImage {
                                     anchors.centerIn: parent
@@ -258,7 +260,7 @@ Scope {
                                 Text {
                                     anchors.centerIn: parent
                                     visible: parent.iconPath === ""
-                                    text: parent.parent.parent.modelData.glyph || Icons.apps
+                                    text: entry.modelData.glyph || Icons.apps
                                     color: Color.accent
                                     font.family: Style.fontFamily
                                     font.pixelSize: Style.fontIcon
@@ -267,7 +269,7 @@ Scope {
 
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: parent.parent.modelData.name
+                                text: entry.modelData.name
                                 color: Color.text
                                 font.family: Style.fontFamily
                                 font.pixelSize: Style.fontBody
@@ -278,7 +280,7 @@ Scope {
 
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: parent.parent.modelData.genericName || ""
+                                text: entry.modelData.genericName || ""
                                 color: Color.muted
                                 font.family: Style.fontFamily
                                 font.pixelSize: Style.fontSmall
@@ -289,7 +291,7 @@ Scope {
                             Text {
                                 id: check
                                 anchors.verticalCenter: parent.verticalCenter
-                                visible: parent.parent.modelData.checked === true
+                                visible: entry.modelData.checked === true
                                 text: "●"
                                 color: Color.green
                                 font.pixelSize: Style.fontSmall
@@ -300,10 +302,11 @@ Scope {
                             id: hover
                             anchors.fill: parent
                             hoverEnabled: true
-                            onClicked: root.activate(parent.modelData)
-                            onPositionChanged: root.selected = parent.index
+                            onClicked: root.activate(entry.modelData)
+                            onPositionChanged: root.selected = entry.index
                         }
                     }
+                    // qmllint enable unqualified
                 }
             }
         }

@@ -5,8 +5,8 @@ import qs.Commons
 Text {
     id: root
     property int maxWidth: 400
-    readonly property var top: ToplevelManager.activeToplevel
-    text: top ? (top.title || top.appId || "") : ""
+    readonly property var win: ToplevelManager.activeToplevel
+    text: win ? (win.title || win.appId || "") : ""
     visible: text !== ""
     width: Math.min(implicitWidth, maxWidth)
     elide: Text.ElideRight

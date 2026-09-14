@@ -20,7 +20,7 @@ function rootRows(I) {
     row("apps", "Apps", "Launch an application", I.apps, { section: "apps", keywords: ["launch", "run"] }),
     row("system", "System", "Lock, sleep, reboot, shutdown", I.power, { section: "system", keywords: ["power"] }),
     row("keybinds", "Keybindings", "Sway bindings from ~/.config/sway/config", I.keyboard, { section: "keybinds", keywords: ["shortcuts", "sway"] }),
-    row("tmux", "Tmux keybindings", "Bindings from tmux.conf", I.console, { section: "tmux", keywords: ["shortcuts"] }),
+    row("tmux", "Tmux keybindings", "Bindings from tmux.conf", I.terminal, { section: "tmux", keywords: ["shortcuts"] }),
     row("capture", "Capture", "Screenshots", I.camera, { section: "capture", keywords: ["screenshot", "grim"] }),
     row("toggle", "Toggle", "Stay awake, DND", I.toggle, { section: "toggle" }),
     row("setup", "Setup", "Edit configs, Wi-Fi, Bluetooth", I.cog, { section: "setup", keywords: ["config", "settings"] }),
@@ -130,7 +130,7 @@ function parseTmuxBinds(text, I) {
     if (!key) continue
     var cmd = parts.join(" ")
     var label = (table === "prefix" ? "C-s " : table === "root" ? "" : table + " ") + key
-    rows.push(row("tmux-" + i, label, cmd, I.console, { copy: cmd, keywords: cmd.split(/\s+/) }))
+    rows.push(row("tmux-" + i, label, cmd, I.terminal, { copy: cmd, keywords: cmd.split(/\s+/) }))
   }
   return rows
 }

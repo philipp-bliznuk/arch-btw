@@ -29,7 +29,7 @@ PACKAGES=(
 	sudo zsh efibootmgr snapper snap-pac
 	apparmor chrony firejail bubblewrap earlyoom ufw
 	pacman-contrib
-	polkit mesa sway swaylock swayidle quickshell
+	polkit mesa sway swaylock swayidle quickshell upower
 	wl-clipboard grim slurp ghostty xorg-xwayland
 	xdg-desktop-portal-wlr xdg-desktop-portal-gtk
 	ttf-jetbrains-mono-nerd noto-fonts noto-fonts-emoji
@@ -465,7 +465,7 @@ EOF
 	mkinitcpio -p linux
 	mkinitcpio -p linux-lts
 
-	systemctl enable NetworkManager apparmor earlyoom chronyd systemd-resolved
+	systemctl enable NetworkManager apparmor earlyoom chronyd systemd-resolved upower
 	systemctl enable systemd-boot-update.service # no pacman hook for systemd-boot on Arch
 	systemctl enable snapper-timeline.timer snapper-cleanup.timer
 	systemctl enable fstrim.timer paccache.timer

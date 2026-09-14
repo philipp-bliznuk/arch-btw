@@ -11,7 +11,7 @@ QtObject {
     readonly property string apps: g(0xF003B)
     readonly property string power: g(0xF0425)
     readonly property string keyboard: g(0xF030C)
-    readonly property string console: g(0xF018D)
+    readonly property string terminal: g(0xF018D)
     readonly property string camera: g(0xF0100)
     readonly property string toggle: g(0xF0521)
     readonly property string cog: g(0xF0493)

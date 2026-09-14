@@ -1,5 +1,4 @@
 import QtQuick
-import Quickshell
 import Quickshell.I3
 import qs.Commons
 
@@ -12,9 +11,11 @@ Row {
     Repeater {
         model: I3.workspaces
 
+        // qmllint disable unqualified
         Rectangle {
             required property I3Workspace modelData
             readonly property bool onThisMonitor: !root.monitor || !modelData.monitor || modelData.monitor === root.monitor
+            // qmllint enable unqualified
             visible: onThisMonitor
             width: visible ? Math.max(Style.pillHeight, label.implicitWidth + Style.pillPadding * 2) : 0
             height: Style.pillHeight

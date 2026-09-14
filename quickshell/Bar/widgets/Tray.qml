@@ -2,7 +2,6 @@ import QtQuick
 import Quickshell
 import Quickshell.Widgets
 import Quickshell.Services.SystemTray
-import qs.Commons
 import qs.Ui
 
 Pill {
@@ -18,19 +17,20 @@ Pill {
             model: SystemTray.items
 
             Item {
+                id: item
                 required property SystemTrayItem modelData
                 width: 16
                 height: 16
 
                 IconImage {
                     anchors.fill: parent
-                    source: parent.modelData.icon
+                    source: item.modelData.icon
                 }
 
                 QsMenuAnchor {
                     id: menu
-                    menu: parent.modelData.menu
-                    anchor.item: parent
+                    menu: item.modelData.menu
+                    anchor.item: item
                     anchor.edges: Edges.Bottom
                 }
 
@@ -38,7 +38,7 @@ Pill {
                     anchors.fill: parent
                     acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
                     onClicked: m => {
-                        const it = parent.modelData
+                        const it = item.modelData
                         if (m.button === Qt.RightButton || it.onlyMenu) {
                             if (it.hasMenu)
                                 menu.open()
