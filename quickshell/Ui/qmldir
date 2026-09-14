@@ -1,0 +1,4 @@
+module qs.Ui
+Pill 1.0 Pill.qml
+Glyph 1.0 Glyph.qml
+Stacked 1.0 Stacked.qml

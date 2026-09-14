@@ -309,7 +309,7 @@ link() {
 
 step_dotfiles() {
 	local pkg
-	for pkg in bat fastfetch ghostty git nvim quickshell ruff sway tmux yazi zsh; do
+	for pkg in bat fastfetch ghostty git nvim quickshell ruff sway tmux wallpapers yazi zsh; do
 		link "$DOTFILES/$pkg" "$XDG_CONFIG_HOME/$pkg"
 	done
 	link "$DOTFILES/jj/config.toml" "$XDG_CONFIG_HOME/jj/config.toml"
