@@ -48,6 +48,9 @@ export EDITOR="nvim"
 export VISUAL="nvim"
 export PAGER="less -FX"
 
+# Dotfiles helper scripts (dotfiles/bin -> ~/.local/bin)
+export PATH="$HOME/.local/bin:$PATH"
+
 # Go
 export GOPATH=$HOME/go
 

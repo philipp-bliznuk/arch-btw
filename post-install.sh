@@ -316,6 +316,8 @@ step_dotfiles() {
 	link "$DOTFILES/containers/containers.conf" "$XDG_CONFIG_HOME/containers/containers.conf"
 	link "$DOTFILES/containers/registries.conf" "$XDG_CONFIG_HOME/containers/registries.conf"
 	link "$DOTFILES/zsh/.zshenv" "$HOME/.zshenv" # only file in $HOME; bootstraps ZDOTDIR
+	link "$DOTFILES/bin" "$HOME/.local/bin"      # qs-* helper scripts (sway binds + Quickshell call them)
+	mkdir -p "$HOME/.local/state/qs/toggles"
 
 	rm -f "$HOME/.zshrc" # install-time placeholder
 	xdg-user-dirs-update

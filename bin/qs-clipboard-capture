@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# qs-clipboard-capture <text|image>
+# `wl-paste --watch` target. Appends to ~/.local/state/qs/clipboard.json (cap 200),
+# images stored by sha256 under clipboard-images/. Skips password-manager and oversized payloads.
+set -Eeuo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+kind="${1:?text|image}"
+state="${XDG_STATE_HOME:-$HOME/.local/state}/qs"
+db="$state/clipboard.json"
+imgdir="$state/clipboard-images"
+max_bytes=$((256 * 1024))
+cap=200
+umask 077
+mkdir -p "$imgdir"
+[[ -s "$db" ]] || echo '[]' >"$db"
+
+# wl-paste sets CLIPBOARD_STATE=sensitive when the source offers x-kde-passwordManagerHint (1Password etc.)
+[[ "${CLIPBOARD_STATE:-}" != "sensitive" ]] || exit 0
+
+payload="$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/qs-clip.XXXXXX")"
+trap 'rm -f "$payload"' EXIT
+cat >"$payload"
+size=$(stat -c %s "$payload")
+((size > 0)) || exit 0
+
+now=$(date +%s%3N)
+tmp="$db.tmp"
+
+case "$kind" in
+text)
+	((size <= max_bytes)) || exit 0
+	text="$(tr -d '\0' <"$payload")"
+	[[ -n "${text//[[:space:]]/}" ]] || exit 0
+	jq --arg t "$text" --argjson now "$now" --argjson cap "$cap" \
+		'[{kind:"text", text:$t, time:$now}] + map(select(.kind != "text" or .text != $t)) | .[:$cap]' \
+		"$db" >"$tmp"
+	;;
+image)
+	sha="$(sha256sum "$payload" | cut -c1-32)"
+	file="$imgdir/$sha.png"
+	[[ -e "$file" ]] || cp "$payload" "$file"
+	jq --arg f "$file" --argjson now "$now" --argjson cap "$cap" --argjson size "$size" \
+		'[{kind:"image", file:$f, size:$size, time:$now}] + map(select(.kind != "image" or .file != $f)) | .[:$cap]' \
+		"$db" >"$tmp"
+	;;
+*) exit 2 ;;
+esac
+
+mv -f "$tmp" "$db"
+"$here"/qs-shell -q clipboard refresh

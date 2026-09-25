@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# qs-toggle <name> [on|off]
+# Flag file ~/.local/state/qs/toggles/<name> + side effect. No arg = flip.
+# Names: awake (systemd-inhibit idle), nightlight (wlsunset), dnd, bar-hidden.
+set -Eeuo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+state="${XDG_STATE_HOME:-$HOME/.local/state}/qs"
+dir="$state/toggles"
+mkdir -p "$dir"
+
+name="${1:?usage: qs-toggle <name> [on|off]}"
+mode="${2:-}"
+flag="$dir/$name"
+
+if [[ -z "$mode" ]]; then
+	[[ -e "$flag" ]] && mode=off || mode=on
+fi
+
+# Background helpers run as transient user units: idempotent, inspectable
+# (`systemctl --user status qs-<name>`), die cleanly on stop.
+start_daemon() {
+	local unit="$1"
+	shift
+	systemctl --user is-active --quiet "$unit" && return 0
+	systemd-run --user --quiet --collect --unit "$unit" \
+		--setenv=WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
+		--setenv=XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
+		"$@"
+}
+
+stop_daemon() {
+	systemctl --user stop --quiet "$1" 2>/dev/null || true
+}
+
+case "$name" in
+awake)
+	if [[ "$mode" == on ]]; then
+		start_daemon qs-awake systemd-inhibit --what=idle --who=qs --why="Stay awake" sleep infinity
+	else
+		stop_daemon qs-awake
+	fi
+	;;
+nightlight)
+	if [[ "$mode" == on ]]; then
+		command -v wlsunset >/dev/null || {
+			"$here"/qs-notify -u low "Night light" "wlsunset not installed"
+			exit 1
+		}
+		start_daemon qs-nightlight wlsunset -T 6500 -t 4000
+	else
+		stop_daemon qs-nightlight
+	fi
+	;;
+dnd | bar-hidden) ;;
+*)
+	echo "qs-toggle: unknown toggle '$name'" >&2
+	exit 2
+	;;
+esac
+
+if [[ "$mode" == on ]]; then
+	touch "$flag"
+else
+	rm -f "$flag"
+fi
+
+"$here"/qs-shell -q toggles refresh

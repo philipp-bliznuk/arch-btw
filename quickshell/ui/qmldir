@@ -1,0 +1,8 @@
+module qs.ui
+Pill 1.0 Pill.qml
+Glyph 1.0 Glyph.qml
+Stacked 1.0 Stacked.qml
+Field 1.0 Field.qml
+PopupCard 1.0 PopupCard.qml
+Slider 1.0 Slider.qml
+MenuRow 1.0 MenuRow.qml

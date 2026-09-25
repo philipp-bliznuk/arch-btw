@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# qs-notify [-u low|normal|critical] [-i icon] [-t ms] [-a app] <summary> [body]
+# notify-send replacement via busctl (no libnotify dependency).
+set -Eeuo pipefail
+
+urgency=1 icon="" timeout=-1 app="qs"
+while getopts 'u:i:t:a:' opt; do
+	case "$opt" in
+	u) case "$OPTARG" in
+		low) urgency=0 ;;
+		critical) urgency=2 ;;
+		*) urgency=1 ;;
+		esac ;;
+	i) icon="$OPTARG" ;;
+	t) timeout="$OPTARG" ;;
+	a) app="$OPTARG" ;;
+	*) exit 2 ;;
+	esac
+done
+shift $((OPTIND - 1))
+summary="${1:?usage: qs-notify [-u urgency] [-i icon] <summary> [body]}"
+body="${2:-}"
+
+busctl --user --quiet call org.freedesktop.Notifications /org/freedesktop/Notifications \
+	org.freedesktop.Notifications Notify 'susssasa{sv}i' \
+	"$app" 0 "$icon" "$summary" "$body" 0 1 urgency y "$urgency" -- "$timeout"

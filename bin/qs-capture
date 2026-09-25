@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# qs-capture <region|screen|window|region-clip|color>
+# Screenshots to ~/Pictures/shot-<stamp>.png (grim + slurp), colour picker to clipboard.
+set -Eeuo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+dir="${XDG_PICTURES_DIR:-$HOME/Pictures}"
+mkdir -p "$dir"
+out="$dir/shot-$(date +%Y%m%d-%H%M%S).png"
+
+focused_rect() {
+	swaymsg -t get_tree | jq -r '.. | select(.focused? == true) | .rect | "\(.x),\(.y) \(.width)x\(.height)"'
+}
+
+done_msg() {
+	"$here"/qs-notify -i camera-photo "Screenshot" "$1"
+}
+
+case "${1:?usage: qs-capture <region|screen|window|region-clip|color>}" in
+region)
+	geo="$(slurp)" || exit 0
+	grim -g "$geo" "$out" && done_msg "Saved ${out/#$HOME/~}"
+	;;
+screen)
+	grim "$out" && done_msg "Saved ${out/#$HOME/~}"
+	;;
+window)
+	grim -g "$(focused_rect)" "$out" && done_msg "Saved ${out/#$HOME/~}"
+	;;
+region-clip)
+	geo="$(slurp)" || exit 0
+	grim -g "$geo" - | wl-copy && done_msg "Region copied to clipboard"
+	;;
+color)
+	pos="$(slurp -p)" || exit 0
+	hex="$(grim -g "$pos" -t ppm - | tail -c 3 | od -An -tx1 | tr -d ' \n')"
+	printf '#%s' "$hex" | wl-copy
+	"$here"/qs-notify -i color-picker "Color picked" "#$hex copied"
+	;;
+*)
+	echo "qs-capture: unknown mode '$1'" >&2
+	exit 2
+	;;
+esac

@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# qs-session [start|restart|stop]
+# Sway-side shell bootstrap (dwm-titus two-phase startup):
+#   1. push Wayland env into systemd --user + dbus so transient units and portals see it
+#   2. start quickshell once (idempotent), wait until IPC answers
+#   3. re-apply persistent toggles (nightlight / stay-awake) after a restart
+set -Eeuo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+state="${XDG_STATE_HOME:-$HOME/.local/state}/qs"
+mkdir -p "$state/toggles"
+
+import_env() {
+	systemctl --user import-environment WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP XDG_SESSION_TYPE 2>/dev/null || true
+	dbus-update-activation-environment --systemd WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP XDG_SESSION_TYPE 2>/dev/null || true
+}
+
+start_qs() {
+	pgrep -x quickshell >/dev/null && return 0
+	setsid -f quickshell >/dev/null 2>&1
+}
+
+stop_qs() {
+	pkill -x quickshell 2>/dev/null || true
+	for _ in $(seq 1 30); do
+		pgrep -x quickshell >/dev/null || return 0
+		sleep 0.1
+	done
+	pkill -9 -x quickshell 2>/dev/null || true
+}
+
+wait_ready() {
+	for _ in $(seq 1 50); do
+		if [[ "$(qs ipc call shell ping 2>/dev/null || true)" == "pong" ]]; then
+			return 0
+		fi
+		sleep 0.1
+	done
+	echo "qs-session: quickshell did not answer IPC within 5s" >&2
+	return 1
+}
+
+reapply_toggles() {
+	local name
+	for name in nightlight awake; do
+		[[ -e "$state/toggles/$name" ]] && "$here"/qs-toggle "$name" on
+	done
+	return 0
+}
+
+case "${1:-start}" in
+start)
+	import_env
+	start_qs
+	wait_ready
+	reapply_toggles
+	;;
+restart)
+	stop_qs
+	start_qs
+	wait_ready
+	reapply_toggles
+	;;
+stop) stop_qs ;;
+*)
+	echo "usage: qs-session [start|restart|stop]" >&2
+	exit 2
+	;;
+esac

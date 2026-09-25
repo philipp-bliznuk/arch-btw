@@ -1,0 +1,9 @@
+module qs.core
+singleton Color 1.0 Color.qml
+singleton Style 1.0 Style.qml
+singleton Util 1.0 Util.qml
+singleton Icons 1.0 Icons.qml
+singleton Commands 1.0 Commands.qml
+singleton Toggles 1.0 Toggles.qml
+singleton SwayState 1.0 SwayState.qml
+singleton Popups 1.0 Popups.qml

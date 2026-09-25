@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# qs-wallpaper <set PATH | next | random | current>
+# Points ~/.local/state/qs/background at a file in ~/.config/wallpapers; Quickshell watches the link.
+set -Eeuo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+state="${XDG_STATE_HOME:-$HOME/.local/state}/qs"
+link="$state/background"
+dir="$HOME/.config/wallpapers"
+mkdir -p "$state"
+
+list() {
+	find -L "$dir" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) | sort
+}
+
+current() {
+	readlink -e "$link" 2>/dev/null || true
+}
+
+set_wp() {
+	local target="$1"
+	[[ -f "$target" ]] || {
+		echo "qs-wallpaper: not a file: $target" >&2
+		exit 1
+	}
+	ln -sfn "$(realpath "$target")" "$link.tmp"
+	mv -T "$link.tmp" "$link"
+	"$here"/qs-shell -q background refresh
+}
+
+case "${1:-current}" in
+set) set_wp "${2:?usage: qs-wallpaper set PATH}" ;;
+next)
+	mapfile -t all < <(list)
+	((${#all[@]})) || exit 1
+	cur="$(current)"
+	idx=0
+	for i in "${!all[@]}"; do
+		[[ "${all[$i]}" == "$cur" ]] && idx=$(((i + 1) % ${#all[@]}))
+	done
+	set_wp "${all[$idx]}"
+	;;
+random)
+	mapfile -t all < <(list)
+	((${#all[@]})) || exit 1
+	set_wp "${all[RANDOM % ${#all[@]}]}"
+	;;
+current) current ;;
+list) list ;;
+*)
+	echo "qs-wallpaper: unknown command '$1'" >&2
+	exit 2
+	;;
+esac

@@ -12,6 +12,8 @@
 #         --phase chroot internal re-entry inside arch-chroot
 # Debug:  DEBUG=1 bash install.sh
 
+# Whole body wrapped in { } so a truncated download is a syntax error, not a half-run install.
+{
 set -Eeuo pipefail
 
 readonly HOSTNAME="arch-btw"
@@ -20,6 +22,7 @@ readonly KEYMAP="us"
 readonly TIMEZONE_ROOT="/usr/share/zoneinfo"
 readonly DOTFILES_HTTPS="https://github.com/philipp-bliznuk/arch-btw.git"
 readonly LOG_FILE="/root/arch-install.log"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 PACKAGES=(
 	base linux linux-lts linux-firmware base-devel "<ucode>"
@@ -34,6 +37,7 @@ PACKAGES=(
 	xdg-desktop-portal-wlr xdg-desktop-portal-gtk
 	ttf-jetbrains-mono-nerd noto-fonts noto-fonts-emoji
 	brightnessctl playerctl xdg-user-dirs man-db man-pages
+	wlsunset power-profiles-daemon # night light (qs-toggle), battery power profiles (Quickshell battery popup)
 	bluez bluez-utils
 	libqalculate systemd-ukify btrfs-assistant
 	pam-u2f libfido2 yubikey-manager ccid pcsc-tools
@@ -342,8 +346,17 @@ step_chroot() {
 step_dotfiles_clone() {
 	# runuser keeps HOME=/root → git EACCES on /root/.gitconfig; set HOME explicitly.
 	local home="/home/$USERNAME"
-	arch-chroot /mnt runuser -u "$USERNAME" -- env HOME="$home" \
-		git clone "$DOTFILES_HTTPS" "$home/projects/dotfiles"
+	if [[ -f "$SCRIPT_DIR/post-install.sh" && -d "$SCRIPT_DIR/.git" ]]; then
+		# Running from a local checkout (VM/branch testing): install that tree instead of cloning master.
+		info "Using local dotfiles checkout: $SCRIPT_DIR"
+		mkdir -p "/mnt$home/projects"
+		git clone --quiet "$SCRIPT_DIR" "/mnt$home/projects/dotfiles"
+		git -C "/mnt$home/projects/dotfiles" remote set-url origin "$DOTFILES_HTTPS"
+		arch-chroot /mnt chown -R "$USERNAME:$USERNAME" "$home/projects"
+	else
+		arch-chroot /mnt runuser -u "$USERNAME" -- env HOME="$home" \
+			git clone "$DOTFILES_HTTPS" "$home/projects/dotfiles"
+	fi
 	arch-chroot /mnt runuser -u "$USERNAME" -- env HOME="$home" touch "$home/.zshrc" # silences zsh-newuser-install
 }
 
@@ -465,7 +478,7 @@ EOF
 	mkinitcpio -p linux
 	mkinitcpio -p linux-lts
 
-	systemctl enable NetworkManager apparmor earlyoom chronyd systemd-resolved upower
+	systemctl enable NetworkManager apparmor earlyoom chronyd systemd-resolved upower power-profiles-daemon
 	systemctl enable systemd-boot-update.service # no pacman hook for systemd-boot on Arch
 	systemctl enable snapper-timeline.timer snapper-cleanup.timer
 	systemctl enable fstrim.timer paccache.timer
@@ -611,3 +624,4 @@ chroot) chroot_phase ;;
 	exit 1
 	;;
 esac
+} # end of partial-download guard

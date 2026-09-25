@@ -125,6 +125,44 @@ After one clean boot into Sway:
 
 ---
 
+## Desktop shell (Sway + Quickshell)
+
+One Quickshell process owns everything except lock/idle (`swaylock`/`swayidle` stay). `sway/config` is the single source of truth for keybindings — the launcher parses it live. Helper scripts live in `bin/` (→ `~/.local/bin`, prefix `qs-`); QML rows are data, `core/Commands.qml` is the only exec path.
+
+```
+quickshell/
+├── shell.qml          root: services + panel + launcher, IPC targets
+├── core/              Color Style Icons Util Commands Toggles SwayState Popups (singletons)
+├── ui/                Pill Glyph Stacked Field Slider MenuRow PopupCard
+├── panel/             Panel.qml, AudioPopup.qml, widgets/ (Menu Workspaces RunningApps Disk Ram Cpu NetRate Media
+│                      ActiveWindow Indicators Tray Mic Volume BluetoothPill Network Battery KeyboardLayout Clock)
+├── launcher/          Launcher.qml MenuModel.js AppSearch.js   (apps, system, keybinds, capture, toggle, setup, …)
+├── notifications/     org.freedesktop.Notifications daemon (popups + history)
+├── polkit/            polkit authentication agent
+├── osd/               volume / mic / brightness OSD
+├── clipboard/         clipboard history (wl-paste watchers → bin/qs-clipboard-capture)
+└── background/        wallpaper layer (symlink ~/.local/state/qs/background)
+```
+
+| `bin/`                 | Purpose                                                                  |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `qs-shell [-q] T FN`   | `qs ipc call` wrapper                                                    |
+| `qs-session`           | `start` (sway `exec`), `restart` (`$mod+Shift+r`), `stop`                 |
+| `qs-toggle NAME`       | `awake` `nightlight` `dnd` `bar-hidden` — flag files + transient units   |
+| `qs-capture MODE`      | `region` `window` `screen` `region-clip` `color`                          |
+| `qs-wallpaper`         | `set PATH` `next` `random` `current` `list`                               |
+| `qs-notify`            | `notify-send` via `busctl`                                                |
+| `qs-select PROMPT …`   | dmenu-style picker using the launcher                                    |
+| `qs-clipboard-capture` | internal, `wl-paste --watch` target                                       |
+
+State: `~/.local/state/qs/` (`toggles/`, `notifications.json`, `clipboard.json`, `clipboard-images/`, `background`). Clipboard history skips `x-kde-passwordManagerHint` sources (1Password) — the file is still plaintext, rely on LUKS.
+
+IPC targets: `launcher` (toggle/open/close/select) · `notifications` (toggleDnd/clear/clearHistory/count) · `clipboard` (refresh/clear/count) · `osd` (brightness/volume/mic) · `background` (refresh/current) · `toggles` (refresh) · `polkit` (status) · `shell` (ping).
+
+Lint: `quickshell/lint.sh` (qmllint, must be clean).
+
+---
+
 ## Recovery
 
 - Broken boot: systemd-boot menu → older snapshot UKI → **btrfs-assistant → Restore**. Not `snapper rollback` (openSUSE layout).
