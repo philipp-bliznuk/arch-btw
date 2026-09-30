@@ -1,22 +1,37 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import Quickshell
 import qs.core
 import qs.ui
 
-// Manual-state glyphs, hidden until something is active (omarchy pattern).
-Pill {
+// Hidden-until-active state glyphs (stay awake, reboot required). DND and
+// night light have their own always-visible segments.
+Segment {
     id: root
-    readonly property var items: [
-        { name: "awake", glyph: Icons.eye, tip: "Stay awake" },
-        { name: "nightlight", glyph: Icons.moon, tip: "Night light" },
-        { name: "dnd", glyph: Icons.bellOff, tip: "Do not disturb" },
+    readonly property var toggles: [
+        {
+            name: "awake",
+            glyph: Icons.eye,
+            color: Color.yellow,
+            tip: "Stay awake"
+        }
     ].filter(i => Toggles.has(i.name))
+    readonly property var items: toggles.concat(System.rebootRequired ? [
+        {
+            name: "reboot",
+            glyph: Icons.restart,
+            color: Color.peach,
+            tip: "Reboot required · " + System.summary
+        }
+    ] : [])
 
     visible: items.length > 0
-    hoverable: false
+    tooltip: items.map(i => i.tip).join(" · ")
+    onClicked: Quickshell.execDetached([Util.bin("qs-shell"), "-q", "launcher", "open", System.rebootRequired ? "system" : "toggle"])
 
     content: Row {
-        spacing: 6
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.spaceSm
 
         Repeater {
             model: root.items
@@ -24,7 +39,7 @@ Pill {
             Glyph {
                 required property var modelData
                 text: modelData.glyph
-                glyphColor: Color.yellow
+                glyphColor: modelData.color
             }
         }
     }

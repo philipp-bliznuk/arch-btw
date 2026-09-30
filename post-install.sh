@@ -28,6 +28,8 @@ readonly STEPS=(
 	"luks_header:step_luks_header"
 	"sdboot_snaps:step_sdboot_snaps"
 	"firewall:step_firewall"
+	"pacman_hooks:step_pacman_hooks"
+	"gpu_helper:step_gpu_helper"
 	"yubikey_pam:step_yubikey_pam"
 	"librewolf:step_librewolf"
 	"firecfg:step_firecfg"
@@ -247,6 +249,50 @@ step_firewall() {
 	sudo ufw --force enable
 }
 
+# Flag /run/reboot-required (tmpfs → cleared by the reboot itself) after
+# user-space packages that need one. Kernels are detected at runtime by the
+# shell (/usr/lib/modules/$(uname -r) vanishes on upgrade), so no Target here.
+step_pacman_hooks() {
+	sudo mkdir -p /etc/pacman.d/hooks
+	sudo tee /etc/pacman.d/hooks/zz-reboot-required.hook >/dev/null <<'EOF'
+[Trigger]
+Operation = Upgrade
+Operation = Install
+Type = Package
+Target = systemd
+Target = glibc
+Target = dbus
+Target = dbus-broker
+Target = linux-firmware
+Target = amd-ucode
+Target = intel-ucode
+Target = mesa
+Target = cryptsetup
+Target = btrfs-progs
+
+[Action]
+Description = Flagging reboot-required...
+When = PostTransaction
+NeedsTargets
+Exec = /bin/sh -c 'cat >> /run/reboot-required'
+EOF
+}
+
+# Intel GPU busy % needs the i915 PMU → CAP_PERFMON. Build the tiny helper
+# from bin/src, install root-owned (a user-writable file would lose the cap).
+step_gpu_helper() {
+	[[ -d /sys/bus/event_source/devices/i915 ]] || {
+		info "No i915 PMU (not an Intel GPU) — Metrics falls back to sysfs."
+		return 0
+	}
+	local src="$DOTFILES/bin/src/qs-gpu-busy.c" tmp
+	tmp="$(mktemp)"
+	gcc -O2 -Wall -o "$tmp" "$src"
+	sudo install -o root -g root -m 755 "$tmp" /usr/local/bin/qs-gpu-busy
+	sudo setcap cap_perfmon=ep /usr/local/bin/qs-gpu-busy
+	rm -f "$tmp"
+}
+
 step_yubikey_pam() {
 	sudo systemctl enable --now pcscd.socket
 
@@ -274,21 +320,40 @@ step_yubikey_pam() {
 	sudo true && success "sudo works." || warn "Test failed — password still works; verify $pam before logging out."
 }
 
+# LibreWolf ≥ 156 keeps its profile in $XDG_CONFIG_HOME/librewolf/librewolf,
+# but the firejail 0.9.80 profile only whitelists legacy ~/.librewolf → the
+# profile landed on the sandbox tmpfs and was lost every launch. Whitelist the
+# XDG dir and put the overrides where prefcalls.js actually reads them:
+# $XDG_CONFIG_HOME/librewolf/librewolf/librewolf.overrides.cfg (yes, twice).
 step_librewolf() {
-	mkdir -p "$HOME/.librewolf"
-	cat >"$HOME/.librewolf/librewolf.overrides.cfg" <<'EOF'
+	local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/librewolf/librewolf"
+	sudo tee /etc/firejail/librewolf.local >/dev/null <<EOF
+# XDG profile dir (firejail's stock profile predates LibreWolf's move)
+noblacklist \${HOME}/.config/librewolf
+mkdir \${HOME}/.config/librewolf
+whitelist \${HOME}/.config/librewolf
+EOF
+	mkdir -p "$cfg" "$HOME/.librewolf"
+	cat >"$cfg/librewolf.overrides.cfg" <<'EOF'
 defaultPref("privacy.resistFingerprinting.letterboxing", true);
 defaultPref("network.http.referer.XOriginPolicy", 2);
 defaultPref("media.autoplay.blocking_policy", 2);
 defaultPref("librewolf.webgl.prompt", true);
 defaultPref("librewolf.webgl.prompt.hide", false);
+// Hardware video decode via VA-API (intel-media-driver / libva-mesa-driver).
+// AV1 off: pre-Tiger-Lake iGPUs lack an AV1 decoder, and sites pick AV1 when
+// offered → software decode. Disabling it makes them serve VP9/H.264 instead.
+defaultPref("media.ffmpeg.vaapi.enabled", true);
+defaultPref("media.hardware-video-decoding.force-enabled", true);
+defaultPref("media.av1.enabled", false);
 // Extension CSP firewall — blocks uBlock Origin filter-list updates.
 defaultPref("extensions.webextensions.base-content-security-policy",
             "default-src 'none'; script-src 'none'; object-src 'none';");
 defaultPref("extensions.webextensions.base-content-security-policy.v3",
             "default-src 'none'; script-src 'none'; object-src 'none';");
 EOF
-	success "librewolf.overrides.cfg written."
+	ln -sfn "$cfg/librewolf.overrides.cfg" "$HOME/.librewolf/librewolf.overrides.cfg"
+	success "librewolf.overrides.cfg written to $cfg (legacy ~/.librewolf symlinked)."
 }
 
 step_firecfg() {

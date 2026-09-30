@@ -68,6 +68,27 @@ Scope {
         Toggles.flip("dnd");
     }
 
+    function latest() {
+        return popups.length ? popups[popups.length - 1] : null;
+    }
+
+    function dismissLatest() {
+        const n = latest();
+        if (n)
+            n.dismiss();
+    }
+
+    function actionLatest() {
+        const n = latest();
+        if (!n)
+            return;
+        const a = n.actions.find(x => x.identifier === "default") ?? n.actions[0];
+        if (a)
+            a.invoke();
+        if (!n.resident)
+            n.dismiss();
+    }
+
     NotificationServer {
         id: server
         keepOnReload: false
@@ -123,6 +144,14 @@ Scope {
 
         function count(): int {
             return root.popups.length;
+        }
+
+        function dismissLatest(): void {
+            root.dismissLatest();
+        }
+
+        function actionLatest(): void {
+            root.actionLatest();
         }
     }
 }

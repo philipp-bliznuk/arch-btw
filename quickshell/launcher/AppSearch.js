@@ -1,134 +1,75 @@
-function entryName(entry) {
-  return String((entry && entry.name) || (entry && entry.id) || "")
-}
+// Ranked search over launcher rows { id, name, genericName, keywords, comment }.
+// Tiers (higher wins): exact > prefix > word-prefix > substring > fuzzy
+// (subsequence). Equal tier → frecency (Usage.js score) → shorter name → a-z.
+.pragma library
 
-function entrySubtext(entry) {
-  return String((entry && entry.genericName) || "")
-}
-
-function entrySortKey(entry) {
-  return entryName(entry).toLowerCase()
+function text(v) {
+  return String(v || "").toLowerCase()
 }
 
 function keywordText(entry) {
+  var k = entry && entry.keywords
+  if (!k) return ""
   try {
-    if (entry && entry.keywords && typeof entry.keywords.join === "function") return entry.keywords.join(" ")
+    return typeof k.join === "function" ? k.join(" ") : String(k)
   } catch (e) {
+    return ""
   }
-  return ""
 }
 
-function entrySearchText(entry) {
-  if (!entry) return ""
-  return [entry.name, entry.genericName, entry.comment, keywordText(entry), entry.id].join(" ").toLowerCase()
+function words(s) {
+  return text(s).replace(/([a-z0-9])([A-Z])/g, "$1 $2").split(/[^a-z0-9]+/).filter(function (w) { return w })
 }
 
-function wordText(value) {
-  return String(value || "")
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/[._:/\\-]+/g, " ")
-    .toLowerCase()
+function subsequence(hay, needle) {
+  var i = 0
+  for (var j = 0; j < hay.length && i < needle.length; j++) if (hay[j] === needle[i]) i++
+  return i === needle.length
 }
 
-function words(value) {
-  var values = wordText(value).split(/[^a-z0-9]+/)
-  var result = []
-  for (var i = 0; i < values.length; i++) {
-    if (values[i]) result.push(values[i])
-  }
-  return result
+// Score one term against one entry. 0 = no match.
+function termScore(entry, term) {
+  var name = text(entry.name)
+  var id = text(entry.id)
+  if (name === term || id === term) return 500
+  if (name.indexOf(term) === 0) return 400 - name.length
+  var ws = words(entry.name).concat(words(entry.genericName), words(keywordText(entry)))
+  for (var i = 0; i < ws.length; i++) if (ws[i].indexOf(term) === 0) return 300 - i
+  var hay = [name, text(entry.genericName), text(entry.comment), text(keywordText(entry)), id].join(" ")
+  var at = hay.indexOf(term)
+  if (at >= 0) return 200 - Math.min(at, 99)
+  if (term.length >= 2 && subsequence(name, term)) return 100 - name.length
+  return 0
 }
 
-function entryAcronym(entry) {
-  var values = words([entry && entry.name, entry && entry.genericName, keywordText(entry), entry && entry.id].join(" "))
-  var result = ""
-  for (var i = 0; i < values.length; i++) result += values[i].charAt(0)
-  return result
-}
-
-function termMatches(entry, term) {
-  if (!term) return true
-
-  var name = entryName(entry).toLowerCase()
-  var id = String((entry && entry.id) || "").toLowerCase()
-  var haystack = entrySearchText(entry)
-
-  if (name.indexOf(term) >= 0) return true
-  if (id.indexOf(term) >= 0) return true
-  if (haystack.indexOf(term) >= 0) return true
-
-  return term.length <= 5 && entryAcronym(entry).indexOf(term) >= 0
-}
-
-function allTermsMatch(entry, query) {
-  var terms = String(query || "").toLowerCase().trim().split(/\s+/)
+function score(entry, query) {
+  var terms = text(query).trim().split(/\s+/).filter(function (t) { return t })
+  if (!terms.length) return 1
+  var total = 0
   for (var i = 0; i < terms.length; i++) {
-    if (terms[i] && !termMatches(entry, terms[i])) return false
+    var s = termScore(entry, terms[i])
+    if (!s) return 0
+    total += s
   }
-  return true
+  return total
 }
 
-function fuzzyScore(entry, query) {
-  var q = String(query || "").trim().toLowerCase()
-  if (!q) return 0
-  if (!allTermsMatch(entry, q)) return -1
-
-  var name = entryName(entry).toLowerCase()
-  var id = String((entry && entry.id) || "").toLowerCase()
-  var haystack = entrySearchText(entry)
-  var directName = name.indexOf(q)
-  var directId = id.indexOf(q)
-  if (directName === 0) return 10000 - name.length
-  if (directId === 0) return 9500 - id.length
-  if (directName > 0) return 8000 - directName * 10 - name.length
-  if (directId > 0) return 7600 - directId * 10 - id.length
-
-  var hayIndex = haystack.indexOf(q)
-  if (hayIndex >= 0) return 6000 - hayIndex
-
-  var acronym = entryAcronym(entry)
-  var acronymIndex = acronym.indexOf(q)
-  if (acronymIndex === 0) return 5000 - acronym.length
-  if (acronymIndex > 0) return 4600 - acronymIndex * 10 - acronym.length
-
-  return 4000 - name.length
-}
-
-function sortedEntries(values, query, hiddenCallback) {
+// usage: optional function(id) -> frecency number
+function sorted(values, query, usage) {
   var q = String(query || "").trim()
   var rows = []
-
   for (var i = 0; i < values.length; i++) {
-    var entry = values[i]
-    if (!entry || entry.noDisplay) continue
-    if (hiddenCallback && hiddenCallback(entry)) continue
-    var name = entryName(entry)
-    if (!name) continue
-    var score = fuzzyScore(entry, q)
-    if (score < 0) continue
-    rows.push({ entry: entry, score: score, key: entrySortKey(entry), name: name.toLowerCase() })
+    var e = values[i]
+    if (!e || !e.name) continue
+    var s = score(e, q)
+    if (!s) continue
+    rows.push({ entry: e, score: s, use: usage ? usage(e.id) : 0, key: text(e.name) })
   }
-
-  rows.sort(function(a, b) {
+  rows.sort(function (a, b) {
     if (q && a.score !== b.score) return b.score - a.score
-    if (a.key < b.key) return -1
-    if (a.key > b.key) return 1
-    if (a.name < b.name) return -1
-    if (a.name > b.name) return 1
-    return 0
+    if (a.use !== b.use) return b.use - a.use
+    if (q && a.key.length !== b.key.length) return a.key.length - b.key.length
+    return a.key < b.key ? -1 : a.key > b.key ? 1 : 0
   })
-
-  return rows
-}
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    entryName: entryName,
-    entrySubtext: entrySubtext,
-    entrySortKey: entrySortKey,
-    entrySearchText: entrySearchText,
-    entryAcronym: entryAcronym,
-    fuzzyScore: fuzzyScore,
-    sortedEntries: sortedEntries
-  }
+  return rows.map(function (r) { return r.entry })
 }

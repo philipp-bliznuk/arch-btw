@@ -1,8 +1,12 @@
 module qs.ui
-Pill 1.0 Pill.qml
 Glyph 1.0 Glyph.qml
-Stacked 1.0 Stacked.qml
-Field 1.0 Field.qml
+Label 1.0 Label.qml
+Segment 1.0 Segment.qml
+Tooltip 1.0 Tooltip.qml
 PopupCard 1.0 PopupCard.qml
+ListRow 1.0 ListRow.qml
+Chip 1.0 Chip.qml
+Field 1.0 Field.qml
 Slider 1.0 Slider.qml
-MenuRow 1.0 MenuRow.qml
+KeyModel 1.0 KeyModel.js
+PopupHost 1.0 PopupHost.qml

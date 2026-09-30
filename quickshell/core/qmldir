@@ -7,3 +7,8 @@ singleton Commands 1.0 Commands.qml
 singleton Toggles 1.0 Toggles.qml
 singleton SwayState 1.0 SwayState.qml
 singleton Popups 1.0 Popups.qml
+singleton System 1.0 System.qml
+singleton Metrics 1.0 Metrics.qml
+singleton Player 1.0 Player.qml
+singleton Settings 1.0 Settings.qml
+singleton Weather 1.0 Weather.qml

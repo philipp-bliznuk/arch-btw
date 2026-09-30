@@ -34,6 +34,7 @@ QtObject {
     readonly property string image: g(0xF021F)
     readonly property string sun: g(0xF0599)
     readonly property string moon: g(0xF0594)
+    readonly property string nightlight: g(0xF050E)
     readonly property string record: g(0xF044A)
     readonly property string check: g(0xF012C)
     readonly property string alert: g(0xF0026)
@@ -62,19 +63,28 @@ QtObject {
     readonly property string wifi0: g(0xF092F)
     readonly property string wifiOff: g(0xF092E)
     readonly property string ethernet: g(0xF0200)
-    readonly property string arrowUp: g(0xF005D)
-    readonly property string arrowDown: g(0xF0045)
+    readonly property string arrowUp: "\u21e1"
+    readonly property string arrowDown: "\u21e3"
 
     // Audio
     readonly property string volumeMute: g(0xF075F)
     readonly property string volumeLow: g(0xF057F)
     readonly property string volumeMed: g(0xF0580)
     readonly property string volumeHigh: g(0xF057E)
+    readonly property string headphones: g(0xF02CB)
+    readonly property string speaker: g(0xF04C3)
     readonly property string mic: g(0xF036C)
     readonly property string micOff: g(0xF036D)
-    readonly property string music: g(0xF0759)
+    readonly property string music: g(0xF2EB)
     readonly property string play: g(0xF040A)
     readonly property string pause: g(0xF03E4)
+    readonly property string skipPrev: g(0xF04AE)
+    readonly property string skipNext: g(0xF04AD)
+    readonly property string shuffle: g(0xF049D)
+    readonly property string shuffleOff: g(0xF049E)
+    readonly property string repeat: g(0xF0456)
+    readonly property string repeatOff: g(0xF0457)
+    readonly property string repeatOnce: g(0xF0458)
 
     // Battery
     readonly property string batteryFull: g(0xF0079)
@@ -83,11 +93,33 @@ QtObject {
     readonly property string battery30: g(0xF007C)
     readonly property string batteryAlert: g(0xF0083)
     readonly property string batteryCharging: g(0xF0084)
+    readonly property string leaf: g(0xF032A)
+    readonly property string scale: g(0xF05D5)
+    readonly property string rocket: g(0xF14DE)
 
-    // Stats
-    readonly property string disk: g(0xF02CA)
-    readonly property string memory: g(0xF035B)
-    readonly property string cpu: g(0xF0EE0)
+    // Weather (nf-md weather-*)
+    readonly property string wSunny: g(0xF0599)
+    readonly property string wNight: g(0xF0594)
+    readonly property string wPartly: g(0xF0595)
+    readonly property string wNightPartly: g(0xF0F31)
+    readonly property string wCloudy: g(0xF0590)
+    readonly property string wFog: g(0xF0591)
+    readonly property string wRainy: g(0xF0597)
+    readonly property string wPouring: g(0xF0596)
+    readonly property string wSnowy: g(0xF0598)
+    readonly property string wSnowyRainy: g(0xF067F)
+    readonly property string wLightning: g(0xF0593)
+    readonly property string thermometer: g(0xF050F)
+    readonly property string windy: g(0xF059D)
+    readonly property string humidity: g(0xF058E)
+    readonly property string mapMarker: g(0xF034E)
+    readonly property string refresh: g(0xF0450)
+
+    // Stats (same glyphs as dotfiles-mac sketchybar)
+    readonly property string disk: g(0xF16DF)
+    readonly property string memory: g(0xE266)
+    readonly property string cpu: g(0xF4BC)
+    readonly property string gpu: g(0xF08AE)
 
     function wifiFor(strength) {
         if (strength >= 0.8)
@@ -112,16 +144,11 @@ QtObject {
     }
 
     function batteryFor(pct, charging) {
+        const step = Math.max(0, Math.min(9, Math.floor(pct / 10)));
         if (charging)
-            return batteryCharging;
-        if (pct >= 90)
+            return pct >= 100 ? g(0xF0085) : g([0xF089F, 0xF089C, 0xF0086, 0xF0087, 0xF0088, 0xF089D, 0xF0089, 0xF089E, 0xF008A, 0xF008B][step]);
+        if (pct >= 100)
             return batteryFull;
-        if (pct >= 60)
-            return battery70;
-        if (pct >= 30)
-            return battery50;
-        if (pct >= 10)
-            return battery30;
-        return batteryAlert;
+        return g([0xF008E, 0xF007A, 0xF007B, 0xF007C, 0xF007D, 0xF007E, 0xF007F, 0xF0080, 0xF0081, 0xF0082][step]);
     }
 }

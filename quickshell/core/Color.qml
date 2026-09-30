@@ -31,7 +31,10 @@ QtObject {
     readonly property color crust: "#11111b"
 
     // Semantic
-    readonly property color barBg: "transparent"
+    readonly property color panelBg: mantle
+    readonly property color panelLine: surface0
+    readonly property color segmentHover: surface0
+    readonly property color segmentActive: surface1
     readonly property color pillBg: surface0
     readonly property color pillBorder: Qt.rgba(surface2.r, surface2.g, surface2.b, 0.38)
     readonly property color pillHover: surface1

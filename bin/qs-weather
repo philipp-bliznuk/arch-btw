@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# qs-weather [refresh|set NAME|clear|status]
+# Fetches current + 3-day forecast from open-meteo into ~/.local/state/qs/weather.json
+# (Quickshell watches it). Location: ~/.local/state/qs/weather-location.json
+# {name,latitude,longitude}; without it, IP geolocation (wttr.in) is used.
+set -Eeuo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+state="${XDG_STATE_HOME:-$HOME/.local/state}/qs"
+loc_file="$state/weather-location.json"
+out="$state/weather.json"
+mkdir -p "$state"
+
+fetch() { curl -fsSL --max-time 10 --retry 2 "$@"; }
+
+geocode() { # NAME → {name,latitude,longitude} or empty
+	fetch "https://geocoding-api.open-meteo.com/v1/search?name=$(jq -rn --arg q "$1" '$q|@uri')&count=1&language=en" |
+		jq -c '.results[0] // empty | {name: ([.name, .admin1, .country_code] | map(select(. != null)) | join(", ")), latitude, longitude}'
+}
+
+location() {
+	if [[ -s "$loc_file" ]]; then
+		cat "$loc_file"
+		return
+	fi
+	local city
+	city="$(fetch 'https://wttr.in/?format=%l' || true)"
+	[[ -n "$city" ]] && geocode "$city"
+}
+
+refresh() {
+	local loc lat lon name
+	loc="$(location)" || true
+	[[ -n "$loc" ]] || {
+		jq -cn '{error: "no location"}' >"$out"
+		return 1
+	}
+	lat="$(jq -r .latitude <<<"$loc")"
+	lon="$(jq -r .longitude <<<"$loc")"
+	name="$(jq -r .name <<<"$loc")"
+	fetch "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=4&timezone=auto" |
+		jq -c --arg name "$name" '{name: $name, updated: now, current, daily}' >"$out.tmp"
+	mv "$out.tmp" "$out"
+}
+
+case "${1:-refresh}" in
+refresh) refresh ;;
+set)
+	[[ -n "${2:-}" ]] || {
+		echo "usage: qs-weather set NAME" >&2
+		exit 2
+	}
+	loc="$(geocode "$2")"
+	[[ -n "$loc" ]] || {
+		"$here"/qs-notify -u low "Weather" "No match for '$2'"
+		exit 1
+	}
+	printf '%s\n' "$loc" >"$loc_file"
+	refresh
+	;;
+clear)
+	rm -f "$loc_file"
+	refresh
+	;;
+status)
+	jq -r '"\(.name): \(.current.temperature_2m)° · feels \(.current.apparent_temperature)° · wind \(.current.wind_speed_10m) km/h · \(.current.relative_humidity_2m)% humidity"' "$out"
+	;;
+*)
+	echo "usage: qs-weather [refresh|set NAME|clear|status]" >&2
+	exit 2
+	;;
+esac

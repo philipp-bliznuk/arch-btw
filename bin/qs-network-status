@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# qs-network-status — one JSON line for the Quickshell network popup:
+# {iface, ip, gateway, speed, rx, tx, ping, connectivity}. Rates are derived
+# by the caller from rx/tx deltas. ping = ms to the gateway, null if none.
+set -Eeuo pipefail
+
+route="$(ip -j route show default 2>/dev/null | jq -c '.[0] // {}')"
+iface="$(jq -r '.dev // empty' <<<"$route")"
+gateway="$(jq -r '.gateway // empty' <<<"$route")"
+ip4=""
+speed=""
+rx=0
+tx=0
+if [[ -n "$iface" ]]; then
+	ip4="$(ip -j -4 addr show dev "$iface" 2>/dev/null | jq -r '.[0].addr_info[0].local // empty')"
+	spd="$(cat "/sys/class/net/$iface/speed" 2>/dev/null || true)"
+	[[ "${spd:-0}" -gt 0 ]] 2>/dev/null && speed="$spd"
+	read -r rx tx < <(awk -v i="$iface:" '$1==i{print $2, $10}' /proc/net/dev)
+fi
+ping_ms=null
+if [[ -n "$gateway" ]]; then
+	ping_ms="$(ping -n -c1 -W1 "$gateway" 2>/dev/null | sed -n 's/.*time=\([0-9.]*\).*/\1/p' | head -1)"
+	[[ -n "$ping_ms" ]] || ping_ms=null
+fi
+conn="$(nmcli -t -g CONNECTIVITY general status 2>/dev/null || echo unknown)"
+
+jq -cn --arg iface "$iface" --arg ip "$ip4" --arg gw "$gateway" --arg speed "$speed" \
+	--argjson rx "${rx:-0}" --argjson tx "${tx:-0}" --argjson ping "$ping_ms" --arg conn "$conn" \
+	'{iface: $iface, ip: $ip, gateway: $gw, speed: ($speed | if . == "" then null else tonumber end), rx: $rx, tx: $tx, ping: $ping, connectivity: $conn}'

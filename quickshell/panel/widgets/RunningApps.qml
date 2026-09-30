@@ -7,7 +7,8 @@ import qs.core
 import qs.ui
 
 // One icon per open window on this output (dwm-titus RunningAppsArea).
-Pill {
+// Click focuses, middle-click closes.
+Segment {
     id: root
     property var screen
     readonly property var windows: ToplevelManager.toplevels.values.filter(t => !screen || t.screens.length === 0 || t.screens.includes(screen))
@@ -21,7 +22,8 @@ Pill {
     }
 
     content: Row {
-        spacing: 4
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.spaceXs
 
         Repeater {
             model: root.windows
@@ -31,10 +33,10 @@ Pill {
                 required property var modelData
                 readonly property bool active: modelData === ToplevelManager.activeToplevel
                 readonly property string iconPath: root.iconFor(modelData)
-                width: 20
-                height: 20
+                width: Style.segmentHeight - 2
+                height: Style.segmentHeight - 2
                 radius: Style.radius - 1
-                color: active ? Util.alpha(Color.accent, 0.35) : (mouse.containsMouse ? Color.pillHover : "transparent")
+                color: active ? Util.alpha(Color.accent, 0.35) : (hover.hovered ? Color.segmentHover : "transparent")
 
                 IconImage {
                     anchors.centerIn: parent
@@ -51,10 +53,12 @@ Pill {
                     size: Style.fontSmall
                 }
 
+                HoverHandler {
+                    id: hover
+                }
+
                 MouseArea {
-                    id: mouse
                     anchors.fill: parent
-                    hoverEnabled: true
                     acceptedButtons: Qt.LeftButton | Qt.MiddleButton
                     onClicked: m => {
                         if (m.button === Qt.MiddleButton)
@@ -62,6 +66,12 @@ Pill {
                         else
                             item.modelData.activate();
                     }
+                }
+
+                Tooltip {
+                    target: item
+                    hovered: hover.hovered
+                    text: item.modelData.title || item.modelData.appId
                 }
             }
         }

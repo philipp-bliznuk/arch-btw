@@ -33,12 +33,12 @@ PACKAGES=(
 	apparmor chrony firejail bubblewrap earlyoom ufw
 	pacman-contrib
 	polkit mesa sway swaylock swayidle quickshell upower
+	"<vaapi>" libva-utils # hardware video decode (browser video otherwise burns a CPU core + GPU uploads); vainfo to verify
 	wl-clipboard grim slurp ghostty xorg-xwayland
 	xdg-desktop-portal-wlr xdg-desktop-portal-gtk
 	ttf-jetbrains-mono-nerd noto-fonts noto-fonts-emoji
 	brightnessctl playerctl xdg-user-dirs man-db man-pages
 	wlsunset power-profiles-daemon # night light (qs-toggle), battery power profiles (Quickshell battery popup)
-	bluez bluez-utils
 	libqalculate systemd-ukify btrfs-assistant
 	pam-u2f libfido2 yubikey-manager ccid pcsc-tools
 	librewolf
@@ -201,6 +201,7 @@ _summary() {
    Timezone    : $TIMEZONE
    Username    : $USERNAME
    Microcode   : $UCODE
+   VA-API      : $VAAPI
    Swap        : ${SWAP_GB}G (RAM-sized, hibernation)
    LUKS pass   : $mask
    User pass   : $mask
@@ -219,8 +220,14 @@ EOF
 }
 
 detect_ucode() {
-	if grep -qm1 'GenuineIntel' /proc/cpuinfo; then UCODE="intel-ucode"; else UCODE="amd-ucode"; fi
-	info "Microcode: $UCODE"
+	if grep -qm1 'GenuineIntel' /proc/cpuinfo; then
+		UCODE="intel-ucode"
+		VAAPI="intel-media-driver" # iHD: Broadwell+; older Intel would need libva-intel-driver
+	else
+		UCODE="amd-ucode"
+		VAAPI="libva-mesa-driver"
+	fi
+	info "Microcode: $UCODE · VA-API: $VAAPI"
 }
 
 detect_swap_gb() {
@@ -316,6 +323,7 @@ _enroll_fido2() {
 step_pacstrap() {
 	pacman -Sy --noconfirm archlinux-keyring # stale ISO keyring → signature failures
 	local pkgs=("${PACKAGES[@]/<ucode>/$UCODE}")
+	pkgs=("${pkgs[@]/<vaapi>/$VAAPI}")
 	# Pre-create vconsole.conf: silences mkinitcpio "not found" warning during pacstrap's stock image build
 	mkdir -p /mnt/etc
 	echo "KEYMAP=${KEYMAP}" >/mnt/etc/vconsole.conf

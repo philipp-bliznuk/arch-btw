@@ -134,11 +134,10 @@ Rectangle {
                 Repeater {
                     model: card.notification.actions
 
-                    Pill {
+                    Chip {
                         required property var modelData
                         visible: modelData.identifier !== "default"
-                        label: modelData.text
-                        labelSize: Style.fontSmall
+                        text: modelData.text
                         onClicked: {
                             modelData.invoke();
                             if (!card.notification.resident)

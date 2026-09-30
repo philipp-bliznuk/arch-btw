@@ -1,25 +1,31 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import Quickshell.Widgets
 import qs.core
+import qs.ui
 import "AppSearch.js" as Search
 import "MenuModel.js" as Model
+import "Usage.js" as Usage
+import "../ui/KeyModel.js" as KeyModel
 
+// dwm-titus style command menu. Rows are data (MenuModel.js); activate()
+// dispatches them. Two key modes: insert (field focused, typing filters)
+// and normal (vim keys). Index is only built while shown.
 Scope {
     id: root
 
     property bool shown: false
+    property string mode: "insert"
     property string query: ""
-    property int selected: 0
-    // navigation stack: [{ name, title }]
+    property int cursor: 0
     property var stack: [{ name: "root", title: "" }]
     readonly property string section: stack[stack.length - 1].name
     readonly property bool calcMode: query.startsWith("=")
     property string calcResult: ""
+    property int chip: 0
 
-    // notifications/Service instance, for the history section
     required property var notifications
     required property var clipboard
 
@@ -30,10 +36,12 @@ Scope {
     property string wallpaper: ""
     property int updates: 0
     property var pending: null
-    // select mode: external picker (bin/qs-select). { prompt, rows, outfile }
     property var select: null
+    property var usage: ({})
 
     Component.onCompleted: Model.setBin(Util.home() + "/.local/bin/")
+
+    // ---- open / close -----------------------------------------------------
 
     function toggle() { shown ? close() : open() }
     function close() { shown = false }
@@ -59,16 +67,28 @@ Scope {
     function openSection(name) {
         reset()
         if (name && name !== "root")
-            stack = [{ name: "root", title: "" }, { name: name, title: name }]
+            stack = [{ name: "root", title: "" }, { name: name, title: Model.rootTitle(name) }]
+        if (name === "wallpaper")
+            wallpaperList.running = true
         shown = true
     }
     function reset() {
         query = ""
-        selected = 0
+        cursor = 0
+        chip = 0
+        mode = "insert"
         calcResult = ""
         pending = null
         select = null
         stack = [{ name: "root", title: "" }]
+    }
+    onShownChanged: {
+        if (shown) {
+            field.input.forceActiveFocus()
+            return
+        }
+        if (select)
+            Quickshell.execDetached(["bash", "-c", '[ -s "$1" ] || : > "$1"', "bash", select.outfile])
     }
 
     // ---- rows -------------------------------------------------------------
@@ -78,16 +98,29 @@ Scope {
         for (const e of DesktopEntries.applications.values) {
             if (e.noDisplay)
                 continue
-            out.push({ id: e.id, name: e.name, genericName: e.genericName || e.comment || "", keywords: e.keywords || [], icon: e.icon, entry: e })
+            out.push({ id: e.id, name: e.name, genericName: e.genericName || e.comment || "", keywords: e.keywords || [], icon: e.icon, entry: e, category: Model.categoryOf(e) })
         }
         return out
     }
 
+    readonly property var chips: {
+        if (!shown || section !== "apps")
+            return []
+        const present = {}
+        for (const r of appRows())
+            present[r.category] = true
+        return ["All"].concat(Model.CATEGORIES.filter(c => present[c]))
+    }
+
     function sectionRows(name) {
         switch (name) {
-        case "root": return Model.rootRows(Icons, updates)
-        case "apps": return appRows()
-        case "system": return Model.systemRows(Icons, caps)
+        case "root": return Model.rootRows(Icons, updates, System.summary)
+        case "apps": {
+            const all = appRows()
+            const c = chips[chip]
+            return c && c !== "All" ? all.filter(r => r.category === c) : all
+        }
+        case "system": return Model.systemRows(Icons, caps, System.summary)
         case "confirm": return pending ? Model.confirmRows(Icons, pending) : []
         case "keybinds": return Model.parseSwayBinds(swayConfig, Icons)
         case "tmux": return Model.parseTmuxBinds(tmuxConfig, Icons)
@@ -103,29 +136,57 @@ Scope {
         }
     }
 
+    function frecency(id) { return Usage.score(usage, id) }
+
     readonly property var rows: {
+        if (!shown)
+            return []
         if (calcMode)
             return calcResult ? [{ id: "calc", name: calcResult, genericName: "Enter copies to clipboard", glyph: Icons.calc, copy: calcResult }] : []
         const q = query.trim()
-        let base = Search.sortedEntries(sectionRows(section), q).map(r => r.entry)
+        if (!q && section !== "apps")
+            return sectionRows(section)
+        let base = Search.sorted(sectionRows(section), q, section === "root" || section === "apps" ? frecency : null)
         if (section === "root" && q)
-            base = base.concat(Search.sortedEntries(appRows(), q).map(r => r.entry))
+            base = base.concat(Search.sorted(appRows(), q, frecency))
         return base
     }
+    readonly property bool grid: section === "wallpaper" && !query
+    readonly property var current: rows[cursor]
 
-    onRowsChanged: selected = Math.min(selected, Math.max(0, rows.length - 1))
+    onRowsChanged: cursor = Math.min(cursor, Math.max(0, rows.length - 1))
     onQueryChanged: {
-        selected = 0
+        cursor = 0
         if (calcMode)
             calcTimer.restart()
     }
+    onChipChanged: cursor = 0
 
     // ---- actions ----------------------------------------------------------
 
     function push(name, title) {
         stack = stack.concat([{ name: name, title: title }])
         query = ""
-        selected = 0
+        cursor = 0
+        chip = 0
+        mode = "insert"
+        field.input.forceActiveFocus()
+    }
+
+    function back() {
+        if (select || stack.length <= 1) {
+            close()
+            return
+        }
+        stack = stack.slice(0, -1)
+        query = ""
+        cursor = 0
+        chip = 0
+    }
+
+    function remember(r) {
+        if (r && r.id && (section === "root" || section === "apps"))
+            usage = Usage.bump(usage, r.id)
     }
 
     function activate(r) {
@@ -134,6 +195,7 @@ Scope {
         if (r.section) {
             if (r.section === "wallpaper")
                 wallpaperList.running = true
+            remember(r)
             push(r.section, r.name)
             return
         }
@@ -166,49 +228,103 @@ Scope {
             runAction(r.action)
             return
         }
+        remember(r)
         close()
         Commands.run(r)
     }
 
     function runAction(name) {
         switch (name) {
-        case "notifications-clear":
-            notifications.clearHistory()
-            break
-        case "notifications-dismiss":
-            close()
-            break
-        case "back":
-            back()
-            break
-        case "clipboard-clear":
-            clipboard.clear()
-            break
+        case "notifications-clear": notifications.clearHistory(); break
+        case "notifications-dismiss": close(); break
+        case "back": back(); break
+        case "clipboard-clear": clipboard.clear(); break
         }
     }
 
-    function back() {
-        if (select) {
+    function copyRow(r) {
+        if (!r)
+            return
+        if (r.clip) {
             close()
+            clipboard.copy(r.clip)
             return
         }
-        if (stack.length > 1) {
-            stack = stack.slice(0, -1)
-            selected = 0
-        } else {
-            close()
-        }
+        Commands.copy(r.copy !== undefined ? r.copy : (r.sway || r.name))
+        close()
     }
 
-    onShownChanged: {
-        if (!shown && select)
-            Quickshell.execDetached(["bash", "-c", '[ -s "$1" ] || : > "$1"', "bash", select.outfile])
+    function deleteRow(r) {
+        if (r && r.clip)
+            clipboard.remove(r.clip)
+    }
+
+    function descend(r) {
+        if (r && r.section)
+            activate(r)
+    }
+
+    function setMode(m) {
+        mode = m
+        if (m === "insert")
+            field.input.forceActiveFocus()
+        else
+            keys.forceActiveFocus()
+    }
+
+    function cycleChip(delta) {
+        if (chips.length)
+            chip = (chip + delta + chips.length) % chips.length
+    }
+
+    // Both modes funnel here. Returns true when handled.
+    function perform(a) {
+        if (!a)
+            return false
+        const pageSize = 6
+        let next = -1
+        if (grid && (a === "up" || a === "down"))
+            next = KeyModel.move(cursor, rows.length, a === "up" ? -3 : 3)
+        else if (grid && (a === "left" || a === "right"))
+            next = KeyModel.move(cursor, rows.length, a === "left" ? -1 : 1)
+        else
+            next = KeyModel.step(a, cursor, rows.length, pageSize)
+        if (next >= 0) {
+            cursor = next
+            return true
+        }
+        switch (a) {
+        case "activate": activate(current); return true
+        case "right": mode === "normal" ? activate(current) : descend(current); return true
+        case "left": case "back": if (mode === "normal" || query === "") back(); else setMode("normal"); return true
+        case "escape":
+            if (mode === "insert") { if (query === "") close(); else setMode("normal") } else close()
+            return true
+        case "close": close(); return true
+        case "insert": setMode("insert"); return true
+        case "copy": copyRow(current); return true
+        case "paste": if (current && current.clip) copyRow(current); else activate(current); return true
+        case "delete": deleteRow(current); return true
+        case "deleteWord": query = query.replace(/\s*\S+\s*$/, ""); return true
+        case "clear": query = ""; return true
+        case "nextChip": if (chips.length) cycleChip(1); else descend(current); return true
+        case "prevChip": cycleChip(-1); return true
+        }
+        return false
     }
 
     // ---- data sources -----------------------------------------------------
 
     FileView { id: swayFile; path: Util.home() + "/.config/sway/config"; onLoaded: root.swayConfig = text() }
     FileView { id: tmuxFile; path: Util.home() + "/.config/tmux/tmux.conf"; onLoaded: root.tmuxConfig = text() }
+    FileView {
+        id: usageFile
+        path: Util.stateDir + "/launcher-usage.json"
+        atomicWrites: true
+        printErrors: false
+        onLoaded: root.usage = Usage.parse(text())
+    }
+    onUsageChanged: usageFile.setText(JSON.stringify(usage))
 
     Timer {
         id: calcTimer
@@ -248,7 +364,6 @@ Scope {
         }
     }
 
-    // checkupdates (pacman-contrib): every 6h + on load
     Process {
         id: updatesProbe
         command: ["bash", "-c", "checkupdates 2>/dev/null | wc -l"]
@@ -267,6 +382,7 @@ Scope {
     PanelWindow {
         id: win
         visible: root.shown
+        screen: SwayState.focusedScreen
         anchors { top: true; bottom: true; left: true; right: true }
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
@@ -285,7 +401,7 @@ Scope {
             anchors.horizontalCenter: parent.horizontalCenter
             y: Math.round(parent.height * 0.18)
             width: Style.cardWidth
-            height: Math.min(Style.cardMaxHeight, header.height + list.contentHeight + Style.cardPadding * 2 + 8)
+            height: Math.min(Style.cardMaxHeight, column.implicitHeight + Style.cardPadding * 2)
             radius: Style.cardRadius
             color: Color.cardBg
             border.width: 1
@@ -294,134 +410,135 @@ Scope {
             MouseArea { anchors.fill: parent }
 
             Column {
+                id: column
                 anchors.fill: parent
                 anchors.margins: Style.cardPadding
-                spacing: 8
+                spacing: Style.spaceMd
 
-                Row {
-                    id: header
+                Header {
+                    glyph: root.calcMode ? Icons.calc : (root.stack.length > 1 ? Icons.chevronRight : Icons.apps)
+                    crumbs: root.select ? [root.select.prompt] : root.stack.slice(1).map(s => s.title)
+                    mode: root.mode
+                    status: root.calcMode ? "= " + (root.calcResult || "…") : (root.rows.length ? (root.cursor + 1) + "/" + root.rows.length : "")
+                }
+
+                Field {
+                    id: field
                     width: parent.width
-                    height: Style.rowHeight
-                    spacing: 8
-
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: root.calcMode ? Icons.calc : (root.stack.length > 1 ? Icons.chevronRight : Icons.apps)
-                        color: Color.accent
-                        font.family: Style.fontFamily
-                        font.pixelSize: Style.fontTitle
-                    }
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: root.stack.length > 1
-                        text: root.stack[root.stack.length - 1].title
-                        color: Color.muted
-                        font.family: Style.fontFamily
-                        font.pixelSize: Style.fontBody
-                    }
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: root.query === "" ? (root.select ? root.select.prompt : (root.stack.length > 1 ? "Type to filter…" : "Search apps, or =expr to calculate…")) : root.query
-                        color: root.query === "" ? Color.overlay0 : Color.text
-                        font.family: Style.fontFamily
-                        font.pixelSize: Style.fontTitle
-                        elide: Text.ElideLeft
-                        width: parent.width - x
+                    text: root.query
+                    onTextChanged: root.query = text
+                    placeholder: root.select ? root.select.prompt : (root.stack.length > 1 ? "Type to filter…  Esc for normal mode" : "Search apps, or =expr to calculate…")
+                    onAccepted: root.activate(root.current)
+                    onEscaped: root.perform("escape")
+                    onKeyPressed: e => {
+                        const a = KeyModel.insert(e, root.query !== "")
+                        if (a && root.perform(a))
+                            e.accepted = true
                     }
                 }
 
-                Rectangle { width: parent.width; height: 1; color: Color.surface1 }
+                Chips {
+                    visible: root.chips.length > 0
+                    names: root.chips
+                    current: root.chip
+                    onPicked: i => root.chip = i
+                }
 
                 ListView {
                     id: list
                     width: parent.width
-                    height: parent.height - header.height - 9 - parent.spacing * 2
+                    visible: !root.grid
+                    height: visible ? Math.min(rows.count * Style.rowHeight, Style.cardMaxHeight - y - Style.cardPadding) : 0
                     clip: true
-                    model: root.rows
-                    currentIndex: root.selected
+                    model: root.grid ? [] : root.rows
+                    currentIndex: root.cursor
                     highlightMoveDuration: 0
                     onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+                    readonly property var rows: root.grid ? { count: 0 } : { count: root.rows.length }
 
-                    // qmllint disable unqualified
-                    delegate: Rectangle {
+                    delegate: ListRow {
                         id: entry
                         required property var modelData
                         required property int index
                         width: list.width
-                        height: Style.rowHeight
-                        radius: Style.radius
-                        color: index === root.selected ? Color.rowSelected : (hover.containsMouse ? Util.alpha(Color.surface1, 0.5) : "transparent")
-                        opacity: modelData.disabled ? 0.45 : 1
-
-                        Row {
-                            anchors.fill: parent
-                            anchors.leftMargin: 8
-                            anchors.rightMargin: 8
-                            spacing: 10
-
-                            Item {
-                                width: 20
-                                height: parent.height
-                                readonly property string iconPath: entry.modelData.thumb ? entry.modelData.thumb : (entry.modelData.icon ? Quickshell.iconPath(entry.modelData.icon, true) : "")
-
-                                IconImage {
-                                    anchors.centerIn: parent
-                                    width: entry.modelData.thumb ? 28 : 18
-                                    height: 18
-                                    visible: parent.iconPath !== ""
-                                    source: parent.iconPath
-                                    asynchronous: true
-                                }
-                                Text {
-                                    anchors.centerIn: parent
-                                    visible: parent.iconPath === ""
-                                    text: entry.modelData.glyph || Icons.apps
-                                    color: Color.accent
-                                    font.family: Style.fontFamily
-                                    font.pixelSize: Style.fontIcon
-                                }
-                            }
-
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: entry.modelData.name
-                                color: Color.text
-                                font.family: Style.fontFamily
-                                font.pixelSize: Style.fontBody
-                                font.weight: Font.DemiBold
-                                elide: Text.ElideRight
-                                width: Math.min(implicitWidth, parent.width * 0.55)
-                            }
-
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: entry.modelData.genericName || ""
-                                color: Color.muted
-                                font.family: Style.fontFamily
-                                font.pixelSize: Style.fontSmall
-                                elide: Text.ElideRight
-                                width: parent.width - x - (check.visible ? check.width + 10 : 0)
-                            }
-
-                            Text {
-                                id: check
-                                anchors.verticalCenter: parent.verticalCenter
-                                visible: entry.modelData.checked === true
-                                text: "●"
-                                color: Color.green
-                                font.pixelSize: Style.fontSmall
-                            }
+                        iconSource: modelData.thumb ? modelData.thumb : (modelData.icon ? Quickshell.iconPath(modelData.icon, true) : "")
+                        glyph: modelData.glyph || Icons.apps
+                        glyphColor: Color.accent
+                        title: modelData.name
+                        subtext: modelData.genericName || ""
+                        trailing: {
+                            if (modelData.popup && Popups.current === modelData.popup) return "current"
+                            if (modelData.checked === true) return "●"
+                            if (modelData.section) return "→"
+                            return ""
                         }
+                        trailingColor: modelData.checked === true ? Color.green : (modelData.popup && Popups.current === modelData.popup ? Color.accent : Color.muted)
+                        selected: index === root.cursor
+                        dim: modelData.disabled === true
+                        onClicked: root.activate(modelData)
+                        onHoveredChanged: if (hovered) root.cursor = index
+                    }
+                }
 
-                        MouseArea {
-                            id: hover
+                GridView {
+                    id: grid
+                    width: parent.width
+                    visible: root.grid
+                    height: visible ? Math.min(Math.ceil(count / 3) * cellHeight, Style.cardMaxHeight - y - Style.cardPadding) : 0
+                    clip: true
+                    model: root.grid ? root.rows : []
+                    cellWidth: Math.floor(width / 3)
+                    cellHeight: Math.round(cellWidth * 9 / 16) + Style.spaceXl * 2
+                    currentIndex: root.cursor
+                    highlightMoveDuration: 0
+                    onCurrentIndexChanged: positionViewAtIndex(currentIndex, GridView.Contain)
+
+                    delegate: Item {
+                        id: cell
+                        required property var modelData
+                        required property int index
+                        width: grid.cellWidth
+                        height: grid.cellHeight
+
+                        Rectangle {
                             anchors.fill: parent
-                            hoverEnabled: true
-                            onClicked: root.activate(entry.modelData)
-                            onPositionChanged: root.selected = entry.index
+                            anchors.margins: Style.spaceXs
+                            radius: Style.radius
+                            color: cell.index === root.cursor ? Color.rowSelected : "transparent"
+                            border.width: cell.modelData.checked ? 2 : 0
+                            border.color: Color.accent
+
+                            Image {
+                                anchors.fill: parent
+                                anchors.margins: Style.spaceSm
+                                anchors.bottomMargin: Style.spaceXl + Style.spaceSm
+                                source: cell.modelData.thumb ? "file://" + cell.modelData.thumb : ""
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                sourceSize.width: 320
+                                visible: cell.modelData.thumb !== undefined
+                            }
+                            Glyph {
+                                anchors.centerIn: parent
+                                visible: cell.modelData.thumb === undefined
+                                text: cell.modelData.glyph
+                                glyphColor: Color.accent
+                                size: Style.fontTitle + 8
+                            }
+                            Label {
+                                anchors.bottom: parent.bottom
+                                anchors.bottomMargin: Style.spaceXs
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                width: parent.width - Style.spaceMd * 2
+                                horizontalAlignment: Text.AlignHCenter
+                                text: cell.modelData.name
+                                font.pixelSize: Style.fontCaption
+                                color: cell.modelData.checked ? Color.accent : Color.subtext0
+                            }
+                            HoverHandler { onHoveredChanged: if (hovered) root.cursor = cell.index }
+                            MouseArea { anchors.fill: parent; onClicked: root.activate(cell.modelData) }
                         }
                     }
-                    // qmllint enable unqualified
                 }
             }
         }
@@ -429,56 +546,9 @@ Scope {
         Item {
             id: keys
             anchors.fill: parent
-            focus: true
+            focus: root.mode === "normal"
             Keys.onPressed: event => {
-                event.accepted = true
-                switch (event.key) {
-                case Qt.Key_Escape:
-                    if (root.query !== "") root.query = ""
-                    else root.close()
-                    return
-                case Qt.Key_Up:
-                    root.selected = Math.max(0, root.selected - 1); return
-                case Qt.Key_Down:
-                    root.selected = Math.min(root.rows.length - 1, root.selected + 1); return
-                case Qt.Key_Delete:
-                    if (root.rows[root.selected] && root.rows[root.selected].clip) root.clipboard.remove(root.rows[root.selected].clip)
-                    return
-                case Qt.Key_Home:
-                    root.selected = 0; return
-                case Qt.Key_End:
-                    root.selected = Math.max(0, root.rows.length - 1); return
-                case Qt.Key_P:
-                    if (event.modifiers & Qt.ControlModifier) { root.selected = Math.max(0, root.selected - 1); return }
-                    break
-                case Qt.Key_N:
-                    if (event.modifiers & Qt.ControlModifier) { root.selected = Math.min(root.rows.length - 1, root.selected + 1); return }
-                    break
-                case Qt.Key_PageUp:
-                    root.selected = Math.max(0, root.selected - 6); return
-                case Qt.Key_PageDown:
-                    root.selected = Math.min(root.rows.length - 1, root.selected + 6); return
-                case Qt.Key_Return:
-                case Qt.Key_Enter:
-                    root.activate(root.rows[root.selected]); return
-                case Qt.Key_Right:
-                    if (root.rows[root.selected] && root.rows[root.selected].section) root.activate(root.rows[root.selected])
-                    return
-                case Qt.Key_Left:
-                    if (root.query === "") root.back()
-                    return
-                case Qt.Key_Backspace:
-                    if (root.query === "") { root.back(); return }
-                    break
-                }
-                if (Util.editsFilter(event, root.query)) {
-                    root.query = Util.editedFilter(event, root.query)
-                    return
-                }
-                if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)))
-                    root.query += event.text
-                else
-                    event.accepted = false
+                event.accepted = root.perform(KeyModel.normal(event))
             }
         }
     }

@@ -17,6 +17,7 @@ Scope {
     property string label: ""
     property real value: 0
     property bool muted: false
+    property bool text: false
     property bool shown: false
     // suppress the first second after (re)load: Pipewire fires initial change events
     property bool armed: false
@@ -31,9 +32,29 @@ Scope {
         root.label = label;
         root.value = value;
         root.muted = muted === true;
+        root.text = false;
         shown = true;
         hide.restart();
     }
+
+    // Media toast: icon + one line, no bar. MPRIS lags the playerctl call, so
+    // the sway bind fires this and we read the state a moment later.
+    function showMedia() {
+        mediaDelay.restart();
+    }
+
+    Timer {
+        id: mediaDelay
+        interval: 350
+        onTriggered: {
+            if (!root.player)
+                return;
+            root.show(Player.playing ? Icons.play : Icons.pause, Util.truncate(Player.line || root.player.identity, 28), 0, !Player.playing);
+            root.text = true;
+        }
+    }
+
+    readonly property var player: Player.player
 
     function showSink() {
         if (!sink || !sink.audio)
@@ -109,6 +130,10 @@ Scope {
         function mic(): void {
             root.showSource();
         }
+
+        function media(): void {
+            root.showMedia();
+        }
     }
 
     PanelWindow {
@@ -144,6 +169,7 @@ Scope {
                 }
 
                 Rectangle {
+                    visible: !root.text
                     width: parent.width - 30 - 52 - parent.spacing * 2
                     height: 6
                     radius: 3
@@ -162,10 +188,11 @@ Scope {
                 }
 
                 Text {
-                    width: 52
+                    width: root.text ? parent.width - 30 - parent.spacing : 52
                     text: root.label
                     color: Color.text
-                    horizontalAlignment: Text.AlignRight
+                    elide: Text.ElideRight
+                    horizontalAlignment: root.text ? Text.AlignLeft : Text.AlignRight
                     font.family: Style.fontFamily
                     font.pixelSize: Style.fontSmall
                     font.weight: Font.DemiBold

@@ -5,7 +5,7 @@ LUKS2 → Btrfs subvolumes → UKI → systemd-boot → snapper + sdboot-snaps �
 ```
 
 - `install.sh` — live ISO. Partition, encrypt, pacstrap, base config, FIDO2 LUKS enrollment, clone this repo, reboot. Prompts: disk, timezone, username, three passwords.
-- `post-install.sh` — installed system, first boot. Bootloader cleanup, snapper, sdboot-snaps, firewall, YubiKey PAM, dotfiles symlinks, key import, GPG/SSH. Resumable via done-markers.
+- `post-install.sh` — installed system, first boot. Bootloader cleanup, snapper, sdboot-snaps, firewall, pacman reboot-required hook, Intel GPU PMU helper, YubiKey PAM, LibreWolf (firejail XDG whitelist + overrides), dotfiles symlinks, key import, GPG/SSH. Resumable via done-markers.
 
 Prerequisite: both YubiKeys provisioned per [YUBIKEY.md](./YUBIKEY.md) (GPG identity on card, FIDO2 PIN set).
 
@@ -132,17 +132,36 @@ One Quickshell process owns everything except lock/idle (`swaylock`/`swayidle` s
 ```
 quickshell/
 ├── shell.qml          root: services + panel + launcher, IPC targets
-├── core/              Color Style Icons Util Commands Toggles SwayState Popups (singletons)
-├── ui/                Pill Glyph Stacked Field Slider MenuRow PopupCard
-├── panel/             Panel.qml, AudioPopup.qml, widgets/ (Menu Workspaces RunningApps Disk Ram Cpu NetRate Media
-│                      ActiveWindow Indicators Tray Mic Volume BluetoothPill Network Battery KeyboardLayout Clock)
-├── launcher/          Launcher.qml MenuModel.js AppSearch.js   (apps, system, keybinds, capture, toggle, setup, …)
+├── core/              Color Style Icons Util Commands Toggles SwayState Popups System Metrics Player Weather Settings (singletons)
+├── ui/                Label Glyph Segment Tooltip PopupCard PopupHost ListRow Chip Field Slider, KeyModel.js (vim keys)
+├── panel/             Panel.qml, AudioPopup.qml, MediaPopup.qml, widgets/ (Workspaces RunningApps Disk Ram Cpu Gpu NetRate Media Tray
+│                      Weather Indicators Dnd NightLight Volume Network Battery KeyboardLayout Clock)
+├── launcher/          Launcher.qml Header.qml Chips.qml MenuModel.js AppSearch.js Usage.js
 ├── notifications/     org.freedesktop.Notifications daemon (popups + history)
 ├── polkit/            polkit authentication agent
 ├── osd/               volume / mic / brightness OSD
 ├── clipboard/         clipboard history (wl-paste watchers → bin/qs-clipboard-capture)
 └── background/        wallpaper layer (symlink ~/.local/state/qs/background)
 ```
+
+Bar: solid 30px, flat `Segment`s with hover fill + tooltips, one `PopupCard` open at a time, hosted in a per-output overlay layer (`PopupHost`; not an xdg popup, so keybinds/IPC can open it; clicking outside closes). Resource segments (disk · ram · cpu · gpu · net) sit left, fed by `core/Metrics` (GPU = `/usr/local/bin/qs-gpu-busy`, an i915-PMU helper built from `bin/src` by `post-install.sh` step `gpu_helper`; falls back to AMD `gpu_busy_percent` or i915 rc6 residency). Tray on every output. Volume segment shows output % only; the audio popup holds out/mic mute buttons, device pickers (shown when more than one sink/source) and per-app volume. Clock is `Wed 30 14:05:09` at a fixed width so per-second redraws never shift the bar.
+
+Reboot required (CachyOS-style): `core/System.qml` polls `/usr/lib/modules/$(uname -r)` (gone after a kernel upgrade) and `/run/reboot-required` (written by the pacman hook `zz-reboot-required.hook` for systemd/glibc/mesa/firmware/…, installed by `post-install.sh` step `pacman_hooks`). Notifies once, shows ↻ in Indicators and marks `Update`/`Reboot` rows until reboot (`/run` is tmpfs).
+
+Launcher: dwm-titus command menu — breadcrumb, category chips (Apps), frecency (`~/.local/state/qs/launcher-usage.json`), wallpaper thumbnail grid, `=expr` calculator. Two key modes, shown in the header:
+
+| Mode | Keys |
+| --- | --- |
+| INSERT (default) | type to filter · `C-n`/`C-p` or `C-j`/`C-k` move · `C-d` half-page · `C-u` clear (half-page up when empty) · `C-l`/`Tab` descend / next chip · `C-h`/Backspace-on-empty back · `C-y` copy row · `C-w` delete word · `Esc` normal mode (closes when empty) |
+| NORMAL | `j`/`k` · `gg`/`G` · `h` back · `l`/`Enter` activate · `y` copy · `p` copy clipboard row + close · `d`/`x` delete (clipboard) · `1-9` jump · `Tab`/`S-Tab` chips · `/` or `i` insert · `Esc`/`q` close |
+| Popups | `j`/`k` row · `h`/`l` −/+ 5 % (audio) or month (calendar), `H`/`L` year, `t` today · `Enter` activate · `m` mute / adapter / wifi toggle · `d` forget · `y` copy SSID/IP · `Esc`/`q` close |
+| Clock | `h`/`l` `[`/`]` month · `j`/`k` `{`/`}` year · `t`/`Enter` today · `w` week start (persisted) |
+| Battery | `j`/`k`/`Enter` power profile · `p` toggle % · right-click segment toggles %. Auto power-saver on battery (`powerSaverOnBattery`) |
+| Network | `j`/`k` · `Enter` connect/disconnect (inline PSK, WPA-EAP identity) · `d` forget · `y` copy IP/SSID · `w` Wi-Fi on/off · `r` rescan · captive portal row when NM reports Portal |
+| Weather | `e`/`Enter` change city (open-meteo geocoding) · `d` back to IP location · `u` °C/°F · `r` refresh · middle-click refresh · right-click notification summary |
+| Media (`$mod+Shift+p`) | `Enter`/`Space` play-pause · `h`/`l` prev/next · `H`/`L` seek ±10 s · `j`/`k` volume · `s` shuffle · `r` loop. Bar: `$mod+p` play-pause, `$mod+[`/`]` prev/next (OSD toast), `$mod+Shift+[`/`]` seek ±10 s. MPRIS; prefers Feishin, else the playing player. |
+
+Arrows/Home/End/PgUp/PgDn work everywhere.
 
 | `bin/`                 | Purpose                                                                  |
 | ---------------------- | ------------------------------------------------------------------------ |
@@ -152,12 +171,14 @@ quickshell/
 | `qs-capture MODE`      | `region` `window` `screen` `region-clip` `color`                          |
 | `qs-wallpaper`         | `set PATH` `next` `random` `current` `list`                               |
 | `qs-notify`            | `notify-send` via `busctl`                                                |
+| `qs-weather`           | `refresh` `set CITY` `clear` `status` — open-meteo → `weather.json`        |
+| `qs-network-status`    | internal, JSON for the network popup (ip/gateway/ping/traffic)             |
 | `qs-select PROMPT …`   | dmenu-style picker using the launcher                                    |
 | `qs-clipboard-capture` | internal, `wl-paste --watch` target                                       |
 
-State: `~/.local/state/qs/` (`toggles/`, `notifications.json`, `clipboard.json`, `clipboard-images/`, `background`). Clipboard history skips `x-kde-passwordManagerHint` sources (1Password) — the file is still plaintext, rely on LUKS.
+State: `~/.local/state/qs/` (`toggles/`, `settings.json`, `notifications.json`, `clipboard.json`, `clipboard-images/`, `weather.json`, `weather-location.json`, `launcher-usage.json`, `background`). Clipboard history skips `x-kde-passwordManagerHint` sources (1Password) — the file is still plaintext, rely on LUKS.
 
-IPC targets: `launcher` (toggle/open/close/select) · `notifications` (toggleDnd/clear/clearHistory/count) · `clipboard` (refresh/clear/count) · `osd` (brightness/volume/mic) · `background` (refresh/current) · `toggles` (refresh) · `polkit` (status) · `shell` (ping).
+IPC targets: `launcher` (toggle/open/close/select) · `popups` (toggle/open/close/current) · `system` (refresh/rebootRequired) · `notifications` (toggleDnd/clear/clearHistory/count/dismissLatest/actionLatest; sway `$mod+Shift+d` / `$mod+Shift+a`) · `clipboard` (refresh/clear/count) · `osd` (brightness/volume/mic/media) · `background` (refresh/current) · `toggles` (refresh) · `polkit` (status) · `shell` (ping).
 
 Lint: `quickshell/lint.sh` (qmllint, must be clean).
 

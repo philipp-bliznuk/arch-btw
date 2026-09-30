@@ -1,17 +1,19 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Widgets
 import Quickshell.Services.SystemTray
+import qs.core
 import qs.ui
 
-Pill {
+Segment {
     id: root
     visible: SystemTray.items.values.length > 0
     hoverable: false
-    icon: ""
 
     content: Row {
-        spacing: 6
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.spaceSm
 
         Repeater {
             model: SystemTray.items
@@ -34,20 +36,30 @@ Pill {
                     anchor.edges: Edges.Bottom
                 }
 
+                HoverHandler {
+                    id: hover
+                }
+
                 MouseArea {
                     anchors.fill: parent
                     acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
                     onClicked: m => {
-                        const it = item.modelData
+                        const it = item.modelData;
                         if (m.button === Qt.RightButton || it.onlyMenu) {
                             if (it.hasMenu)
-                                menu.open()
+                                menu.open();
                         } else if (m.button === Qt.MiddleButton) {
-                            it.secondaryActivate()
+                            it.secondaryActivate();
                         } else {
-                            it.activate()
+                            it.activate();
                         }
                     }
+                }
+
+                Tooltip {
+                    target: item
+                    hovered: hover.hovered
+                    text: item.modelData.tooltipTitle || item.modelData.title || item.modelData.id
                 }
             }
         }

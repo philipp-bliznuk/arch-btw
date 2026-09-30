@@ -1,28 +1,32 @@
 import QtQuick
-import Quickshell.Services.Mpris
 import qs.core
 import qs.ui
+import ".."
 
-Pill {
+// Now playing, centred in the bar. Click play/pause · middle next ·
+// right-click popup. Dimmed while paused, hidden when no player exists.
+Segment {
     id: root
-    readonly property var player: {
-        const ps = Mpris.players.values
-        for (const p of ps)
-            if (p.isPlaying)
-                return p
-        return null
-    }
+    readonly property var player: Player.player
     visible: player !== null
-    icon: Icons.music
-    iconColor: Color.sky
-    label: player ? Util.truncate((player.trackArtist ? player.trackArtist + " - " : "") + (player.trackTitle || ""), 35) : ""
-    labelSize: Style.fontSmall
-    onClicked: mouse => {
-        if (!player)
-            return
-        if (mouse.button === Qt.MiddleButton)
-            player.next()
-        else if (player.canTogglePlaying)
-            player.togglePlaying()
+    icon: Player.playing ? Icons.music : Icons.pause
+    iconColor: Player.playing ? Color.sky : Color.muted
+    label: Util.truncate(Player.line || (player ? player.identity : ""), 35)
+    labelColor: Player.playing ? Color.text : Color.muted
+    tooltip: player ? [player.identity, Player.album, Player.fmt(player.position) + " / " + Player.fmt(player.length)].filter(x => x).join(" · ") + " · Super+Shift+p" : ""
+    active: popup.open
+
+    onClicked: m => {
+        if (m.button === Qt.MiddleButton)
+            Player.next();
+        else if (m.button === Qt.RightButton)
+            popup.toggle();
+        else
+            Player.toggle();
+    }
+
+    MediaPopup {
+        id: popup
+        anchorItem: root
     }
 }

@@ -1,44 +1,57 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell.I3
 import qs.core
+import qs.ui
 
+// Workspaces owned by this output. Focused = accent fill, urgent = red,
+// every other listed workspace is occupied (sway drops empty ones) → dot.
 Row {
     id: root
     property var screen
     readonly property var monitor: screen ? I3.monitorFor(screen) : null
-    spacing: 2
+    spacing: Style.spaceXs
 
     Repeater {
         model: I3.workspaces
 
-        // qmllint disable unqualified
         Rectangle {
+            id: ws
             required property I3Workspace modelData
-            readonly property bool onThisMonitor: !root.monitor || !modelData.monitor || modelData.monitor === root.monitor
-            // qmllint enable unqualified
-            visible: onThisMonitor
-            width: visible ? Math.max(Style.pillHeight, label.implicitWidth + Style.pillPadding * 2) : 0
-            height: Style.pillHeight
+            readonly property bool owned: !modelData.monitor || (root.monitor ? modelData.monitor === root.monitor : (!root.screen || modelData.monitor.name === root.screen.name))
+            readonly property bool hovered: hover.hovered
+            visible: owned
+            width: visible ? Math.max(Style.segmentHeight, label.implicitWidth + Style.segmentPadX * 2) : 0
+            height: Style.segmentHeight
             radius: Style.radius
-            color: modelData.focused ? Color.accent : (hover.containsMouse ? Color.pillHover : Color.pillBg)
-            border.width: 1
-            border.color: modelData.urgent ? Color.urgent : Color.pillBorder
+            color: modelData.focused ? Color.accent : (modelData.active ? Color.segmentActive : (hovered ? Color.segmentHover : "transparent"))
 
-            Text {
+            Label {
                 id: label
                 anchors.centerIn: parent
-                text: parent.modelData.name
-                font.family: Style.fontFamily
+                text: ws.modelData.name
                 font.pixelSize: Style.fontSmall
-                font.weight: Font.DemiBold
-                color: parent.modelData.focused ? Color.base : (parent.modelData.urgent ? Color.urgent : Color.text)
+                color: ws.modelData.focused ? Color.base : (ws.modelData.urgent ? Color.urgent : Color.text)
+            }
+
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 2
+                width: 3
+                height: 3
+                radius: 1.5
+                visible: !ws.modelData.focused
+                color: ws.modelData.urgent ? Color.urgent : Color.overlay1
+            }
+
+            HoverHandler {
+                id: hover
             }
 
             MouseArea {
-                id: hover
                 anchors.fill: parent
-                hoverEnabled: true
-                onClicked: parent.modelData.activate()
+                onClicked: ws.modelData.activate()
                 onWheel: w => I3.dispatch(w.angleDelta.y > 0 ? "workspace prev_on_output" : "workspace next_on_output")
             }
         }
