@@ -67,7 +67,7 @@ Scope {
     function openSection(name) {
         reset()
         if (name && name !== "root")
-            stack = [{ name: "root", title: "" }, { name: name, title: Model.rootTitle(name) }]
+            stack = [{ name: "root", title: "", id: name }, { name: name, title: Model.rootTitle(name) }]
         if (name === "wallpaper")
             wallpaperList.running = true
         shown = true
@@ -153,6 +153,7 @@ Scope {
         return base
     }
     readonly property bool grid: section === "wallpaper" && !query
+    readonly property int gridCols: 3
     readonly property var current: rows[cursor]
 
     onRowsChanged: cursor = Math.min(cursor, Math.max(0, rows.length - 1))
@@ -165,24 +166,36 @@ Scope {
 
     // ---- actions ----------------------------------------------------------
 
+    // Navigation never changes mode; only `i` does. The leaving frame
+    // remembers its filter and highlighted row so back() restores them.
     function push(name, title) {
-        stack = stack.concat([{ name: name, title: title }])
+        const top = Object.assign({}, stack[stack.length - 1], { query: query, chip: chip, cursor: cursor, id: current ? current.id : undefined })
+        stack = stack.slice(0, -1).concat([top, { name: name, title: title }])
         query = ""
         cursor = 0
         chip = 0
-        mode = "insert"
-        field.input.forceActiveFocus()
+        focusMode()
     }
 
+    // Pops one frame. Returns false at root (or in select mode).
     function back() {
-        if (select || stack.length <= 1) {
-            close()
-            return
-        }
+        if (select || stack.length <= 1)
+            return false
+        const top = stack[stack.length - 2]
         stack = stack.slice(0, -1)
-        query = ""
-        cursor = 0
-        chip = 0
+        query = top.query || ""
+        chip = top.chip || 0
+        const i = rows.findIndex(r => r.id !== undefined && r.id === top.id)
+        cursor = i >= 0 ? i : (top.cursor || 0)
+        focusMode()
+        return true
+    }
+
+    function focusMode() {
+        if (mode === "insert")
+            field.input.forceActiveFocus()
+        else
+            keys.forceActiveFocus()
     }
 
     function remember(r) {
@@ -267,10 +280,7 @@ Scope {
 
     function setMode(m) {
         mode = m
-        if (m === "insert")
-            field.input.forceActiveFocus()
-        else
-            keys.forceActiveFocus()
+        focusMode()
     }
 
     function cycleChip(delta) {
@@ -292,6 +302,14 @@ Scope {
             cursor = i
     }
 
+    // Grid h/l stay inside the row; h at column 0 falls through to back().
+    function gridStep(a) {
+        const col = cursor % gridCols
+        if (a === "left")
+            return col === 0 ? -1 : cursor - 1
+        return col === gridCols - 1 ? cursor : KeyModel.move(cursor, rows.length, 1)
+    }
+
     // Both modes funnel here. Returns true when handled.
     function perform(a) {
         if (!a)
@@ -299,9 +317,9 @@ Scope {
         const pageSize = 6
         let next = -1
         if (grid && (a === "up" || a === "down"))
-            next = KeyModel.move(cursor, rows.length, a === "up" ? -3 : 3)
+            next = KeyModel.move(cursor, rows.length, a === "up" ? -gridCols : gridCols)
         else if (grid && (a === "left" || a === "right"))
-            next = KeyModel.move(cursor, rows.length, a === "left" ? -1 : 1)
+            next = gridStep(a)
         else
             next = KeyModel.step(a, cursor, rows.length, pageSize)
         if (next >= 0) {
@@ -310,8 +328,9 @@ Scope {
         }
         switch (a) {
         case "activate": activate(current); return true
-        case "right": mode === "normal" ? activate(current) : descend(current); return true
-        case "left": case "back": if (mode === "normal" || query === "") back(); else setMode("normal"); return true
+        case "right": descend(current); return true
+        case "left": if (mode === "normal" || query === "") back(); else setMode("normal"); return true
+        case "back": if (!back()) close(); return true
         case "escape": if (mode === "insert") setMode("normal"); else close(); return true
         case "close": close(); return true
         case "insert": setMode("insert"); return true
@@ -498,10 +517,10 @@ Scope {
                     id: gridView
                     width: parent.width
                     visible: root.grid
-                    height: visible ? Math.min(Math.ceil(count / 3) * cellHeight, Style.cardMaxHeight - y - Style.cardPadding) : 0
+                    height: visible ? Math.min(Math.ceil(count / root.gridCols) * cellHeight, Style.cardMaxHeight - y - Style.cardPadding) : 0
                     clip: true
                     model: root.grid ? root.rows : []
-                    cellWidth: Math.floor(width / 3)
+                    cellWidth: Math.floor(width / root.gridCols)
                     cellHeight: Math.round(cellWidth * 9 / 16) + Style.spaceXl * 2
                     currentIndex: root.cursor
                     highlightMoveDuration: 0
