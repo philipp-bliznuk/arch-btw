@@ -2,7 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 
-// One panel popup open at a time (dwm-titus selectPanelPopup), on one screen.
+// One panel popup open at a time, on one screen.
 // Every panel is instanced per output, so the screen decides which instance
 // of a popup actually shows; null means "the focused output". PopupHost
 // registers a slot Item per screen that PopupCards reparent into.
@@ -28,10 +28,6 @@ Singleton {
         current = "";
     }
 
-    function isOpen(id) {
-        return current === id;
-    }
-
     // Compare screens by name: ShellScreen objects are recreated on reload.
     function sameScreen(a, b) {
         return !!a && !!b && a.name === b.name;
@@ -44,6 +40,16 @@ Singleton {
     function registerHost(screen, slot) {
         const next = Object.assign({}, hosts);
         next[screen.name] = slot;
+        hosts = next;
+    }
+
+    // Only drop the slot if it is still ours: on replug the new host registers
+    // before the old one is destroyed.
+    function unregisterHost(screen, slot) {
+        if (hosts[screen.name] !== slot)
+            return;
+        const next = Object.assign({}, hosts);
+        delete next[screen.name];
         hosts = next;
     }
 

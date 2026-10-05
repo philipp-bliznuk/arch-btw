@@ -5,7 +5,7 @@ import Quickshell.Services.Notifications
 import qs.core
 
 // org.freedesktop.Notifications daemon.
-// Policy (dwm-titus): DND suppresses low/normal only; critical always shown.
+// Policy: DND suppresses low/normal only; critical always shown.
 // Popups: max 4 visible; history: last 50 persisted to ~/.local/state/qs/notifications.json.
 Scope {
     id: root

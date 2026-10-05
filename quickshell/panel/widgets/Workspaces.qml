@@ -5,12 +5,19 @@ import qs.core
 import qs.ui
 
 // Workspaces owned by this output. Focused = accent fill, urgent = red,
-// every other listed workspace is occupied (sway drops empty ones) → dot.
+// dot = holds windows. Sway keeps a visible-but-empty workspace per output,
+// so occupancy comes from get_workspaces' `representation` ("H[]" = empty);
+// SwayState refreshes it when windows open, close, move or float.
 Row {
     id: root
     property var screen
     readonly property var monitor: screen ? I3.monitorFor(screen) : null
     spacing: Style.spaceXs
+
+    function occupied(ws) {
+        const rep = ws.lastIpcObject ? ws.lastIpcObject.representation : null;
+        return typeof rep === "string" && !rep.endsWith("[]");
+    }
 
     Repeater {
         model: I3.workspaces
@@ -20,6 +27,7 @@ Row {
             required property I3Workspace modelData
             readonly property bool owned: !modelData.monitor || (root.monitor ? modelData.monitor === root.monitor : (!root.screen || modelData.monitor.name === root.screen.name))
             readonly property bool hovered: hover.hovered
+            readonly property bool occupied: root.occupied(modelData)
             visible: owned
             width: visible ? Math.max(Style.segmentHeight, label.implicitWidth + Style.segmentPadX * 2) : 0
             height: Style.segmentHeight
@@ -41,7 +49,7 @@ Row {
                 width: 3
                 height: 3
                 radius: 1.5
-                visible: !ws.modelData.focused
+                visible: !ws.modelData.focused && (ws.occupied || ws.modelData.urgent)
                 color: ws.modelData.urgent ? Color.urgent : Color.overlay1
             }
 

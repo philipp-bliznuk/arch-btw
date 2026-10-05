@@ -1,14 +1,14 @@
 // Vim key dispatch shared by the launcher and panel popups. Turns a Qt key
 // event into an action name; callers decide what the action means.
 //
-// insert(event, hasText)  — a text field owns typing; only Ctrl combos and
+// insert(event, hasText)  - a text field owns typing; only Ctrl combos and
 //                           navigation keys map. "" = let the field have it.
-// normal(event)           — plain letters. Handles the `gg` prefix itself.
+// normal(event)           - plain letters. Handles the `gg` prefix itself.
 //
 // Actions: up down halfUp halfDown top bottom activate left right back
 //          escape close insert copy paste delete deleteWord clear nextChip
-//          prevChip today leftBig rightBig mute shuffle loop week edit unit
-//          prevMonth nextMonth prevYear nextYear jump:N
+//          prevChip jump:N. Popup-specific letters live in each PopupCard
+//          keymap instead.
 .pragma library
 
 var pendingG = false
@@ -56,24 +56,11 @@ NORMAL[Qt.Key_X] = "delete"
 NORMAL[Qt.Key_Slash] = "insert"
 NORMAL[Qt.Key_I] = "insert"
 NORMAL[Qt.Key_Q] = "close"
-NORMAL[Qt.Key_M] = "mute"
-NORMAL[Qt.Key_T] = "today"
-NORMAL[Qt.Key_S] = "shuffle"
-NORMAL[Qt.Key_R] = "loop"
-NORMAL[Qt.Key_W] = "week"
-NORMAL[Qt.Key_E] = "edit"
-NORMAL[Qt.Key_U] = "unit"
 NORMAL[Qt.Key_Space] = "activate"
-NORMAL[Qt.Key_BracketLeft] = "prevMonth"
-NORMAL[Qt.Key_BracketRight] = "nextMonth"
 
 var NORMAL_SHIFT = {}
 NORMAL_SHIFT[Qt.Key_G] = "bottom"
-NORMAL_SHIFT[Qt.Key_H] = "leftBig"
-NORMAL_SHIFT[Qt.Key_L] = "rightBig"
 NORMAL_SHIFT[Qt.Key_Backtab] = "prevChip"
-NORMAL_SHIFT[Qt.Key_BraceLeft] = "prevYear"
-NORMAL_SHIFT[Qt.Key_BraceRight] = "nextYear"
 
 function insert(e, hasText) {
   if (SHARED[e.key] !== undefined && plain(e)) return SHARED[e.key]

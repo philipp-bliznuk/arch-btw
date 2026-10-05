@@ -6,8 +6,7 @@ Segment {
     icon: Icons.memory
     iconColor: Color.peach
     label: Metrics.mem + "%"
-    tooltip: "Memory " + Metrics.memUsed
-    onClicked: Commands.run({
-        argv: Commands.term(["btop"])
-    })
+    labelTemplate: "99%"
+    labelAlign: Text.AlignRight
+    hoverable: false
 }

@@ -2,38 +2,9 @@ pragma Singleton
 import QtQuick
 import Quickshell
 
-// Helpers lifted from omarchy shell (MIT, DHH), trimmed.
 QtObject {
     function clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
-    }
-
-    function alpha(c, opacity) {
-        const col = Qt.color(c);
-        return Qt.rgba(col.r, col.g, col.b, opacity);
-    }
-
-    function shellQuote(v) {
-        return "'" + String(v ?? "").replace(/'/g, "'\\''") + "'";
-    }
-
-
-    function editsFilter(event, text) {
-        if (!text)
-            return false;
-        if (event.modifiers & (Qt.AltModifier | Qt.MetaModifier))
-            return false;
-        if (event.key === Qt.Key_U)
-            return event.modifiers === Qt.ControlModifier;
-        return event.key === Qt.Key_Backspace;
-    }
-
-    function editedFilter(event, text) {
-        if (event.key === Qt.Key_U)
-            return "";
-        if (event.modifiers & Qt.ControlModifier)
-            return text.replace(/\s+$/, "").replace(/\S+$/, "");
-        return text.slice(0, -1);
     }
 
     function truncate(s, max) {
@@ -41,10 +12,22 @@ QtObject {
         return s.length > max ? s.slice(0, max - 1) + "…" : s;
     }
 
+    // Rates floor at KiB/s: idle reads "0.0 KiB/s", the number stays 2-3
+    // characters and the unit keeps one width, so bar labels do not shift.
     function humanBytes(bps) {
-        const units = ["B/s", "KB/s", "MB/s", "GB/s"];
+        const units = ["KiB/s", "MiB/s", "GiB/s"];
         let i = 0;
-        let v = bps;
+        let v = (bps || 0) / 1024;
+        while (v >= 1024 && i < units.length - 1) {
+            v /= 1024;
+            i++;
+        }
+        return v.toFixed(v < 10 ? 1 : 0) + " " + units[i];
+    }
+
+    function humanSize(bytes, units = ["B", "KiB", "MiB", "GiB"]) {
+        let i = 0;
+        let v = bytes || 0;
         while (v >= 1024 && i < units.length - 1) {
             v /= 1024;
             i++;

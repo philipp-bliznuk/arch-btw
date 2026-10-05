@@ -2,8 +2,10 @@ import QtQuick
 import Quickshell
 import qs.core
 
-// Delayed tooltip under a bar item. Suppressed while a panel popup is open:
-// a new xdg popup must chain from the grabbing one, so we simply don't show.
+// Delayed one-line tooltip under a bar item: how to use it (clicks, keys),
+// never what it shows - the segment itself does that. Suppressed while a
+// panel popup is open: a new xdg popup must chain from the grabbing one, so
+// we simply don't show.
 PopupWindow {
     id: root
 

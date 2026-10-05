@@ -1,146 +1,40 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import Quickshell
-import Quickshell.Io
 import Quickshell.Services.UPower
 import qs.core
 import qs.ui
 
-// Battery (omarchy parity): 10-level glyphs, optional %, threshold "Holding"
-// detection, stats, power profiles, auto power-saver on battery.
-// Keys: j/k profile · Enter apply · p toggle %.
+// Battery: 10-level glyphs, optional %, "Holding" when the charge limit is
+// reached; popup with power profiles and charge limit. State lives in
+// core/Power (one udev listener, one toast for all outputs).
+// Keys: j/k profile · Enter apply · c charge limit · p toggle %.
 Segment {
     id: root
-    readonly property var dev: UPower.displayDevice
-    readonly property bool present: dev && dev.isPresent && dev.isLaptopBattery
-    readonly property int pct: dev ? Math.round(dev.percentage * 100) : 0
-    readonly property bool onBattery: UPower.onBattery
-    readonly property bool charging: dev ? (dev.state === UPowerDeviceState.Charging || dev.state === UPowerDeviceState.FullyCharged) : false
-    // Charge threshold (e.g. TLP/BIOS 80 % cap): plugged in yet neither charging nor full.
-    readonly property bool holding: dev && !onBattery && (dev.state === UPowerDeviceState.PendingCharge || (dev.state === UPowerDeviceState.FullyCharged && pct < 99) || (dev.state === UPowerDeviceState.Charging && (Math.abs(dev.changeRate) <= 0.2 || dev.timeToFull >= 8 * 3600)))
-    readonly property string mode: holding ? "Holding" : (onBattery ? "On battery" : (pct >= 99 ? "Fully charged" : "Charging"))
-    readonly property string remaining: {
-        if (!dev)
-            return "";
-        const t = onBattery ? fmt(dev.timeToEmpty) : fmt(dev.timeToFull);
-        return t ? (onBattery ? t + " left" : t + " to full") : "";
-    }
     readonly property bool showPct: Settings.get("batteryPercent")
-    property bool profilesAvailable: false
-    property int cycles: 0
-    property int lastWarned: 100
-    readonly property var profiles: profilesAvailable ? [PowerProfile.PowerSaver, PowerProfile.Balanced].concat(PowerProfiles.hasPerformanceProfile ? [PowerProfile.Performance] : []) : []
+    readonly property bool charging: Power.charging && !Power.holding
 
-    visible: present
-    icon: Icons.batteryFor(pct, charging && !holding)
-    iconColor: charging && !holding ? Color.green : (pct < 10 ? Color.red : (pct < 30 ? Color.yellow : Color.text))
-    label: showPct ? pct + "%" : ""
-    tooltip: [pct + "% · " + mode.toLowerCase(), remaining, "right-click toggles %"].filter(x => x).join(" · ")
+    visible: Power.present
+    icon: Icons.batteryFor(Power.pct, charging)
+    iconColor: charging ? Color.green : (Power.pct < 10 ? Color.red : (Power.pct < 30 ? Color.yellow : Color.text))
+    label: showPct ? Power.pct + "%" : ""
     active: popup.open
 
-    onClicked: m => {
-        if (m.button === Qt.RightButton)
-            Settings.set("batteryPercent", !showPct);
-        else
-            popup.toggle();
-    }
-
-    // Auto profile: power-saver when unplugged, balanced when plugged in.
-    onOnBatteryChanged: {
-        if (!Settings.get("powerSaverOnBattery"))
-            return;
-        PowerProfiles.profile = onBattery ? PowerProfile.PowerSaver : PowerProfile.Balanced;
-    }
-
-    Process {
-        id: ppdProbe
-        command: ["busctl", "--system", "--no-pager", "status", "org.freedesktop.UPower.PowerProfiles"]
-        running: popup.open
-        onExited: (code, status) => root.profilesAvailable = code === 0 // qmllint disable signal-handler-parameters
-    }
-
-    Process {
-        id: cyclesProbe
-        command: ["sh", "-c", "upower -i $(upower -e | grep -m1 -i bat) | awk '/charge-cycles/{print $2}'"]
-        running: popup.open
-        stdout: StdioCollector {
-            onStreamFinished: root.cycles = parseInt(text) || 0
-        }
-    }
-
-    function fmt(seconds) {
-        if (!seconds || seconds <= 0)
-            return "";
-        const h = Math.floor(seconds / 3600);
-        const m = Math.round((seconds % 3600) / 60);
-        return h > 0 ? h + "h " + m + "m" : m + "m";
-    }
-
-    function profileName(p) {
-        switch (p) {
-        case PowerProfile.PowerSaver:
-            return "Power saver";
-        case PowerProfile.Performance:
-            return "Performance";
-        default:
-            return "Balanced";
-        }
-    }
-
-    function profileGlyph(p) {
-        switch (p) {
-        case PowerProfile.PowerSaver:
-            return Icons.leaf;
-        case PowerProfile.Performance:
-            return Icons.rocket;
-        default:
-            return Icons.scale;
-        }
-    }
-
-    onPctChanged: {
-        if (!onBattery) {
-            lastWarned = 100;
-            return;
-        }
-        for (const level of [15, 5]) {
-            if (pct <= level && lastWarned > level) {
-                lastWarned = level;
-                Quickshell.execDetached([Util.bin("qs-notify"), "-u", level <= 5 ? "critical" : "normal", "-i", "battery-caution", "Battery " + pct + "%", remaining ? remaining.replace(" left", " remaining") : ""]);
-            }
-        }
-    }
-
-    component Stat: Column {
-        property string title: ""
-        property string value: ""
-        width: (parent.width - Style.spaceMd) / 2
-        spacing: 0
-        visible: value !== ""
-
-        Label {
-            text: parent.title
-            color: Color.muted
-            font.pixelSize: Style.fontCaption
-        }
-        Label {
-            text: parent.value
-            font.pixelSize: Style.fontSmall
-        }
-    }
+    onClicked: popup.toggle()
 
     PopupCard {
         id: popup
         anchorItem: root
         popupId: "battery"
         cardWidth: 300
-        count: root.profiles.length
-        onAction: a => {
-            if (a === "activate" && root.profiles[cursor] !== undefined)
-                PowerProfiles.profile = root.profiles[cursor];
-            else if (a === "paste")
-                Settings.set("batteryPercent", !root.showPct);
-        }
+        count: Power.profiles.length
+        keymap: [
+            { key: "j k", run: k => cursor = Util.clamp(cursor + (k === "j" ? 1 : -1), 0, count - 1) },
+            { key: "Enter", run: () => { if (Power.profiles[cursor] !== undefined) PowerProfiles.profile = Power.profiles[cursor]; } },
+            { key: "c", run: () => Power.toggleLimit() },
+            { key: "p", run: () => Settings.set("batteryPercent", !root.showPct) }
+        ]
+
+        onOpenChanged: if (open) Power.refreshLimit()
 
         Column {
             width: parent.width
@@ -169,12 +63,12 @@ Segment {
 
                     Label {
                         width: parent.width
-                        text: root.mode
+                        text: Power.mode
                         font.pixelSize: Style.fontTitle
                     }
                     Label {
                         width: parent.width
-                        text: root.remaining || (root.holding ? "charge limit reached" : "")
+                        text: Power.remaining || (Power.holding ? "charge limit reached" : "")
                         color: Color.muted
                         font.pixelSize: Style.fontCaption
                     }
@@ -183,7 +77,7 @@ Segment {
                     id: heroPct
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    text: root.pct + "%"
+                    text: Power.pct + "%"
                     font.pixelSize: Style.fontTitle + 6
                     color: root.iconColor
                 }
@@ -197,13 +91,13 @@ Segment {
 
                 Rectangle {
                     id: fill
-                    width: parent.width * root.pct / 100
+                    width: parent.width * Power.pct / 100
                     height: parent.height
                     radius: parent.radius
                     color: root.iconColor
 
                     SequentialAnimation on opacity {
-                        running: root.charging && !root.holding && popup.open
+                        running: root.charging && popup.open
                         loops: Animation.Infinite
                         NumberAnimation {
                             to: 0.45
@@ -218,25 +112,58 @@ Segment {
                 }
             }
 
-            Flow {
+            // Charge limit: holds the cell between start→end % while plugged in.
+            // Lithium cells age fastest sitting at 100 %; 80 % roughly doubles
+            // cycle life. Turn it off before travel to top up.
+            Rectangle {
+                id: limitRow
+                visible: Power.limit.supported === true
                 width: parent.width
-                spacing: Style.spaceMd
+                height: Style.rowHeight
+                radius: Style.radius
+                color: limitHover.hovered ? Color.surface1 : Color.surface0
 
-                Stat {
-                    title: "CAPACITY"
-                    value: root.dev && root.dev.energyCapacity ? root.dev.energyCapacity.toFixed(1) + " Wh" : ""
+                Row {
+                    anchors.left: parent.left
+                    anchors.leftMargin: Style.spaceMd
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Style.spaceMd
+
+                    Glyph {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: Icons.batteryFor(Power.limit.end ?? 80, false)
+                        glyphColor: Power.limit.enabled ? Color.green : Color.subtext0
+                    }
+                    Column {
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 1
+
+                        Label {
+                            text: "Charge limit"
+                            font.pixelSize: Style.fontSmall
+                        }
+                        Label {
+                            text: Power.limit.enabled ? "charges " + Power.limit.start + " → " + Power.limit.end + " %, kinder to the cell" : "off - charges to 100 %"
+                            color: Color.muted
+                            font.pixelSize: Style.fontCaption
+                        }
+                    }
                 }
-                Stat {
-                    title: root.onBattery ? "DISCHARGING" : "CHARGING RATE"
-                    value: root.dev && root.dev.changeRate ? Math.abs(root.dev.changeRate).toFixed(1) + " W" : ""
+                Label {
+                    anchors.right: parent.right
+                    anchors.rightMargin: Style.spaceMd
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: Power.limit.enabled ? "ON" : "OFF"
+                    color: Power.limit.enabled ? Color.green : Color.muted
+                    font.pixelSize: Style.fontCaption
+                    font.weight: Font.Bold
                 }
-                Stat {
-                    title: "HEALTH"
-                    value: root.dev && root.dev.healthSupported ? Math.round(root.dev.healthPercentage * 100) + "%" : ""
+                HoverHandler {
+                    id: limitHover
                 }
-                Stat {
-                    title: "CYCLES"
-                    value: root.cycles ? String(root.cycles) : ""
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: Power.toggleLimit()
                 }
             }
 
@@ -244,30 +171,30 @@ Segment {
                 width: parent.width
                 height: 1
                 color: Color.surface1
-                visible: root.profilesAvailable
+                visible: Power.profilesAvailable
             }
 
             Label {
-                visible: root.profilesAvailable
+                visible: Power.profilesAvailable
                 text: "POWER PROFILE"
                 color: Color.muted
                 font.pixelSize: Style.fontCaption
             }
 
             Row {
-                visible: root.profilesAvailable
+                visible: Power.profilesAvailable
                 width: parent.width
                 spacing: Style.spaceXs
 
                 Repeater {
-                    model: root.profiles
+                    model: Power.profiles
 
                     Rectangle {
                         id: prof
                         required property var modelData
                         required property int index
                         readonly property bool current: PowerProfiles.profile === modelData
-                        width: (parent.width - Style.spaceXs * (root.profiles.length - 1)) / root.profiles.length
+                        width: (parent.width - Style.spaceXs * (Power.profiles.length - 1)) / Power.profiles.length
                         height: 48
                         radius: Style.radius
                         color: current ? Color.segmentActive : (popup.cursor === index ? Color.segmentHover : Color.surface0)
@@ -280,12 +207,12 @@ Segment {
 
                             Glyph {
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                text: root.profileGlyph(prof.modelData)
+                                text: Power.profileGlyph(prof.modelData)
                                 glyphColor: prof.current ? Color.accent : Color.subtext0
                             }
                             Label {
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                text: root.profileName(prof.modelData)
+                                text: Power.profileName(prof.modelData)
                                 color: prof.current ? Color.text : Color.muted
                                 font.pixelSize: Style.fontCaption
                             }

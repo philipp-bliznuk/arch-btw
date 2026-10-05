@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# Arch Linux installer — live ISO phase.
+# Arch Linux installer - live ISO phase.
 #
 #   curl -fsSL https://raw.githubusercontent.com/philipp-bliznuk/arch-btw/master/install.sh -o install.sh
-#   bash install.sh            # not `curl | bash` — needs interactive stdin
+#   bash install.sh            # not `curl | bash` - needs interactive stdin
 #
 # Prompts: disk, timezone, username, LUKS/user/root passwords. Everything else hardcoded.
 # Get online first (iwctl); saved iwd networks are carried into the installed system.
@@ -36,9 +36,9 @@ PACKAGES=(
 	"<vaapi>" libva-utils # hardware video decode (browser video otherwise burns a CPU core + GPU uploads); vainfo to verify
 	wl-clipboard grim slurp ghostty xorg-xwayland
 	xdg-desktop-portal-wlr xdg-desktop-portal-gtk
-	ttf-jetbrains-mono-nerd noto-fonts noto-fonts-emoji
+	ttf-jetbrains-mono-nerd noto-fonts noto-fonts-cjk noto-fonts-emoji # cjk: fallback glyphs for app menus/titles (tray menus, window titles)
 	brightnessctl playerctl xdg-user-dirs man-db man-pages
-	wlsunset power-profiles-daemon # night light (qs-toggle), battery power profiles (Quickshell battery popup)
+	wlsunset power-profiles-daemon python-gobject # night light (qs-toggle), battery power profiles (Quickshell battery popup; powerprofilesctl needs gobject)
 	libqalculate systemd-ukify btrfs-assistant
 	pam-u2f libfido2 yubikey-manager ccid pcsc-tools
 	librewolf
@@ -106,7 +106,7 @@ step_preflight() {
 		err "Run as root from the live ISO."
 		exit 1
 	}
-	[[ -d /run/archiso ]] || warn "Not /run/archiso — not the Arch live ISO? Continuing."
+	[[ -d /run/archiso ]] || warn "Not /run/archiso - not the Arch live ISO? Continuing."
 	[[ -d /sys/firmware/efi ]] || {
 		err "Not booted in UEFI mode."
 		exit 1
@@ -186,7 +186,7 @@ _read_confirmed() {
 			printf '%s' "$a"
 			return 0
 		}
-		warn "Empty or mismatch — try again."
+		warn "Empty or mismatch - try again."
 	done
 }
 
@@ -458,17 +458,17 @@ chroot_phase() {
 127.0.1.1   ${HOSTNAME}.localdomain ${HOSTNAME}
 EOF
 
-	# No swapon here — active swap would block the final umount.
+	# No swapon here - active swap would block the final umount.
 	btrfs filesystem mkswapfile --uuid clear --size "${SWAP_GB}G" /swap/swapfile
 	echo "/swap/swapfile none swap defaults 0 0" >>/etc/fstab
 	local offset
 	offset="$(btrfs inspect-internal map-swapfile -r /swap/swapfile)" # not filefrag on btrfs
 
-	# systemd hook family only — never mix with busybox encrypt/keymap.
+	# systemd hook family only - never mix with busybox encrypt/keymap.
 	sed -i 's/^HOOKS=.*/HOOKS=(base systemd autodetect microcode modconf kms keyboard sd-vconsole block sd-encrypt filesystems fsck)/' \
 		/etc/mkinitcpio.conf
 
-	# discard: TRIM through dm-crypt so fstrim.timer works. No lockdown= — breaks hibernation.
+	# discard: TRIM through dm-crypt so fstrim.timer works. No lockdown= - breaks hibernation.
 	mkdir -p /etc/cmdline.d
 	cat >/etc/cmdline.d/root.conf <<EOF
 rd.luks.name=${LUKS_UUID}=cryptroot root=/dev/mapper/cryptroot rootflags=subvol=@ rw quiet lsm=landlock,lockdown,yama,apparmor,bpf rd.luks.options=${LUKS_UUID}=fido2-device=auto,discard
@@ -560,7 +560,7 @@ HandleLidSwitchExternalPower=suspend-then-hibernate
 HandleLidSwitchDocked=ignore
 EOF
 
-	# Non-Mono variant on purpose — Mono clips icons.
+	# Non-Mono variant on purpose - Mono clips icons.
 	cat >/etc/fonts/local.conf <<'EOF'
 <?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
@@ -585,23 +585,23 @@ EOF
 
 main_live() {
 	: >"$LOG_FILE"
-	info "Arch install — live ISO phase. Log: $LOG_FILE"
+	info "Arch install - live ISO phase. Log: $LOG_FILE"
 
 	run_step step_preflight
 	run_step step_network
 	detect_ucode
 	detect_swap_gb
-	prompt_inputs # interactive — outside run_step
+	prompt_inputs # interactive - outside run_step
 	derive_parts
 	run_step step_partition
 	run_step step_luks
 	LUKS_UUID="$(blkid -s UUID -o value "$PART_LUKS")"
 	run_step step_btrfs
-	step_fido2 # interactive — outside run_step
+	step_fido2 # interactive - outside run_step
 	run_step step_pacstrap
 	run_step step_chroot
 	run_step step_dotfiles_clone
-	step_finish # interactive — outside run_step
+	step_finish # interactive - outside run_step
 }
 
 SKIP_FIDO2=0

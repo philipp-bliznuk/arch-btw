@@ -7,8 +7,7 @@ Segment {
     icon: Icons.gpu
     iconColor: Color.mauve
     label: Metrics.gpu + "%"
-    tooltip: "GPU render " + Metrics.gpu + "%" + (Metrics.gpuSource === "pmu" ? " · video " + Metrics.gpuVideo + "%" : "") + (Metrics.gpuMhz ? " · " + Metrics.gpuMhz + " MHz" : "") + (Metrics.gpuSource === "rc6" ? " · approx (run post-install.sh --redo gpu_helper)" : "")
-    onClicked: Commands.run({
-        argv: Commands.term(["btop"])
-    })
+    labelTemplate: "99%"
+    labelAlign: Text.AlignRight
+    hoverable: false
 }

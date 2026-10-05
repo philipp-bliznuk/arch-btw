@@ -1,6 +1,7 @@
 module qs.ui
 Glyph 1.0 Glyph.qml
 Label 1.0 Label.qml
+Marquee 1.0 Marquee.qml
 Segment 1.0 Segment.qml
 Tooltip 1.0 Tooltip.qml
 PopupCard 1.0 PopupCard.qml

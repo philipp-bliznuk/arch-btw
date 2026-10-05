@@ -24,7 +24,9 @@ Singleton {
         else
             delete next[name];
         active = next;
-        Quickshell.execDetached([Util.bin("qs-toggle"), name, on ? "on" : "off"]);
+        Commands.run({
+            argv: [Util.bin("qs-toggle"), name, on ? "on" : "off"]
+        });
     }
 
     function flip(name) {

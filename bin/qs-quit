@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# qs-quit
+# Quit the focused application: SIGTERM to the focused window's process, so
+# apps that only hide to the tray on window close actually exit.
+set -Eeuo pipefail
+
+pid=$(swaymsg -t get_tree | jq -r '.. | select(.focused? == true) | .pid // empty' | head -1)
+[[ -n "$pid" ]] || exit 0
+kill -TERM "$pid"

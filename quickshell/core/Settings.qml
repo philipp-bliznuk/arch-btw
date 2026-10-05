@@ -9,11 +9,11 @@ Singleton {
     id: root
 
     readonly property var defaults: ({
-            weekStartMonday: true,
             batteryPercent: true,
             powerSaverOnBattery: true,
             weatherUnit: "metric",
-            weatherRefreshMinutes: 15
+            weatherRefreshMinutes: 15,
+            nightLightAuto: true
         })
     property var data: ({})
 

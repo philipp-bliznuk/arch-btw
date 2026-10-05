@@ -2,11 +2,17 @@ import QtQuick
 import qs.core
 import qs.ui
 
-// Night light (wlsunset 4000 K via bin/qs-toggle): always visible, click toggles.
+// Night light (wlsunset 4000 K via bin/qs-toggle): always visible. Click
+// toggles now; right-click flips the sunset/sunrise automation (core/Sun).
 Segment {
     readonly property bool on: Toggles.has("nightlight")
     icon: Icons.nightlight
     iconColor: on ? Color.peach : Color.overlay1
-    tooltip: on ? "Night light 4000 K · click for daylight" : "Daylight · click for night light"
-    onClicked: Toggles.flip("nightlight")
+    tooltip: "right-click: auto " + (Sun.auto ? "off" : "on")
+    onClicked: m => {
+        if (m.button === Qt.RightButton)
+            Settings.set("nightLightAuto", !Sun.auto);
+        else
+            Toggles.flip("nightlight");
+    }
 }

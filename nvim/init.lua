@@ -1,4 +1,4 @@
--- Bytecode cache (must be first — before any require)
+-- Bytecode cache (must be first - before any require)
 vim.loader.enable()
 
 -- Disable unused built-in plugins (before any sourcing)

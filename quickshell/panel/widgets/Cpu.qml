@@ -6,8 +6,7 @@ Segment {
     icon: Icons.cpu
     iconColor: Color.green
     label: Metrics.cpu + "%"
-    tooltip: "CPU " + Metrics.cpu + "% · click btop"
-    onClicked: Commands.run({
-        argv: Commands.term(["btop"])
-    })
+    labelTemplate: "99%"
+    labelAlign: Text.AlignRight
+    hoverable: false
 }

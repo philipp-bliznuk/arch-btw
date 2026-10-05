@@ -106,9 +106,9 @@ function toggleRows(I, state) {
     return row(id, name, on ? onText : offText, glyph, { toggle: id, checked: on, keywords: kw || [] })
   }
   return [
-    t("awake", "Stay awake", "on — idle lock inhibited", "off", I.eye, ["idle", "caffeine", "inhibit"]),
-    t("nightlight", "Night light", "on — 4000K", "off — 6500K", I.moon, ["wlsunset", "gamma", "redshift"]),
-    t("dnd", "Do not disturb", "on — only critical notifications shown", "off", I.bellOff, ["notifications", "silence"]),
+    t("awake", "Stay awake", "on - idle lock inhibited", "off", I.eye, ["idle", "caffeine", "inhibit"]),
+    t("nightlight", "Night light", "on - 4000K", "off - 6500K", I.moon, ["wlsunset", "gamma", "redshift"]),
+    t("dnd", "Do not disturb", "on - only critical notifications shown", "off", I.bellOff, ["notifications", "silence"]),
     t("bar-hidden", "Hide bar", "on", "off", I.monitor, ["panel"]),
   ]
 }

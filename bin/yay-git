@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# yay-git <pkg>...
+# Build AUR packages straight from git, no helper needed. Clones from
+# aur.archlinux.org first and falls back to the official GitHub mirror
+# (github.com/archlinux/aur, one branch per package) when the AUR is
+# unreachable (DDoS firewall drops TLS). Resolves AUR-only dependencies
+# recursively from .SRCINFO; repo packages are left to makepkg -s.
+set -Eeuo pipefail
+
+if (($# == 0)); then
+	echo "usage: yay-git <pkg>..." >&2
+	exit 2
+fi
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+declare -A seen=()
+
+# Both accept virtual names: -T checks installed provides, -Sp resolves repo provides.
+installed() { pacman -T "$1" >/dev/null 2>&1; }
+in_repos() { pacman -Sp --print-format %n "$1" >/dev/null 2>&1; }
+
+fetch() {
+	local pkg="$1" dest="$work/$pkg"
+	if git clone -q --depth 1 "https://aur.archlinux.org/$pkg.git" "$dest" 2>/dev/null; then
+		echo "aur"
+		return
+	fi
+	rm -rf "$dest"
+	git clone -q --depth 1 --branch "$pkg" --single-branch https://github.com/archlinux/aur.git "$dest"
+	echo "github"
+}
+
+# Dependency names from .SRCINFO, version constraints stripped.
+deps() {
+	awk -F' = ' '/^\t(make|check)?depends = /{print $2}' "$1/.SRCINFO" |
+		sed -E 's/[<>=].*$//' | sort -u
+}
+
+build() {
+	local pkg="$1" src dep
+	[[ -n "${seen[$pkg]:-}" ]] && return
+	seen[$pkg]=1
+	if pacman -Q "$pkg" >/dev/null 2>&1; then
+		echo "$pkg: already installed"
+		return
+	fi
+	src="$(fetch "$pkg")"
+	echo "$pkg: source $src"
+	while read -r dep; do
+		[[ -z "$dep" ]] && continue
+		installed "$dep" || in_repos "$dep" || build "$dep"
+	done < <(deps "$work/$pkg")
+	(cd "$work/$pkg" && makepkg -si --noconfirm --needed)
+}
+
+for pkg in "$@"; do
+	build "$pkg"
+done

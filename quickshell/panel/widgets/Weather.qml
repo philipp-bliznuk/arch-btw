@@ -1,38 +1,21 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import Quickshell
 import qs.core
 import qs.ui
 
-// Weather (omarchy parity): glyph + temperature in the bar; popup with hero,
-// location (editable), feels/wind/humidity, 3-day forecast.
-// Click popup · middle refresh · right-click notification summary.
-// Keys: e/Enter edit location · r refresh · u toggle °C/°F · Esc.
+// Weather: glyph + temperature in the bar; popup with hero, location
+// (editable), feels/wind/humidity, sunrise/sunset. Click opens the popup.
+// Keys: e/Enter edit location · r refresh · u toggle °C/°F · d IP location.
 Segment {
     id: root
     visible: Weather.ready
     icon: Weather.glyph(Weather.current.weather_code, Weather.current.is_day)
     iconColor: Color.yellow
     label: Weather.temp(Weather.current.temperature_2m)
-    tooltip: Weather.ready ? Weather.name + " · " + Weather.describe(Weather.current.weather_code) + " · feels " + Weather.temp(Weather.current.apparent_temperature) : ""
     active: popup.open
     property bool editing: false
 
-    onClicked: m => {
-        if (m.button === Qt.MiddleButton)
-            Weather.refresh();
-        else if (m.button === Qt.RightButton)
-            Quickshell.execDetached(["sh", "-c", Util.bin("qs-notify") + ' -i weather-clear "Weather" "$(' + Util.bin("qs-weather") + ' status)"']);
-        else
-            popup.toggle();
-    }
-
-    function dayName(iso, i) {
-        if (i === 0)
-            return "Today";
-        const d = new Date(iso + "T12:00:00");
-        return Qt.formatDate(d, "ddd");
-    }
+    onClicked: popup.toggle()
 
     function startEdit() {
         editing = true;
@@ -42,9 +25,15 @@ Segment {
 
     function commitEdit() {
         const q = search.text.trim();
-        editing = false;
+        stopEdit();
         if (q)
             Weather.setLocation(q);
+    }
+
+    // Hand focus back to the card's key handler, not the card itself.
+    function stopEdit() {
+        editing = false;
+        popup.focusKeys();
     }
 
     PopupCard {
@@ -53,23 +42,12 @@ Segment {
         popupId: "weather"
         cardWidth: 300
         onOpenChanged: if (!open) root.editing = false
-        onAction: a => {
-            switch (a) {
-            case "edit":
-            case "activate":
-                root.startEdit();
-                break;
-            case "loop":
-                Weather.refresh();
-                break;
-            case "unit":
-                Settings.set("weatherUnit", Weather.imperial ? "metric" : "imperial");
-                break;
-            case "delete":
-                Weather.clearLocation();
-                break;
-            }
-        }
+        keymap: [
+            { key: "e Enter", run: () => root.startEdit() },
+            { key: "r", run: () => Weather.refresh() },
+            { key: "u", run: () => Settings.set("weatherUnit", Weather.imperial ? "metric" : "imperial") },
+            { key: "d", run: () => Weather.clearLocation() }
+        ]
 
         component Stat: Column {
             id: stat
@@ -143,11 +121,6 @@ Segment {
                     anchors.verticalCenter: parent.verticalCenter
                     text: Weather.temp(Weather.current.temperature_2m).replace("°", "") + Weather.unit
                     font.pixelSize: Style.fontTitle + 8
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: Settings.set("weatherUnit", Weather.imperial ? "metric" : "imperial")
-                    }
                 }
             }
 
@@ -156,7 +129,6 @@ Segment {
                 glyph: Icons.mapMarker
                 glyphColor: Color.accent
                 title: Weather.name || "Detecting location…"
-                trailing: "change · e"
                 onClicked: root.startEdit()
             }
 
@@ -168,19 +140,16 @@ Segment {
                 Field {
                     id: search
                     width: parent.width - clear.width - parent.spacing
-                    placeholder: "City, e.g. Lviv or Kyiv, UA — Enter to set, Esc to cancel"
+                    placeholder: "City, e.g. Lviv or Kyiv, UA - Enter to set, Esc to cancel"
                     onAccepted: root.commitEdit()
-                    onEscaped: {
-                        root.editing = false;
-                        popup.forceActiveFocus();
-                    }
+                    onEscaped: root.stopEdit()
                 }
                 Segment {
                     id: clear
+                    anchors.verticalCenter: parent.verticalCenter
                     icon: Icons.close
-                    tooltip: "Use IP location"
                     onClicked: {
-                        root.editing = false;
+                        root.stopEdit();
                         Weather.clearLocation();
                     }
                 }
@@ -203,50 +172,29 @@ Segment {
                 Stat {
                     glyph: Icons.humidity
                     title: "HUMID"
-                    value: (Weather.current.relative_humidity_2m ?? "–") + "%"
+                    value: (Weather.current.relative_humidity_2m ?? "-") + "%"
                 }
             }
 
-            Rectangle {
-                width: parent.width
-                height: 1
-                color: Color.surface1
-            }
-
             Row {
+                visible: Sun.known
                 width: parent.width
-                spacing: Style.spaceXs
+                spacing: Style.spaceMd
 
-                Repeater {
-                    model: Weather.daily.time ? Weather.daily.time.slice(1, 4) : []
-
-                    Column {
-                        id: day
-                        required property string modelData
-                        required property int index
-                        readonly property int i: index + 1
-                        width: (parent.width - Style.spaceXs * 2) / 3
-                        spacing: 2
-
-                        Label {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: root.dayName(day.modelData, day.i)
-                            color: Color.muted
-                            font.pixelSize: Style.fontCaption
-                        }
-                        Glyph {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: Weather.glyph(Weather.daily.weather_code[day.i], true)
-                            glyphColor: Color.yellow
-                            size: Style.fontTitle + 4
-                            height: 28
-                        }
-                        Label {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: Weather.temp(Weather.daily.temperature_2m_max[day.i]) + " / " + Weather.temp(Weather.daily.temperature_2m_min[day.i])
-                            font.pixelSize: Style.fontSmall
-                        }
-                    }
+                Stat {
+                    glyph: Icons.sunrise
+                    title: "SUNRISE"
+                    value: Qt.formatTime(Sun.sunrise, "HH:mm")
+                }
+                Stat {
+                    glyph: Icons.sunset
+                    title: "SUNSET"
+                    value: Qt.formatTime(Sun.sunset, "HH:mm")
+                }
+                Stat {
+                    glyph: Icons.nightlight
+                    title: "NIGHT LIGHT"
+                    value: Sun.auto ? "auto" : "manual"
                 }
             }
         }

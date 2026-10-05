@@ -4,7 +4,7 @@ local map = require("util").map
 -- Dependencies
 pack.add("https://github.com/nvim-lua/plenary.nvim")
 
--- Yazi file manager (eager — needs BufEnter hook for open_for_directories)
+-- Yazi file manager (eager - needs BufEnter hook for open_for_directories)
 pack.add("https://github.com/mikavilpas/yazi.nvim", function()
   require("yazi").setup({
     open_for_directories = true,

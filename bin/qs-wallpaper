@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# qs-wallpaper <set PATH | next | random | current>
+# qs-wallpaper <set PATH | next | random | current | list>
 # Points ~/.local/state/qs/background at a file in ~/.config/wallpapers; Quickshell watches the link.
 set -Eeuo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

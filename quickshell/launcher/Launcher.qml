@@ -10,7 +10,7 @@ import "MenuModel.js" as Model
 import "Usage.js" as Usage
 import "../ui/KeyModel.js" as KeyModel
 
-// dwm-titus style command menu. Rows are data (MenuModel.js); activate()
+// Command menu. Rows are data (MenuModel.js); activate()
 // dispatches them. Two key modes: insert (field focused, typing filters)
 // and normal (vim keys). Index is only built while shown.
 Scope {
@@ -84,6 +84,7 @@ Scope {
     }
     onShownChanged: {
         if (shown) {
+            pointer = Qt.point(-1, -1)
             field.input.forceActiveFocus()
             return
         }
@@ -277,6 +278,20 @@ Scope {
             chip = (chip + delta + chips.length) % chips.length
     }
 
+    // Cursor follows the pointer only when it actually moves. A static pointer
+    // must not steal the cursor when the list scrolls under it (keyboard nav)
+    // or when the card appears beneath it.
+    property point pointer: Qt.point(-1, -1)
+    function follow(view, p) {
+        const moved = pointer.x >= 0 && (p.x !== pointer.x || p.y !== pointer.y)
+        pointer = p
+        if (!moved)
+            return
+        const i = view.indexAt(p.x + view.contentX, p.y + view.contentY)
+        if (i >= 0)
+            cursor = i
+    }
+
     // Both modes funnel here. Returns true when handled.
     function perform(a) {
         if (!a)
@@ -297,9 +312,7 @@ Scope {
         case "activate": activate(current); return true
         case "right": mode === "normal" ? activate(current) : descend(current); return true
         case "left": case "back": if (mode === "normal" || query === "") back(); else setMode("normal"); return true
-        case "escape":
-            if (mode === "insert") { if (query === "") close(); else setMode("normal") } else close()
-            return true
+        case "escape": if (mode === "insert") setMode("normal"); else close(); return true
         case "close": close(); return true
         case "insert": setMode("insert"); return true
         case "copy": copyRow(current); return true
@@ -427,7 +440,7 @@ Scope {
                     width: parent.width
                     text: root.query
                     onTextChanged: root.query = text
-                    placeholder: root.select ? root.select.prompt : (root.stack.length > 1 ? "Type to filter…  Esc for normal mode" : "Search apps, or =expr to calculate…")
+                    placeholder: root.select ? root.select.prompt : (root.stack.length > 1 ? "Type to filter…  Esc for normal mode" : "Search apps, =expr to calculate…  Esc for normal mode")
                     onAccepted: root.activate(root.current)
                     onEscaped: root.perform("escape")
                     onKeyPressed: e => {
@@ -476,12 +489,13 @@ Scope {
                         selected: index === root.cursor
                         dim: modelData.disabled === true
                         onClicked: root.activate(modelData)
-                        onHoveredChanged: if (hovered) root.cursor = index
                     }
+
+                    HoverHandler { onPointChanged: root.follow(list, point.position) }
                 }
 
                 GridView {
-                    id: grid
+                    id: gridView
                     width: parent.width
                     visible: root.grid
                     height: visible ? Math.min(Math.ceil(count / 3) * cellHeight, Style.cardMaxHeight - y - Style.cardPadding) : 0
@@ -497,8 +511,8 @@ Scope {
                         id: cell
                         required property var modelData
                         required property int index
-                        width: grid.cellWidth
-                        height: grid.cellHeight
+                        width: gridView.cellWidth
+                        height: gridView.cellHeight
 
                         Rectangle {
                             anchors.fill: parent
@@ -535,10 +549,11 @@ Scope {
                                 font.pixelSize: Style.fontCaption
                                 color: cell.modelData.checked ? Color.accent : Color.subtext0
                             }
-                            HoverHandler { onHoveredChanged: if (hovered) root.cursor = cell.index }
                             MouseArea { anchors.fill: parent; onClicked: root.activate(cell.modelData) }
                         }
                     }
+
+                    HoverHandler { onPointChanged: root.follow(gridView, point.position) }
                 }
             }
         }

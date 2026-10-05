@@ -12,3 +12,5 @@ singleton Metrics 1.0 Metrics.qml
 singleton Player 1.0 Player.qml
 singleton Settings 1.0 Settings.qml
 singleton Weather 1.0 Weather.qml
+singleton Sun 1.0 Sun.qml
+singleton Power 1.0 Power.qml

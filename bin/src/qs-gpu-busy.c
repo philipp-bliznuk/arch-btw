@@ -1,4 +1,4 @@
-// qs-gpu-busy [interval_s] — i915 engine busy % via the i915 PMU (same source
+// qs-gpu-busy [interval_s] - i915 engine busy % via the i915 PMU (same source
 // btop / intel_gpu_top use). Needs CAP_PERFMON; post-install.sh installs it
 // root-owned to /usr/local/bin with the capability set.
 // Prints "<render%> <video%>" per interval; quickshell/core/Metrics.qml reads it.

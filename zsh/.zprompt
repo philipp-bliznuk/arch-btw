@@ -1,4 +1,4 @@
-# Pure zsh prompt — catppuccin-mocha (hardcoded)
+# Pure zsh prompt - catppuccin-mocha (hardcoded)
 # No external dependencies (no starship, no subprocess forks)
 
 # Precise timing via zsh/datetime module
@@ -25,7 +25,7 @@ function precmd() {
   fi
 }
 
-# --- Git branch (reads .git/HEAD directly — no fork) ---
+# --- Git branch (reads .git/HEAD directly - no fork) ---
 function _prompt_git_branch() {
   local branch head_file dir=$PWD
 

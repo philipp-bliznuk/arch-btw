@@ -47,9 +47,15 @@ nightlight)
 			"$here"/qs-notify -u low "Night light" "wlsunset not installed"
 			exit 1
 		}
+		# One wlsunset owns gamma: a stray from an older session (resume, shell
+		# restart) can leave an output half-reset. Stop the unit first so the
+		# pkill cannot race its is-active check.
+		stop_daemon qs-nightlight
+		pkill -x wlsunset 2>/dev/null || true
 		start_daemon qs-nightlight wlsunset -T 6500 -t 4000
 	else
 		stop_daemon qs-nightlight
+		pkill -x wlsunset 2>/dev/null || true
 	fi
 	;;
 dnd | bar-hidden) ;;

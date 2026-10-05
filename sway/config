@@ -10,13 +10,14 @@ set $menu qs-shell launcher toggle
 ### Input
 input type:keyboard {
     xkb_layout us,ua,ru
-    xkb_options grp:alt_shift_toggle
+    # caps:super - Caps Lock is a second $mod for one-handed workspace keys
+    xkb_options grp:alt_shift_toggle,caps:super
     repeat_delay 200
     repeat_rate 35
 }
 
 ### Output
-# No `output * bg` — swaybg not installed; Quickshell paints the wallpaper.
+# No `output * bg` - swaybg not installed; Quickshell paints the wallpaper.
 # Laptop panel is primary (workspace 1, tray); externals sit to its right.
 output eDP-1 mode 1366x768@60Hz scale 1 position 0 0
 output HDMI-A-2 mode 2560x1440@60Hz scale 1 position 1366 0
@@ -31,12 +32,14 @@ exec swayidle -w \
     timeout 905 'swaymsg "output * power off"' \
     resume 'swaymsg "output * power on"' \
     timeout 1800 'systemctl suspend-then-hibernate' \
-    before-sleep 'pgrep -x swaylock || swaylock -f'
+    before-sleep 'pgrep -x swaylock || swaylock -f' \
+    after-resume 'qs-shell -q shell resume'
 
 ### Basics
 bindsym $mod+Return exec $term
 bindsym $mod+d exec $menu
 bindsym $mod+Shift+q kill
+bindsym $mod+Ctrl+q exec qs-quit
 bindsym $mod+Shift+c reload
 bindsym $mod+Shift+e exec swaynag -t warning -m 'Exit sway?' -B 'Yes' 'swaymsg exit'
 bindsym $mod+Shift+r exec qs-session restart
@@ -70,10 +73,18 @@ bindsym $mod+Shift+Up move up
 bindsym $mod+Shift+Right move right
 
 ### Workspaces
-# 1 → laptop, 2+ → first external when present (falls back to laptop).
+# 1, 4 → laptop; 2, 3 → first external when present (fall back to laptop).
+# Sway moves them back out when a higher-priority output is plugged in.
 workspace 1 output eDP-1
 workspace 2 output HDMI-A-2 HDMI-A-1 DP-1 DP-2 eDP-1
 workspace 3 output HDMI-A-2 HDMI-A-1 DP-1 DP-2 eDP-1
+workspace 4 output eDP-1
+# Home workspaces per app. Zoom runs under XWayland, so it matches on
+# `class`, not `app_id`.
+assign [app_id="^[Ss]lack$"] workspace number 1
+assign [app_id="^com\.mitchellh\.ghostty$"] workspace number 2
+assign [app_id="^librewolf$"] workspace number 3
+assign [class="^[Zz]oom$"] workspace number 4
 bindsym $mod+1 workspace number 1
 bindsym $mod+2 workspace number 2
 bindsym $mod+3 workspace number 3
@@ -126,6 +137,19 @@ mode "resize" {
 }
 bindsym $mod+r mode "resize"
 
+### Popups ($mod+o prefix, tmux-style; Quickshell bar shows the mode and its keys)
+mode "popup" {
+    bindsym m exec qs-shell -q popups open media, mode "default"
+    bindsym a exec qs-shell -q popups open audio, mode "default"
+    bindsym n exec qs-shell -q popups open network, mode "default"
+    bindsym b exec qs-shell -q popups open battery, mode "default"
+    bindsym c exec qs-shell -q popups open clock, mode "default"
+    bindsym w exec qs-shell -q popups open weather, mode "default"
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
+bindsym $mod+o mode "popup"
+
 ### Media keys (wpctl; -l 1.0 caps at 100%)
 bindsym --locked XF86AudioRaiseVolume exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+ -l 1.0
 bindsym --locked XF86AudioLowerVolume exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
@@ -138,8 +162,6 @@ bindsym --locked XF86AudioPrev exec playerctl previous && qs-shell -q osd media
 bindsym --locked $mod+p exec playerctl play-pause && qs-shell -q osd media
 bindsym --locked $mod+bracketright exec playerctl next && qs-shell -q osd media
 bindsym --locked $mod+bracketleft exec playerctl previous && qs-shell -q osd media
-bindsym --locked $mod+Shift+bracketright exec playerctl position 10+
-bindsym --locked $mod+Shift+bracketleft exec playerctl position 10-
 bindsym $mod+Shift+p exec qs-shell -q popups toggle media
 bindsym --locked XF86MonBrightnessUp exec brightnessctl set 5%+ && qs-shell -q osd brightness
 bindsym --locked XF86MonBrightnessDown exec brightnessctl set 5%- && qs-shell -q osd brightness
@@ -167,5 +189,5 @@ client.focused_inactive #45475a #45475a #cdd6f4 #45475a #45475a
 client.unfocused        #313244 #313244 #6c7086 #313244 #313244
 client.urgent           #f38ba8 #f38ba8 #1e1e2e #f38ba8 #f38ba8
 
-# No `bar {}` block — Quickshell draws the bar.
+# No `bar {}` block - Quickshell draws the bar.
 include /etc/sway/config.d/*

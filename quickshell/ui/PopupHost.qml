@@ -7,7 +7,7 @@ import qs.core
 // One overlay layer per output that hosts whichever PopupCard is open there.
 // PopupCards live inside widgets but reparent their card into this window,
 // so nothing nests windows (hot reload safe) and keyboard focus comes from
-// the layer — works for keybind/IPC opens, unlike xdg popup grabs.
+// the layer - works for keybind/IPC opens, unlike xdg popup grabs.
 Variants {
     model: Quickshell.screens
 
@@ -32,6 +32,7 @@ Variants {
         WlrLayershell.keyboardFocus: open ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
         Component.onCompleted: Popups.registerHost(modelData, slot)
+        Component.onDestruction: Popups.unregisterHost(modelData, slot)
 
         MouseArea {
             anchors.fill: parent

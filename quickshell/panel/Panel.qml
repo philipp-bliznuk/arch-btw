@@ -4,8 +4,7 @@ import Quickshell.Wayland
 import qs.core
 import "widgets"
 
-// Solid bar, dwm-titus grammar: flat segments, one popup at a time,
-// tooltips on icon-only segments. One instance per output.
+// Solid bar: flat segments, one popup at a time. One instance per output.
 Variants {
     model: Quickshell.screens
 
@@ -50,9 +49,6 @@ Variants {
                 Workspaces {
                     screen: panel.screen
                 }
-                RunningApps {
-                    screen: panel.screen
-                }
                 Disk {}
                 Ram {}
                 Cpu {}
@@ -60,12 +56,17 @@ Variants {
                 NetRate {}
             }
 
+            Mode {
+                id: modeHint
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
+            }
 
             Media {
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.verticalCenter: parent.verticalCenter
-                // stay clear of both rows; the label already caps at 35 chars
-                visible: Player.player !== null && width < right.x - (left.x + left.width) - Style.spaceXl * 2
+                // stay clear of both rows and yield the centre to the mode indicator
+                visible: !modeHint.visible && Player.player !== null && width < right.x - (left.x + left.width) - Style.spaceXl * 2
             }
 
             Row {

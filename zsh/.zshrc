@@ -51,11 +51,11 @@ export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS \
 # Prompt (pure zsh, no external deps)
 [[ -f ${ZDOTDIR}/.zprompt ]] && source ${ZDOTDIR}/.zprompt
 
-# Shell completions (cached via evalcache) — eager: affects keybinds/cd
+# Shell completions (cached via evalcache) - eager: affects keybinds/cd
 _evalcache fzf --zsh
 _evalcache zoxide init --cmd=cd zsh
 
-# Deferred completions — load on first keypress via zle-line-init hook
+# Deferred completions - load on first keypress via zle-line-init hook
 function _deferred_completions() {
   _evalcache uv generate-shell-completion zsh
   _evalcache uvx --generate-shell-completion zsh

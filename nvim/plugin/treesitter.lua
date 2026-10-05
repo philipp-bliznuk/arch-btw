@@ -15,7 +15,7 @@ pack.add("https://github.com/arborist-ts/arborist.nvim", function()
 end)
 
 -- Force synchronous parse on FileType so textobjects/context work on first keypress.
--- Needed because nvim-treesitter-textobjects doesn't call parser:parse() itself —
+-- Needed because nvim-treesitter-textobjects doesn't call parser:parse() itself -
 -- it relies on the highlighter's async parse which may not finish before first input.
 vim.api.nvim_create_autocmd("FileType", {
   group = util.augroup("treesitter_force_parse"),
@@ -50,7 +50,7 @@ pack.add("https://github.com/nvim-treesitter/nvim-treesitter-context", function(
 end)
 
 -- ─── Textobjects (selection + movement engine) ──────────────────────────────
--- Load immediately (not deferred) — keymaps must be available on first keypress
+-- Load immediately (not deferred) - keymaps must be available on first keypress
 pack.add("https://github.com/nvim-treesitter/nvim-treesitter-textobjects", function()
   local select = require("nvim-treesitter-textobjects.select")
   local move = require("nvim-treesitter-textobjects.move")

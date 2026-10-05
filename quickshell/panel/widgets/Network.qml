@@ -5,12 +5,10 @@ import Quickshell.Networking
 import qs.core
 import qs.ui
 
-// Network segment + popup (omarchy parity): hero with SSID / Ethernet speed,
+// Network segment + popup: hero with SSID / Ethernet speed,
 // captive-portal & limited-connectivity notice, live details grid, Wi-Fi
 // switch, KNOWN / OTHER networks, inline PSK + WPA-EAP identity, failures.
-// Right-click segment opens nmtui.
-// Keys: j/k row · Enter connect/disconnect · d forget · y copy IP (or SSID on a
-//       network row) · w Wi-Fi on/off · r rescan · Esc.
+// Keys: j/k row · Enter connect/disconnect · w Wi-Fi on/off · r rescan.
 Segment {
     id: root
 
@@ -63,24 +61,17 @@ Segment {
     property real prevRx: -1
     property real prevTx: -1
     property real prevTime: 0
-    property string down: "–"
-    property string up: "–"
+    property string down: "-"
+    property string up: "-"
     property var pending: null
     property bool eap: false
     property string failure: ""
 
     icon: !device ? Icons.wifiOff : (wifi ? Icons.wifiFor(strength) : Icons.ethernet)
     iconColor: !device ? Color.muted : (portal || limited ? Color.yellow : Color.text)
-    tooltip: !device ? "Disconnected" : (portal ? "Sign in to this network" : (limited ? "Limited internet access" : (wifi && network ? network.name + " · " + Math.round(strength * 100) + "%" : "Ethernet")))
     active: popup.open
 
-    onClicked: m => {
-        if (m.button === Qt.RightButton) {
-            Commands.run({ argv: Commands.term(["nmtui"]) });
-            return;
-        }
-        popup.toggle();
-    }
+    onClicked: popup.toggle()
 
     function secure(n) {
         return n.security !== WifiSecurityType.Open && n.security !== WifiSecurityType.Owe;
@@ -95,8 +86,6 @@ Segment {
             return "connecting…";
         if (n.connected)
             return portal ? "sign-in required" : "connected";
-        if (n.connectionFailed && n.known)
-            return "failed";
         return [n.known ? "saved" : "", secure(n) ? "secured" : "open"].filter(x => x).join(" · ");
     }
 
@@ -134,7 +123,13 @@ Segment {
             n.connectWithPsk(psk.text);
         psk.text = "";
         pending = null;
-        popup.forceActiveFocus();
+        popup.focusKeys();
+    }
+
+    function activate() {
+        const n = rows[popup.cursor];
+        if (portal) openPortal();
+        else if (n) pick(n);
     }
 
     function openPortal() {
@@ -148,16 +143,6 @@ Segment {
             wifiDevice.scannerEnabled = true;
         }
         statusProbe.running = true;
-    }
-
-    function fmtBytes(b) {
-        const u = ["B", "KiB", "MiB", "GiB"];
-        let i = 0, v = b || 0;
-        while (v >= 1024 && i < u.length - 1) {
-            v /= 1024;
-            i++;
-        }
-        return (i ? v.toFixed(1) : Math.round(v)) + " " + u[i];
     }
 
     Process {
@@ -205,21 +190,10 @@ Segment {
         onExited: code => { if (code !== 0) root.failure = "Could not join " + ssid; } // qmllint disable signal-handler-parameters
     }
 
-    Connections {
-        target: root.wifiDevice
-        ignoreUnknownSignals: true
-        function onNetworksChanged() {
-            for (const n of root.all)
-                if (n.connectionFailed && n.known)
-                    root.failure = "Wrong password for " + n.name + "?";
-        }
-    }
-
     component Stat: Column {
         id: stat
         property string title: ""
         property string value: ""
-        property string copy: ""
         width: (parent.width - Style.spaceMd) / 2
         spacing: 0
 
@@ -230,12 +204,8 @@ Segment {
         }
         Label {
             width: parent.width
-            text: stat.value || "–"
+            text: stat.value || "-"
             font.pixelSize: Style.fontSmall
-        }
-        TapHandler {
-            enabled: stat.copy !== ""
-            onTapped: Commands.copy(stat.copy)
         }
     }
 
@@ -251,29 +221,15 @@ Segment {
             if (!open) {
                 root.pending = null;
                 root.failure = "";
+                root.prevRx = -1;
             }
         }
-        onAction: a => {
-            const n = root.rows[cursor];
-            switch (a) {
-            case "activate":
-                if (root.portal) root.openPortal();
-                else if (n) root.pick(n);
-                break;
-            case "delete":
-                if (n && n.known) n.forget();
-                break;
-            case "copy":
-                Commands.copy(n && !n.connected ? n.name : (root.stats.ip || ""));
-                break;
-            case "week":
-                Networking.wifiEnabled = !Networking.wifiEnabled;
-                break;
-            case "loop":
-                root.refresh();
-                break;
-            }
-        }
+        keymap: [
+            { key: "j k", run: k => cursor = Util.clamp(cursor + (k === "j" ? 1 : -1), 0, count - 1) },
+            { key: "Enter", run: () => root.activate() },
+            { key: "w", run: () => Networking.wifiEnabled = !Networking.wifiEnabled },
+            { key: "r", run: () => root.refresh() }
+        ]
 
         Column {
             width: parent.width
@@ -319,7 +275,7 @@ Segment {
                     visible: root.wifiDevice !== null
                     icon: Networking.wifiEnabled ? Icons.wifi4 : Icons.wifiOff
                     iconColor: Networking.wifiEnabled ? Color.accent : Color.muted
-                    label: Networking.wifiEnabled ? "on · w" : "off · w"
+                    label: Networking.wifiEnabled ? "on" : "off"
                     labelSize: Style.fontCaption
                     onClicked: Networking.wifiEnabled = !Networking.wifiEnabled
                 }
@@ -330,7 +286,6 @@ Segment {
                 glyph: Icons.web
                 glyphColor: Color.yellow
                 title: "Open captive portal"
-                subtext: "Enter"
                 onClicked: root.openPortal()
             }
 
@@ -340,11 +295,11 @@ Segment {
                 visible: root.device !== null
 
                 Stat { title: "PING"; value: root.stats.ping !== null && root.stats.ping !== undefined ? root.stats.ping + " ms" : "" }
-                Stat { title: "GATEWAY"; value: root.stats.gateway || ""; copy: root.stats.gateway || "" }
-                Stat { title: "IP ADDRESS · y"; value: root.stats.ip || ""; copy: root.stats.ip || "" }
+                Stat { title: "GATEWAY"; value: root.stats.gateway || "" }
+                Stat { title: "IP ADDRESS"; value: root.stats.ip || "" }
                 Stat { title: "TRAFFIC ↓ / ↑"; value: root.down + " · " + root.up }
-                Stat { title: "DOWNLOADED"; value: root.fmtBytes(root.stats.rx) }
-                Stat { title: "UPLOADED"; value: root.fmtBytes(root.stats.tx) }
+                Stat { title: "DOWNLOADED"; value: Util.humanSize(root.stats.rx) }
+                Stat { title: "UPLOADED"; value: Util.humanSize(root.stats.tx) }
             }
 
             Label {
@@ -371,17 +326,20 @@ Segment {
                     width: parent.width
                     placeholder: "Identity (username)"
                     onAccepted: psk.input.forceActiveFocus()
-                    onEscaped: root.pending = null
+                    onEscaped: {
+                        root.pending = null;
+                        popup.focusKeys();
+                    }
                 }
                 Field {
                     id: psk
                     width: parent.width
-                    placeholder: "Passphrase — Enter to connect, Esc to cancel"
+                    placeholder: "Passphrase - Enter to connect, Esc to cancel"
                     echoMode: TextInput.Password
                     onAccepted: root.submit()
                     onEscaped: {
                         root.pending = null;
-                        popup.forceActiveFocus();
+                        popup.focusKeys();
                     }
                 }
             }
@@ -397,18 +355,23 @@ Segment {
                 model: root.known
 
                 ListRow {
+                    id: knownRow
                     required property var modelData
                     required property int index
                     glyph: Icons.wifiFor(modelData.signalStrength)
                     glyphColor: modelData.connected ? Color.accent : Color.text
                     title: modelData.name
                     subtext: root.stateText(modelData)
-                    trailing: (root.secure(modelData) ? Icons.lock + " " : "") + (modelData.connected ? "disconnect" : "connect · d forget")
+                    trailing: (root.secure(modelData) ? Icons.lock + " " : "") + (modelData.connected ? "disconnect" : "connect")
                     selected: popup.cursor === index
                     onHoveredChanged: if (hovered) popup.cursor = index
-                    onClicked: m => {
-                        if (m.button === Qt.RightButton) modelData.forget();
-                        else root.pick(modelData);
+                    onClicked: root.pick(modelData)
+
+                    Connections {
+                        target: knownRow.modelData
+                        function onConnectionFailed() {
+                            root.failure = "Wrong password for " + knownRow.modelData.name + "?";
+                        }
                     }
                 }
             }
@@ -439,7 +402,7 @@ Segment {
 
             Label {
                 visible: root.wifiDevice && Networking.wifiEnabled && root.rows.length === 0
-                text: "Scanning… · r"
+                text: "Scanning…"
                 color: Color.muted
                 font.pixelSize: Style.fontSmall
             }

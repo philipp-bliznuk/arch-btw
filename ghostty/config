@@ -21,7 +21,7 @@ confirm-close-surface = false
 mouse-hide-while-typing = true
 clipboard-trim-trailing-spaces = true
 
-# Shader — disabled: `custom-shader-animation = always` redraws every frame
+# Shader - disabled: `custom-shader-animation = always` redraws every frame
 # (~1 core + iGPU awake per window). Re-enable with `false` to animate only on
 # terminal updates.
 # custom-shader = shaders/cursor_warp.glsl

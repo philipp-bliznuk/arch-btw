@@ -9,7 +9,7 @@ opt.tabstop = 4
 opt.shiftwidth = 0 -- follows tabstop
 opt.expandtab = true
 opt.breakindent = true -- wrapped lines follow indent level
--- NOTE: no smartindent — arborist sets indentexpr per buffer via treesitter
+-- NOTE: no smartindent - arborist sets indentexpr per buffer via treesitter
 
 -- Search
 opt.ignorecase = true

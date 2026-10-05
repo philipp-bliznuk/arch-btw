@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# qs-network-status — one JSON line for the Quickshell network popup:
+# qs-network-status - one JSON line for the Quickshell network popup:
 # {iface, ip, gateway, speed, rx, tx, ping, connectivity}. Rates are derived
 # by the caller from rx/tx deltas. ping = ms to the gateway, null if none.
 set -Eeuo pipefail
@@ -15,7 +15,7 @@ if [[ -n "$iface" ]]; then
 	ip4="$(ip -j -4 addr show dev "$iface" 2>/dev/null | jq -r '.[0].addr_info[0].local // empty')"
 	spd="$(cat "/sys/class/net/$iface/speed" 2>/dev/null || true)"
 	[[ "${spd:-0}" -gt 0 ]] 2>/dev/null && speed="$spd"
-	read -r rx tx < <(awk -v i="$iface:" '$1==i{print $2, $10}' /proc/net/dev)
+	read -r rx tx < <(awk -v i="$iface:" '$1==i{print $2, $10}' /proc/net/dev) || true
 fi
 ping_ms=null
 if [[ -n "$gateway" ]]; then

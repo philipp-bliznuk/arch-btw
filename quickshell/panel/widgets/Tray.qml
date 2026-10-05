@@ -5,11 +5,22 @@ import Quickshell.Widgets
 import Quickshell.Services.SystemTray
 import qs.core
 import qs.ui
+import ".."
 
+// Tray icons. Left click activates, middle click secondary-activates,
+// right click (or left click on menu-only items) opens the item's menu as a
+// popup card under the icon. Each item's menu layout is fetched once when the
+// item appears, so the first open is already populated.
 Segment {
     id: root
     visible: SystemTray.items.values.length > 0
     hoverable: false
+
+    TrayMenu {
+        id: menu
+        home: root
+        anchorItem: root
+    }
 
     content: Row {
         anchors.verticalCenter: parent.verticalCenter
@@ -29,15 +40,8 @@ Segment {
                     source: item.modelData.icon
                 }
 
-                QsMenuAnchor {
-                    id: menu
+                QsMenuOpener {
                     menu: item.modelData.menu
-                    anchor.item: item
-                    anchor.edges: Edges.Bottom
-                }
-
-                HoverHandler {
-                    id: hover
                 }
 
                 MouseArea {
@@ -47,19 +51,13 @@ Segment {
                         const it = item.modelData;
                         if (m.button === Qt.RightButton || it.onlyMenu) {
                             if (it.hasMenu)
-                                menu.open();
+                                menu.show(item, it.menu);
                         } else if (m.button === Qt.MiddleButton) {
                             it.secondaryActivate();
                         } else {
                             it.activate();
                         }
                     }
-                }
-
-                Tooltip {
-                    target: item
-                    hovered: hover.hovered
-                    text: item.modelData.tooltipTitle || item.modelData.title || item.modelData.id
                 }
             }
         }

@@ -6,9 +6,10 @@ import Quickshell.Services.Pipewire
 import qs.core
 import qs.ui
 
-// Audio popup (omarchy parity): hero with mood + out/mic mute buttons, OUTPUT
-// slider + devices (type glyph), INPUT slider + sources, per-app SOURCES (up to 150 %).
-// Keys: j/k row · h/l ±5 % · m mute row (hero row = mute all) · Enter pick/mute.
+// Audio popup: hero with mood + out/mic mute buttons, OUTPUT slider + devices
+// (only when there is a choice), INPUT slider + sources, one playback row per
+// app (streams grouped by name, up to 150 %).
+// Keys: j/k row · h/l ±5 % · m mute row · Enter pick device / mute.
 PopupCard {
     id: root
     popupId: "audio"
@@ -18,14 +19,30 @@ PopupCard {
     readonly property var source: Pipewire.defaultAudioSource
     readonly property var sinks: Pipewire.nodes.values.filter(n => n.isSink && !n.isStream && n.audio)
     readonly property var sources: Pipewire.nodes.values.filter(n => !n.isSink && !n.isStream && n.audio && n.type === PwNodeType.AudioSource)
-    readonly property var streams: Pipewire.nodes.values.filter(n => n.isStream && !n.isSink && n.audio && !(n.properties && n.properties["application.name"] === "quickshell"))
+    // Output streams carry the Sink flag too (AudioOutStream = Audio|Stream|Sink).
+    readonly property var streams: Pipewire.nodes.values.filter(n => n.type === PwNodeType.AudioOutStream && n.audio && !(n.properties && n.properties["application.name"] === "quickshell"))
     readonly property bool allMuted: (!sink || !sink.audio || sink.audio.muted) && (!source || !source.audio || source.audio.muted)
-    // key-navigation order: hero, out slider, sinks…, in slider, sources…, streams…
-    readonly property var items: [{ kind: "hero" }, { kind: "volume", node: sink }]
-        .concat(sinks.map(d => ({ kind: "device", node: d })))
+    // One row per application: browsers open a stream per tab, so streams
+    // sharing a name collapse into one row and are set together.
+    readonly property var apps: {
+        const groups = [];
+        for (const n of streams) {
+            const name = streamName(n);
+            const g = groups.find(a => a.name === name);
+            if (g)
+                g.nodes.push(n);
+            else
+                groups.push({ name: name, nodes: [n] });
+        }
+        return groups;
+    }
+    // Key-navigation order mirrors what is drawn: out mute, mic mute, out
+    // slider, sinks (only when >1), in slider, sources (only when >1), apps.
+    readonly property var items: [{ kind: "mute", node: sink }, { kind: "mute", node: source }, { kind: "volume", node: sink }]
+        .concat(sinks.length > 1 ? sinks.map(d => ({ kind: "device", node: d })) : [])
         .concat([{ kind: "volume", node: source }])
-        .concat(sources.map(d => ({ kind: "source", node: d })))
-        .concat(streams.map(s => ({ kind: "volume", node: s, max: 1.5 })))
+        .concat(sources.length > 1 ? sources.map(d => ({ kind: "source", node: d })) : [])
+        .concat(apps.map(a => ({ kind: "volume", node: a.nodes[0], nodes: a.nodes, max: 1.5 })))
     count: items.length
 
     PwObjectTracker {
@@ -58,39 +75,51 @@ PopupCard {
         return p["application.name"] || p["media.name"] || n.nickname || n.name;
     }
 
-    function nudge(node, delta, max) {
-        if (node && node.audio)
-            node.audio.volume = Util.clamp(node.audio.volume + delta, 0, max || 1);
+    function setVolume(nodes, v, max) {
+        for (const n of nodes)
+            if (n && n.audio)
+                n.audio.volume = Util.clamp(v, 0, max || 1);
     }
 
-    function muteAll(on) {
-        for (const n of [sink, source])
+    function setMuted(nodes, muted) {
+        for (const n of nodes)
             if (n && n.audio)
-                n.audio.muted = on;
+                n.audio.muted = muted;
+    }
+
+    function nodesOf(it) {
+        return it.nodes || [it.node];
     }
 
     function slotOf(kind, node) {
         return items.findIndex(it => it.kind === kind && it.node === node);
     }
 
-    onAction: a => {
+    keymap: [
+        { key: "j k", run: k => cursor = Util.clamp(cursor + (k === "j" ? 1 : -1), 0, count - 1) },
+        { key: "h l", run: k => adjust(k === "h" ? -0.05 : 0.05) },
+        { key: "m", run: () => toggleMute() },
+        { key: "Enter", run: () => pick() }
+    ]
+
+    function adjust(delta) {
+        const it = items[cursor];
+        if (it && it.node && it.node.audio)
+            setVolume(nodesOf(it), it.node.audio.volume + delta, it.max);
+    }
+
+    function toggleMute() {
+        const it = items[cursor];
+        if (it && it.node && it.node.audio)
+            setMuted(nodesOf(it), !it.node.audio.muted);
+    }
+
+    function pick() {
         const it = items[cursor];
         if (!it) return;
-        if (it.kind === "hero") {
-            if (a === "mute" || a === "activate") muteAll(!allMuted);
-            return;
-        }
-        if (!it.node) return;
-        switch (a) {
-        case "left": nudge(it.node, -0.05, it.max); break;
-        case "right": nudge(it.node, 0.05, it.max); break;
-        case "mute": if (it.node.audio) it.node.audio.muted = !it.node.audio.muted; break;
-        case "activate":
-            if (it.kind === "device") Pipewire.preferredDefaultAudioSink = it.node;
-            else if (it.kind === "source") Pipewire.preferredDefaultAudioSource = it.node;
-            else if (it.node.audio) it.node.audio.muted = !it.node.audio.muted;
-            break;
-        }
+        if (it.kind === "device") Pipewire.preferredDefaultAudioSink = it.node;
+        else if (it.kind === "source") Pipewire.preferredDefaultAudioSource = it.node;
+        else toggleMute();
     }
 
     component Header: Label {
@@ -101,6 +130,8 @@ PopupCard {
     component VolumeRow: Rectangle {
         id: vr
         property var node
+        // Every stream this row drives (several tabs of one browser); node is the first.
+        property var nodes: node ? [node] : []
         property real max: 1
         property string fallbackIcon: Icons.volumeHigh
         property string title: ""
@@ -137,7 +168,7 @@ PopupCard {
                 }
                 MouseArea {
                     anchors.fill: parent
-                    onClicked: if (vr.has) vr.node.audio.muted = !vr.node.audio.muted
+                    onClicked: if (vr.has) root.setMuted(vr.nodes, !vr.node.audio.muted)
                 }
             }
 
@@ -156,7 +187,7 @@ PopupCard {
                     width: parent.width
                     value: vr.has ? vr.node.audio.volume / vr.max : 0
                     muted: vr.has && vr.node.audio.muted
-                    onMoved: v => { if (vr.has) vr.node.audio.volume = v * vr.max; }
+                    onMoved: v => { if (vr.has) root.setVolume(vr.nodes, v * vr.max, vr.max); }
                 }
             }
 
@@ -176,7 +207,7 @@ PopupCard {
             z: -1
             anchors.fill: parent
             acceptedButtons: Qt.RightButton
-            onClicked: if (vr.has) vr.node.audio.muted = !vr.node.audio.muted
+            onClicked: if (vr.has) root.setMuted(vr.nodes, !vr.node.audio.muted)
         }
     }
 
@@ -248,6 +279,7 @@ PopupCard {
                     labelSize: Style.fontCaption
                     active: root.cursor === 0
                     onClicked: if (root.sink && root.sink.audio) root.sink.audio.muted = !root.sink.audio.muted
+                    onHoveredChanged: if (hovered) root.cursor = 0
                 }
                 Segment {
                     readonly property bool muted: !root.source || !root.source.audio || root.source.audio.muted
@@ -255,12 +287,10 @@ PopupCard {
                     iconColor: muted ? Color.red : Color.text
                     label: "mic"
                     labelSize: Style.fontCaption
-                    active: root.cursor === 0
+                    active: root.cursor === 1
                     onClicked: if (root.source && root.source.audio) root.source.audio.muted = !root.source.audio.muted
+                    onHoveredChanged: if (hovered) root.cursor = 1
                 }
-            }
-            HoverHandler {
-                onHoveredChanged: if (hovered) root.cursor = 0
             }
         }
 
@@ -291,19 +321,20 @@ PopupCard {
         }
 
         Header {
-            visible: root.streams.length > 0
-            text: "SOURCES"
+            visible: root.apps.length > 0
+            text: "PLAYBACK"
         }
 
         Repeater {
-            model: root.streams
+            model: root.apps
 
             VolumeRow {
                 required property var modelData
-                node: modelData
+                node: modelData.nodes[0]
+                nodes: modelData.nodes
                 max: 1.5
                 fallbackIcon: Icons.music
-                title: root.streamName(modelData)
+                title: modelData.name
             }
         }
     }

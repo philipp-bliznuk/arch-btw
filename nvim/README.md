@@ -8,28 +8,28 @@ Purpose-built IDE for Python and web development on Neovim 0.12+.
 
 This config is built from the ground up with a clear priority order:
 
-1. **Functionality** — every feature an IDE needs, nothing more
-2. **Performance** — 95ms bare startup, everything ready at first frame
-3. **Aesthetic** — consistent catppuccin-mocha theming
+1. **Functionality** - every feature an IDE needs, nothing more
+2. **Performance** - 95ms bare startup, everything ready at first frame
+3. **Aesthetic** - consistent catppuccin-mocha theming
 
 Core principles:
 
-- **Native first** — uses `vim.pack` (built-in plugin manager), `vim.lsp.config()` + `vim.lsp.enable()` (native LSP), `vim.treesitter` APIs
-- **Zero framework** — no lazy.nvim, no lspconfig plugin, no nvim-treesitter module. Direct control over every moving part
-- **Self-contained** — Mason auto-installs all 20 tools on first launch. Open nvim, wait 30 seconds, everything works
-- **Opinionated** — format on save (always), leader-based keymaps, explicit clipboard, vi-centric everywhere
+- **Native first** - uses `vim.pack` (built-in plugin manager), `vim.lsp.config()` + `vim.lsp.enable()` (native LSP), `vim.treesitter` APIs
+- **Zero framework** - no lazy.nvim, no lspconfig plugin, no nvim-treesitter module. Direct control over every moving part
+- **Self-contained** - Mason auto-installs all 20 tools on first launch. Open nvim, wait 30 seconds, everything works
+- **Opinionated** - format on save (always), leader-based keymaps, explicit clipboard, vi-centric everywhere
 
 ## Features
 
-- **15 LSP servers** — Python (basedpyright + ruff), TypeScript (tsgo), Go (gopls), Lua, JSON, YAML, HTML, CSS, TOML, SQL, Docker, Bash, plus grammar/spell checking (harper-ls, typos-lsp)
-- **Format on save** — ruff (Python), prettierd (JS/TS/HTML/CSS/JSON/YAML/Markdown), stylua (Lua), goimports + gofmt (Go), shfmt (Shell), pgformatter (SQL)
-- **Completion** — blink.cmp v1 with LSP, buffer, path, snippets, and cmdline sources. Rust fuzzy matcher, ghost text, signature help
-- **Fuzzy picker** — fzf-lua for files, grep, symbols, commands, keymaps, git, code actions, spell suggestions. Inherits system `FZF_DEFAULT_OPTS`
-- **Git** — gitsigns (gutter signs, hunk staging/reset, inline blame, diff) + lazygit via tmux popup
-- **Treesitter** — arborist.nvim for parser management, textobjects (`af/if/ac/ic/aa/ia`), sticky context header, autotag for HTML/JSX
-- **Session** — auto-save on quit, auto-restore on bare `nvim`
-- **8 colorschemes** — catppuccin, tokyonight, kanagawa, gruvbox, rose-pine, everforest, dracula, nord. Defaults to catppuccin-mocha; `$THEME` overrides on startup
-- **File explorer** — yazi.nvim with LSP-aware rename/move (auto-updates imports)
+- **15 LSP servers** - Python (basedpyright + ruff), TypeScript (tsgo), Go (gopls), Lua, JSON, YAML, HTML, CSS, TOML, SQL, Docker, Bash, plus grammar/spell checking (harper-ls, typos-lsp)
+- **Format on save** - ruff (Python), prettierd (JS/TS/HTML/CSS/JSON/YAML/Markdown), stylua (Lua), goimports + gofmt (Go), shfmt (Shell), pgformatter (SQL)
+- **Completion** - blink.cmp v1 with LSP, buffer, path, snippets, and cmdline sources. Rust fuzzy matcher, ghost text, signature help
+- **Fuzzy picker** - fzf-lua for files, grep, symbols, commands, keymaps, git, code actions, spell suggestions. Inherits system `FZF_DEFAULT_OPTS`
+- **Git** - gitsigns (gutter signs, hunk staging/reset, inline blame, diff) + lazygit via tmux popup
+- **Treesitter** - arborist.nvim for parser management, textobjects (`af/if/ac/ic/aa/ia`), sticky context header, autotag for HTML/JSX
+- **Session** - auto-save on quit, auto-restore on bare `nvim`
+- **8 colorschemes** - catppuccin, tokyonight, kanagawa, gruvbox, rose-pine, everforest, dracula, nord. Defaults to catppuccin-mocha; `$THEME` overrides on startup
+- **File explorer** - yazi.nvim with LSP-aware rename/move (auto-updates imports)
 
 ## Screenshots
 
@@ -232,20 +232,20 @@ Leader key: `Space`
 
 ## Colorschemes
 
-Defaults to `catppuccin-mocha`. Override by exporting `$THEME` before launch — only the active theme plugin is loaded at startup, others remain installed but not sourced.
+Defaults to `catppuccin-mocha`. Override by exporting `$THEME` before launch - only the active theme plugin is loaded at startup, others remain installed but not sourced.
 
 Supported values: `catppuccin-mocha`, `tokyo-night`, `kanagawa`, `gruvbox-dark`, `rose-pine`, `everforest`, `dracula`, `nord`
 
 ## Requirements
 
 - **Neovim 0.12+**
-- **fzf** — fuzzy finder binary (picker backend)
-- **fd** — file finder (used by fzf-lua)
-- **ripgrep** — grep tool (used by fzf-lua + grepprg)
-- **tree-sitter** CLI — parser compilation (used by arborist)
-- **JetBrains Mono Nerd Font** — glyphs for diagnostics, git signs, icons
+- **fzf** - fuzzy finder binary (picker backend)
+- **fd** - file finder (used by fzf-lua)
+- **ripgrep** - grep tool (used by fzf-lua + grepprg)
+- **tree-sitter** CLI - parser compilation (used by arborist)
+- **JetBrains Mono Nerd Font** - glyphs for diagnostics, git signs, icons
 
-All LSP servers and formatters are managed by Mason — no manual installation needed.
+All LSP servers and formatters are managed by Mason - no manual installation needed.
 
 ## Installation
 
@@ -264,4 +264,4 @@ First launch installs all plugins (vim.pack) and tools (Mason) automatically. No
 | Bare startup (no file)               | **95ms**                                        |
 | Python file (LSP + treesitter ready) | **~140ms** input-ready, ~380ms full diagnostics |
 
-Measured with `nvim --startuptime`. The ~240ms async tail is LSP server analysis (basedpyright type graph, ruff linting) — doesn't block input.
+Measured with `nvim --startuptime`. The ~240ms async tail is LSP server analysis (basedpyright type graph, ruff linting) - doesn't block input.

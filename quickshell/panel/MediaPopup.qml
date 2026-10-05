@@ -1,12 +1,11 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import Quickshell.Services.Mpris
+import Quickshell.Services.Pipewire
 import qs.core
 import qs.ui
 
-// Media popup: art, track, seek bar, transport, player volume, player chips.
-// Keys: Enter play/pause · h/l prev/next · H/L seek ±10 s · j/k volume ±5 %
-//       · s shuffle · r loop · Esc/q close.
+// Media popup: art, track, transport, volume of the player's PipeWire stream.
+// Keys: p play/pause · h/l or [ ] prev/next · j/k volume ±5 %.
 PopupCard {
     id: root
     popupId: "media"
@@ -14,54 +13,15 @@ PopupCard {
 
     readonly property var player: Player.player
     readonly property bool has: player !== null
-    // Firefox drops mpris:length between tracks/buffering; remember the last
-    // non-zero value for the current track so the seek row never flickers.
-    property real length: 0
-    readonly property real position: has && player.positionSupported ? player.position : 0
-    readonly property real reported: has && player.lengthSupported ? player.length : 0
-    readonly property string track: Player.title + "|" + Player.album
-    readonly property bool seekable: has && player.canSeek && length > 0
-    onReportedChanged: if (reported > 0) length = reported
-    onTrackChanged: length = reported
 
-    onAction: a => {
-        switch (a) {
-        case "activate":
-            Player.toggle();
-            break;
-        case "left":
-            Player.previous();
-            break;
-        case "right":
-            Player.next();
-            break;
-        case "leftBig":
-            Player.seek(-10);
-            break;
-        case "rightBig":
-            Player.seek(10);
-            break;
-        case "down":
-            Player.nudgeVolume(-0.05);
-            break;
-        case "up":
-            Player.nudgeVolume(0.05);
-            break;
-        case "shuffle":
-            Player.toggleShuffle();
-            break;
-        case "loop":
-            Player.cycleLoop();
-            break;
-        }
-    }
+    keymap: [
+        { key: "p", run: () => Player.toggle() },
+        { key: "h l [ ]", run: k => k === "h" || k === "[" ? Player.previous() : Player.next() },
+        { key: "j k", run: k => Player.nudgeVolume(k === "j" ? -0.05 : 0.05) }
+    ]
 
-    // MPRIS position does not tick on its own; poll while visible.
-    Timer {
-        interval: 1000
-        running: root.open && root.has && root.player.isPlaying
-        repeat: true
-        onTriggered: root.player.positionChanged()
+    PwObjectTracker {
+        objects: root.open ? Player.streams : []
     }
 
     component Button: Segment {
@@ -86,6 +46,7 @@ PopupCard {
                 clip: true
 
                 Image {
+                    id: art
                     anchors.fill: parent
                     source: Player.artUrl
                     fillMode: Image.PreserveAspectCrop
@@ -95,7 +56,7 @@ PopupCard {
                 }
                 Glyph {
                     anchors.centerIn: parent
-                    visible: Player.artUrl === ""
+                    visible: art.status !== Image.Ready
                     text: Icons.music
                     glyphColor: Color.overlay1
                     size: Style.fontTitle + 8
@@ -129,51 +90,10 @@ PopupCard {
             }
         }
 
-        Column {
-            width: parent.width
-            spacing: 2
-
-            Slider {
-                width: parent.width
-                value: root.length > 0 ? Util.clamp(root.position / root.length, 0, 1) : 0
-                fill: Color.sky
-                muted: !root.seekable
-                onMoved: v => {
-                    if (root.seekable)
-                        root.player.position = v * root.length;
-                }
-            }
-            Row {
-                width: parent.width
-
-                Label {
-                    text: Player.fmt(root.position)
-                    color: Color.muted
-                    font.pixelSize: Style.fontCaption
-                }
-                Item {
-                    width: parent.width - x - end.width
-                    height: 1
-                }
-                Label {
-                    id: end
-                    text: root.length > 0 ? Player.fmt(root.length) : "–:––"
-                    color: Color.muted
-                    font.pixelSize: Style.fontCaption
-                }
-            }
-        }
-
         Row {
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: Style.spaceMd
 
-            Button {
-                icon: root.has && root.player.shuffle ? Icons.shuffle : Icons.shuffleOff
-                iconColor: root.has && root.player.shuffle ? Color.sky : Color.muted
-                enabledState: root.has && root.player.shuffleSupported
-                onClicked: Player.toggleShuffle()
-            }
             Button {
                 icon: Icons.skipPrev
                 enabledState: root.has && root.player.canGoPrevious
@@ -182,7 +102,6 @@ PopupCard {
             Button {
                 icon: Player.playing ? Icons.pause : Icons.play
                 iconColor: Color.sky
-                labelSize: Style.fontTitle
                 enabledState: root.has && root.player.canTogglePlaying
                 onClicked: Player.toggle()
             }
@@ -191,54 +110,32 @@ PopupCard {
                 enabledState: root.has && root.player.canGoNext
                 onClicked: Player.next()
             }
-            Button {
-                readonly property int loop: root.has ? root.player.loopState : MprisLoopState.None
-                icon: loop === MprisLoopState.Track ? Icons.repeatOnce : (loop === MprisLoopState.Playlist ? Icons.repeat : Icons.repeatOff)
-                iconColor: loop === MprisLoopState.None ? Color.muted : Color.sky
-                enabledState: root.has && root.player.loopSupported
-                onClicked: Player.cycleLoop()
-            }
         }
 
         Row {
             width: parent.width
             spacing: Style.spaceMd
-            visible: root.has && root.player.volumeSupported
+            visible: Player.volumeSupported
 
             Glyph {
-                text: Icons.volumeFor(root.has ? root.player.volume : 0, false)
+                id: volGlyph
+                anchors.verticalCenter: parent.verticalCenter
+                text: Icons.volumeFor(Player.volume, false)
                 glyphColor: Color.muted
             }
             Slider {
-                width: parent.width - Style.segmentHeight - 40 - parent.spacing * 2
+                width: parent.width - volGlyph.width - volLabel.width - parent.spacing * 2
                 anchors.verticalCenter: parent.verticalCenter
-                value: root.has ? root.player.volume : 0
-                onMoved: v => {
-                    if (root.has)
-                        root.player.volume = v;
-                }
+                value: Player.volume / Player.volumeMax
+                onMoved: v => Player.setVolume(v * Player.volumeMax)
             }
             Label {
+                id: volLabel
                 width: 40
                 height: Style.segmentHeight
                 horizontalAlignment: Text.AlignRight
-                text: root.has ? Math.round(root.player.volume * 100) + "%" : ""
+                text: Math.round(Player.volume * 100) + "%"
                 font.pixelSize: Style.fontSmall
-            }
-        }
-
-        Row {
-            spacing: Style.spaceXs
-            visible: Player.players.length > 1
-
-            Repeater {
-                model: Player.players
-
-                Chip {
-                    required property var modelData
-                    text: modelData.identity
-                    active: modelData === root.player
-                }
             }
         }
     }

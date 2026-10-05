@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# qs-battery status|limit [on|off]
+# Charge threshold (BIOS charge limit, e.g. 75→80 %) through UPower, which
+# owns the sysfs knobs and persists them across reboots.
+#   status      JSON {supported, enabled, start, end}
+#   limit [on|off]  enable/disable (no arg = flip); prints new status
+set -Eeuo pipefail
+
+dev() { upower -e | grep -m1 '/battery_' || true; }
+
+prop() {
+	busctl --system get-property org.freedesktop.UPower "$1" org.freedesktop.UPower.Device "$2" | awk '{print $2}'
+}
+
+unsupported() {
+	echo '{"supported":false}'
+	exit 0
+}
+
+status() {
+	local d
+	d="$(dev)"
+	[[ "$d" == /* ]] || unsupported
+	[[ "$(prop "$d" ChargeThresholdSupported)" == true ]] || unsupported
+	printf '{"supported":true,"enabled":%s,"start":%s,"end":%s}\n' \
+		"$(prop "$d" ChargeThresholdEnabled)" \
+		"$(prop "$d" ChargeStartThreshold)" \
+		"$(prop "$d" ChargeEndThreshold)"
+}
+
+case "${1:-status}" in
+status) status ;;
+limit)
+	d="$(dev)"
+	[[ "$d" == /* ]] || unsupported
+	mode="${2:-}"
+	if [[ -z "$mode" ]]; then
+		[[ "$(prop "$d" ChargeThresholdEnabled)" == true ]] && mode=off || mode=on
+	fi
+	[[ "$mode" == on ]] && on=true || on=false
+	busctl --system call org.freedesktop.UPower "$d" org.freedesktop.UPower.Device EnableChargeThreshold b "$on" >/dev/null
+	status
+	;;
+*)
+	echo "usage: qs-battery status|limit [on|off]" >&2
+	exit 2
+	;;
+esac

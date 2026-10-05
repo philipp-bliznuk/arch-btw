@@ -5,13 +5,13 @@ defaults and consistent theming that matches the rest of the dotfiles ecosystem.
 
 ## Philosophy
 
-1. **Minimal customization** — only override what the defaults get wrong.
+1. **Minimal customization** - only override what the defaults get wrong.
    No bloated plugin stacks or excessive keybind remapping.
-2. **Unified theming** — yazi flavors match the global `THEME` variable,
+2. **Unified theming** - yazi flavors match the global `THEME` variable,
    keeping visual consistency with zsh, fzf, bat, and other tools.
-3. **Built-in previewer** — uses yazi's native syntect-based code previewer
+3. **Built-in previewer** - uses yazi's native syntect-based code previewer
    with proper true-color support via `tmux-256color` terminal.
-4. **ouch for archives** — single tool for preview, extraction, and compression.
+4. **ouch for archives** - single tool for preview, extraction, and compression.
 
 ## File Structure
 
@@ -39,7 +39,7 @@ defaults and consistent theming that matches the rest of the dotfiles ecosystem.
 | Directories                        | Built-in           | File listing                                |
 
 The built-in syntect previewer works cleanly with `tmux-256color` terminal
-type — no background highlight artifacts.
+type - no background highlight artifacts.
 
 ![Syntax-highlighted preview](../assets/yazi/yazi-preview-syntax.png)
 
@@ -56,7 +56,7 @@ type — no background highlight artifacts.
 
 ## Manager Settings
 
-- **Ratio**: `1:2:5` — small parent, medium current, large preview
+- **Ratio**: `1:2:5` - small parent, medium current, large preview
 - **Sort**: natural ordering with transliteration fallback
 - **Hidden files**: shown by default
 - **Line mode**: file size
@@ -91,7 +91,7 @@ ya pkg upgrade
 
 ## Dependencies
 
-- `ouch` — archive list/extract/compress
-- `yazi` — the file manager itself
+- `ouch` - archive list/extract/compress
+- `yazi` - the file manager itself
 
 Installed via pacman (see the main install guide's Step 3 pacstrap).

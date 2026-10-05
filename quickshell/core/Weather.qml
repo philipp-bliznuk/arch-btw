@@ -20,13 +20,13 @@ Singleton {
 
     function temp(c) {
         if (c === undefined || c === null)
-            return "–";
+            return "-";
         return Math.round(imperial ? c * 9 / 5 + 32 : c) + "°";
     }
 
     function wind(kmh) {
         if (kmh === undefined || kmh === null)
-            return "–";
+            return "-";
         return imperial ? Math.round(kmh / 1.609) + " mph" : Math.round(kmh) + " km/h";
     }
 

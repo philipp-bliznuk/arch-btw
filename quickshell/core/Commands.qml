@@ -10,7 +10,7 @@ import Quickshell
 //   argv  -> exec argv directly (preferred)
 //   sway  -> swaymsg <cmd>
 //   copy  -> put text on the clipboard
-//   run   -> shell string via bash -lc (legacy, avoid for new rows)
+//   run   -> shell string via bash -lc
 QtObject {
     function run(r) {
         if (!r)

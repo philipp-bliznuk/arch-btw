@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # qs-weather [refresh|set NAME|clear|status]
-# Fetches current + 3-day forecast from open-meteo into ~/.local/state/qs/weather.json
-# (Quickshell watches it). Location: ~/.local/state/qs/weather-location.json
+# Fetches current conditions + today's/tomorrow's sunrise/sunset from open-meteo
+# into ~/.local/state/qs/weather.json (Quickshell watches it). Location: ~/.local/state/qs/weather-location.json
 # {name,latitude,longitude}; without it, IP geolocation (wttr.in) is used.
 set -Eeuo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,6 +10,8 @@ state="${XDG_STATE_HOME:-$HOME/.local/state}/qs"
 loc_file="$state/weather-location.json"
 out="$state/weather.json"
 mkdir -p "$state"
+tmp=""
+trap '[[ -n "$tmp" ]] && rm -f "$tmp"' EXIT # failed fetch must not leave a partial file
 
 fetch() { curl -fsSL --max-time 10 --retry 2 "$@"; }
 
@@ -38,9 +40,10 @@ refresh() {
 	lat="$(jq -r .latitude <<<"$loc")"
 	lon="$(jq -r .longitude <<<"$loc")"
 	name="$(jq -r .name <<<"$loc")"
-	fetch "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=4&timezone=auto" |
-		jq -c --arg name "$name" '{name: $name, updated: now, current, daily}' >"$out.tmp"
-	mv "$out.tmp" "$out"
+	tmp="$(mktemp "$out.XXXXXX")"
+	fetch "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day&daily=sunrise,sunset&forecast_days=2&timezone=auto" |
+		jq -c --arg name "$name" '{name: $name, updated: now, current, daily}' >"$tmp"
+	mv "$tmp" "$out"
 }
 
 case "${1:-refresh}" in
@@ -63,6 +66,10 @@ clear)
 	refresh
 	;;
 status)
+	[[ -s "$out" ]] && jq -e .current "$out" >/dev/null 2>&1 || {
+		echo "no weather data" >&2
+		exit 1
+	}
 	jq -r '"\(.name): \(.current.temperature_2m)° · feels \(.current.apparent_temperature)° · wind \(.current.wind_speed_10m) km/h · \(.current.relative_humidity_2m)% humidity"' "$out"
 	;;
 *)

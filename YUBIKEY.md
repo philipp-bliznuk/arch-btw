@@ -15,39 +15,39 @@ brew install gnupg ykman pinentry-mac   # ykman GUI is EOL; CLI only
 ykman list && ykman info
 ```
 
-Yubico Authenticator (App Store) — only tool for OATH; supplies the clock. macOS has PC/SC built in — no `pcscd`.
+Yubico Authenticator (App Store) - only tool for OATH; supplies the clock. macOS has PC/SC built in - no `pcscd`.
 
 Five secrets, all into 1Password:
 
 | #   | Secret                 | Default             | Notes                                                            |
 | --- | ---------------------- | ------------------- | ---------------------------------------------------------------- |
-| 1   | GPG certify passphrase | —                   | Protects offline primary. Only for certifying new subkeys.       |
+| 1   | GPG certify passphrase | -                   | Protects offline primary. Only for certifying new subkeys.       |
 | 2   | OpenPGP User PIN       | `123456`            | Sign / decrypt / SSH.                                            |
 | 3   | OpenPGP Admin PIN      | `12345678`          | `keytocard`, touch policy. **Exhausted = applet wiped, no PUK.** |
 | 4   | FIDO2 PIN              | none                | WebAuthn + LUKS/login. 8 tries → `ykman fido reset`.             |
 | 5   | PIV                    | `123456`/`12345678` | Left at reset.                                                   |
 
-Applets are independent — resetting one doesn't touch the others.
+Applets are independent - resetting one doesn't touch the others.
 
 ---
 
-# Part 0 — Extract
+# Part 0 - Extract
 
-For every account: remove both keys' FIDO2/passkey registrations, delete key-held TOTP, set a **temporary** TOTP in a dedicated authenticator app (Aegis / 2FAS / Ente — **never the password manager**; it's also the permanent home for TOTP-only accounts).
+For every account: remove both keys' FIDO2/passkey registrations, delete key-held TOTP, set a **temporary** TOTP in a dedicated authenticator app (Aegis / 2FAS / Ente - **never the password manager**; it's also the permanent home for TOTP-only accounts).
 
 Permanent plan per account (executed in Part C):
 
-1. FIDO2 on both keys — every account that supports security keys, **especially the password manager's own login**.
-2. Authenticator app — TOTP-only accounts.
-3. Printed recovery codes offline — never screenshot / cloud / vault.
+1. FIDO2 on both keys - every account that supports security keys, **especially the password manager's own login**.
+2. Authenticator app - TOTP-only accounts.
+3. Printed recovery codes offline - never screenshot / cloud / vault.
 
 ---
 
-# Part A — Key #1
+# Part A - Key #1
 
 Insert **only** key #1.
 
-## A1 — Reset
+## A1 - Reset
 
 ```zsh
 ykman info
@@ -57,7 +57,7 @@ ykman oath reset       # wipes TOTP seeds
 ykman piv reset
 ```
 
-## A2 — Interfaces
+## A2 - Interfaces
 
 ```zsh
 ykman config usb --disable otp    # legacy OTP transport unused
@@ -65,31 +65,31 @@ ykman config nfc --disable otp
 ykman config set-lock-code        # into 1Password
 ```
 
-## A3 — FIDO2 PIN
+## A3 - FIDO2 PIN
 
 ```zsh
 ykman fido access change-pin      # 8+ chars; set-min-length needs fw 5.7+, firmware is not upgradable
 ```
 
-## A4 — Harden OpenPGP
+## A4 - Harden OpenPGP
 
 ```zsh
 gpg --card-edit
 # gpg/card> admin
-# gpg/card> kdf-setup             # FIRST — resets both PINs to factory
+# gpg/card> kdf-setup             # FIRST - resets both PINs to factory
 # gpg/card> quit
 ykman openpgp access set-retries 8 8 8       # user / reset-code / admin; reset code stays unset
 ykman openpgp access change-admin-pin        # default 12345678
 ykman openpgp access change-pin              # default 123456
 ```
 
-## A5 — Generate identity, load card
+## A5 - Generate identity, load card
 
 ```zsh
 gpg --expert --full-generate-key
 # (11) ECC set own capabilities → S toggles Sign OFF → only Certify → Q
 # (1) Curve 25519 → expiry 0 → name/email → certify passphrase (secret #1)
-gpg --list-secret-keys --keyid-format long   # sec line must say usage: C, not SC — else delete and redo with (11)
+gpg --list-secret-keys --keyid-format long   # sec line must say usage: C, not SC - else delete and redo with (11)
 ```
 
 ```zsh
@@ -128,7 +128,7 @@ ykman openpgp keys set-touch dec cached
 ykman openpgp keys set-touch aut cached
 ```
 
-## A6 — SSH via gpg-agent (macOS)
+## A6 - SSH via gpg-agent (macOS)
 
 `~/.gnupg/gpg-agent.conf`:
 
@@ -157,7 +157,7 @@ ssh-add -L | grep 'cardno:' > ~/.ssh/id_ed25519_ic_yubikey.pub
 ```
 
 - One SSH key = one GitHub account. Card key covers a single account; other accounts get on-disk keys (`ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_<id>`).
-- `IdentitiesOnly yes` requires `IdentityFile` even for the agent key — without it SSH ignores the agent → `Permission denied (publickey)`.
+- `IdentitiesOnly yes` requires `IdentityFile` even for the agent key - without it SSH ignores the agent → `Permission denied (publickey)`.
 
 `~/.ssh/config`:
 
@@ -178,7 +178,7 @@ Host pb
 
 Remotes: `git@ic:org/repo.git`.
 
-## A7 — Git signing
+## A7 - Git signing
 
 ```zsh
 git config --global user.signingkey <sign-subkey-id>!   # ! pins the subkey; ssb [S] line
@@ -192,11 +192,11 @@ gpg --armor --export <key-id>                           # GitHub → Settings �
 - Per-account identity via `~/.config/git/config`:
 
 ```
-[includeIf "hasconfig:remote.*.url:git@ic:**/**"]     # **/** — single ** doesn't match scp-style remotes; git ≥ 2.36
+[includeIf "hasconfig:remote.*.url:git@ic:**/**"]     # **/** - single ** doesn't match scp-style remotes; git ≥ 2.36
     path = ~/.config/git/ic
 ```
 
-## A8 — Verify
+## A8 - Verify
 
 ```zsh
 ykman info
@@ -208,11 +208,11 @@ echo test | gpg --clearsign      # touch + User PIN
 
 ---
 
-# Part B — Key #2
+# Part B - Key #2
 
 Remove key #1. Insert **only** key #2.
 
-## B1 — Reset + interfaces + FIDO2 PIN
+## B1 - Reset + interfaces + FIDO2 PIN
 
 ```zsh
 ykman info
@@ -222,7 +222,7 @@ ykman config set-lock-code
 ykman fido access change-pin
 ```
 
-## B2 — Harden OpenPGP
+## B2 - Harden OpenPGP
 
 ```zsh
 gpg --card-edit                              # admin → kdf-setup → quit  (FIRST)
@@ -231,7 +231,7 @@ ykman openpgp access change-admin-pin        # SAME as key #1
 ykman openpgp access change-pin              # SAME as key #1
 ```
 
-## B3 — Clone subkeys
+## B3 - Clone subkeys
 
 ```zsh
 gpg --delete-secret-keys <key-id>            # drops on-disk stubs only; key #1 untouched
@@ -244,7 +244,7 @@ ykman openpgp keys set-touch dec cached
 ykman openpgp keys set-touch aut cached
 ```
 
-## B4 — Verify + swap test
+## B4 - Verify + swap test
 
 ```zsh
 ykman openpgp info
@@ -261,9 +261,9 @@ echo test | gpg --clearsign
 
 ---
 
-# Part C — Register
+# Part C - Register
 
-- **C1 FIDO2**: every security-key account (GitHub, AWS, Google, Auth0, password manager) — add key #1, then key #2. Name them `yubikey-1` / `yubikey-2`.
+- **C1 FIDO2**: every security-key account (GitHub, AWS, Google, Auth0, password manager) - add key #1, then key #2. Name them `yubikey-1` / `yubikey-2`.
 - **C2 Card TOTP**: top-value TOTP-only accounts → Yubico Authenticator, same QR/seed on both keys, one sitting. ~32 slots.
 - **C3 App TOTP**: everything else → authenticator app. Not the password manager.
 - **C4 Recovery codes**: fresh set per account, printed, offline.
@@ -271,4 +271,4 @@ echo test | gpg --clearsign
 
 ---
 
-Next: [README.md](./README.md) — `install.sh` enrolls both keys for LUKS; `post-install.sh` wires PAM + GPG/SSH.
+Next: [README.md](./README.md) - `install.sh` enrolls both keys for LUKS; `post-install.sh` wires PAM + GPG/SSH.

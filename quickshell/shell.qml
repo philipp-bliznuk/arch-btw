@@ -14,8 +14,6 @@ import qs.ui
 ShellRoot {
     id: root
 
-    Component.onCompleted: Quickshell.execDetached(["mkdir", "-p", Util.stateDir + "/toggles"])
-
     Background {}
 
     Service {
@@ -106,6 +104,14 @@ ShellRoot {
 
         function ping(): string {
             return "pong";
+        }
+
+        // Timers run on the monotonic clock and freeze across suspend/hibernate;
+        // swayidle calls this on wake so clock-bound state catches up at once.
+        function resume(): void {
+            Weather.refresh();
+            Sun.wake();
+            Metrics.resetRates();
         }
     }
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Arch Linux — post-install (first boot). Run as your user from TTY2 (Ctrl-Alt-F2):
+# Arch Linux - post-install (first boot). Run as your user from TTY2 (Ctrl-Alt-F2):
 #   ~/projects/dotfiles/post-install.sh
 #
 # TTY1 runs `exec sway` once the dotfiles are linked; TTY2 stays a plain shell.
@@ -30,7 +30,9 @@ readonly STEPS=(
 	"firewall:step_firewall"
 	"pacman_hooks:step_pacman_hooks"
 	"gpu_helper:step_gpu_helper"
+	"battery_limit:step_battery_limit"
 	"yubikey_pam:step_yubikey_pam"
+	"aur_helper:step_aur_helper"
 	"librewolf:step_librewolf"
 	"firecfg:step_firecfg"
 	"dotfiles:step_dotfiles"
@@ -88,7 +90,7 @@ mount_usb() {
 	case "$fstype" in
 	vfat | exfat) sudo mount -o "uid=$(id -u),gid=$(id -g)" "$part" "$USB_MNT" ;;
 	*)
-		warn "$fstype stick — files may be unreadable as $USER; prefer FAT/exFAT."
+		warn "$fstype stick - files may be unreadable as $USER; prefer FAT/exFAT."
 		sudo mount "$part" "$USB_MNT"
 		;;
 	esac
@@ -98,7 +100,7 @@ mount_usb() {
 umount_usb() {
 	sync
 	sudo umount "$USB_MNT" 2>/dev/null || true
-	success "USB unmounted — safe to remove."
+	success "USB unmounted - safe to remove."
 }
 
 is_done() { [[ -f "$DONE_DIR/$1" ]]; }
@@ -131,7 +133,7 @@ run_step() {
 on_error() {
 	local ec=$?
 	err "FAILED in step: ${CURRENT_STEP:-unknown} (exit $ec)"
-	err "Step NOT marked done — fix the cause and re-run to resume here."
+	err "Step NOT marked done - fix the cause and re-run to resume here."
 	err "Log: $LOG_FILE"
 	exit "$ec"
 }
@@ -163,11 +165,11 @@ step_bootloader() {
 		done < <(sudo efibootmgr -v | grep -iE 'Linux Boot Manager|Fallback' || true)
 
 		if ((! have_current)); then
-			warn "No NVRAM entry points at the current ESP — re-running bootctl install."
+			warn "No NVRAM entry points at the current ESP - re-running bootctl install."
 			sudo bootctl install
 		fi
 	else
-		warn "Could not read the ESP partuuid — inspect \`efibootmgr\` manually."
+		warn "Could not read the ESP partuuid - inspect \`efibootmgr\` manually."
 	fi
 
 	sudo ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
@@ -179,7 +181,7 @@ step_network() {
 		success "Online."
 		return 0
 	fi
-	warn "Offline — connecting Wi-Fi."
+	warn "Offline - connecting Wi-Fi."
 	nmcli device wifi list
 	local ssid
 	printf 'SSID: ' >/dev/tty
@@ -221,11 +223,11 @@ step_luks_header() {
 
 	local dest
 	dest="$(mount_usb)" || {
-		warn "Skipped — back up the LUKS header later."
+		warn "Skipped - back up the LUKS header later."
 		return 0
 	}
 
-	# Never to ~ — @home snapshots would keep a copy.
+	# Never to ~ - @home snapshots would keep a copy.
 	sudo cryptsetup luksHeaderBackup "$luks" \
 		--header-backup-file "$dest/luks-header-$(date +%Y%m%d).img"
 	success "Header written. Re-take after any keyslot change."
@@ -250,8 +252,8 @@ step_firewall() {
 }
 
 # Flag /run/reboot-required (tmpfs → cleared by the reboot itself) after
-# user-space packages that need one. Kernels are detected at runtime by the
-# shell (/usr/lib/modules/$(uname -r) vanishes on upgrade), so no Target here.
+# packages that need one. The shell watches the file; kernels are also checked
+# once at startup (/usr/lib/modules/$(uname -r) vanishes on upgrade).
 step_pacman_hooks() {
 	sudo mkdir -p /etc/pacman.d/hooks
 	sudo tee /etc/pacman.d/hooks/zz-reboot-required.hook >/dev/null <<'EOF'
@@ -259,6 +261,10 @@ step_pacman_hooks() {
 Operation = Upgrade
 Operation = Install
 Type = Package
+Target = linux
+Target = linux-lts
+Target = linux-zen
+Target = linux-hardened
 Target = systemd
 Target = glibc
 Target = dbus
@@ -282,7 +288,7 @@ EOF
 # from bin/src, install root-owned (a user-writable file would lose the cap).
 step_gpu_helper() {
 	[[ -d /sys/bus/event_source/devices/i915 ]] || {
-		info "No i915 PMU (not an Intel GPU) — Metrics falls back to sysfs."
+		info "No i915 PMU (not an Intel GPU) - Metrics falls back to sysfs."
 		return 0
 	}
 	local src="$DOTFILES/bin/src/qs-gpu-busy.c" tmp
@@ -291,6 +297,18 @@ step_gpu_helper() {
 	sudo install -o root -g root -m 755 "$tmp" /usr/local/bin/qs-gpu-busy
 	sudo setcap cap_perfmon=ep /usr/local/bin/qs-gpu-busy
 	rm -f "$tmp"
+}
+
+# Charge limit 75→80 % through UPower (persists in its own state; no TLP).
+# Lithium cells age fastest sitting full; the Battery popup can flip it (`c`).
+step_battery_limit() {
+	local out
+	out="$("$DOTFILES/bin/qs-battery" status)"
+	[[ "$out" == *'"supported":true'* ]] || {
+		info "Battery charge thresholds not supported - skipping."
+		return 0
+	}
+	"$DOTFILES/bin/qs-battery" limit on
 }
 
 step_yubikey_pam() {
@@ -317,7 +335,17 @@ step_yubikey_pam() {
 
 	info "Testing (touch a key):"
 	sudo -k
-	sudo true && success "sudo works." || warn "Test failed — password still works; verify $pam before logging out."
+	sudo true && success "sudo works." || warn "Test failed - password still works; verify $pam before logging out."
+}
+
+# yay for AUR-only desktop apps (slack-desktop, zoom). yay-bin: no Go toolchain.
+# Built via bin/yay-git so the GitHub mirror covers AUR outages.
+step_aur_helper() {
+	if pacman -Q yay >/dev/null 2>&1; then
+		echo "yay already installed"
+		return 0
+	fi
+	"$DOTFILES/bin/yay-git" yay-bin
 }
 
 # LibreWolf ≥ 156 keeps its profile in $XDG_CONFIG_HOME/librewolf/librewolf,
@@ -346,7 +374,7 @@ defaultPref("librewolf.webgl.prompt.hide", false);
 defaultPref("media.ffmpeg.vaapi.enabled", true);
 defaultPref("media.hardware-video-decoding.force-enabled", true);
 defaultPref("media.av1.enabled", false);
-// Extension CSP firewall — blocks uBlock Origin filter-list updates.
+// Extension CSP firewall - blocks uBlock Origin filter-list updates.
 defaultPref("extensions.webextensions.base-content-security-policy",
             "default-src 'none'; script-src 'none'; object-src 'none';");
 defaultPref("extensions.webextensions.base-content-security-policy.v3",
@@ -415,7 +443,7 @@ EOF
 	#   keys/ssh/id_ed25519_{pb,gx}[.pub]
 	local usb
 	usb="$(mount_usb)" || {
-		warn "Skipped key import — later: post-install.sh --redo keys"
+		warn "Skipped key import - later: post-install.sh --redo keys"
 		return 0
 	}
 
@@ -453,7 +481,7 @@ EOF
 	umount_usb
 
 	pause "Insert a YubiKey, then Enter"
-	gpg --card-status || warn "Card not seen — check pcscd / scdaemon.conf."
+	gpg --card-status || warn "Card not seen - check pcscd / scdaemon.conf."
 
 	SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
 	export SSH_AUTH_SOCK
@@ -464,7 +492,7 @@ EOF
 		chmod 644 "$HOME/.ssh/id_ed25519_ic_yubikey.pub"
 		success "Exported YubiKey SSH public key."
 	else
-		warn "No card SSH key — later: ssh-add -L | grep cardno: > ~/.ssh/id_ed25519_ic_yubikey.pub"
+		warn "No card SSH key - later: ssh-add -L | grep cardno: > ~/.ssh/id_ed25519_ic_yubikey.pub"
 	fi
 
 	cat >"$HOME/.ssh/config" <<'EOF'

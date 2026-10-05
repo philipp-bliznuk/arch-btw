@@ -18,7 +18,7 @@ while getopts 'u:i:t:a:' opt; do
 	esac
 done
 shift $((OPTIND - 1))
-summary="${1:?usage: qs-notify [-u urgency] [-i icon] <summary> [body]}"
+summary="${1:?usage: qs-notify [-u urgency] [-i icon] [-t ms] [-a app] <summary> [body]}"
 body="${2:-}"
 
 busctl --user --quiet call org.freedesktop.Notifications /org/freedesktop/Notifications \
