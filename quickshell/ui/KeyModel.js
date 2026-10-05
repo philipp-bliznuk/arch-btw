@@ -1,12 +1,13 @@
 // Vim key dispatch shared by the launcher and panel popups. Turns a Qt key
 // event into an action name; callers decide what the action means.
 //
-// insert(event, hasText)  - a text field owns typing; only Ctrl combos and
+// insert(event, hasText)  - a text field owns typing and the caret (Left/Right
+//                           stay with it); only Ctrl combos and the remaining
 //                           navigation keys map. "" = let the field have it.
 // normal(event)           - plain letters. Handles the `gg` prefix itself.
 //
 // Actions: up down halfUp halfDown top bottom activate left right back
-//          escape close insert copy paste delete deleteWord clear nextChip
+//          escape close insert copy paste delete deleteWord reset nextChip
 //          prevChip jump:N. Popup-specific letters live in each PopupCard
 //          keymap instead.
 .pragma library
@@ -39,10 +40,12 @@ CTRL[Qt.Key_J] = "down"
 CTRL[Qt.Key_P] = "up"
 CTRL[Qt.Key_K] = "up"
 CTRL[Qt.Key_D] = "halfDown"
+CTRL[Qt.Key_U] = "halfUp"
 CTRL[Qt.Key_L] = "right"
 CTRL[Qt.Key_H] = "back"
 CTRL[Qt.Key_Y] = "copy"
 CTRL[Qt.Key_W] = "deleteWord"
+CTRL[Qt.Key_O] = "reset"
 
 var NORMAL = {}
 NORMAL[Qt.Key_J] = "down"
@@ -62,10 +65,10 @@ NORMAL_SHIFT[Qt.Key_G] = "bottom"
 NORMAL_SHIFT[Qt.Key_Backtab] = "prevChip"
 
 function insert(e, hasText) {
+  if (e.key === Qt.Key_Left || e.key === Qt.Key_Right) return ""
   if (SHARED[e.key] !== undefined && plain(e)) return SHARED[e.key]
   if (e.key === Qt.Key_Backspace && !hasText && plain(e)) return "back"
   if (!ctrl(e)) return ""
-  if (e.key === Qt.Key_U) return hasText ? "clear" : "halfUp"
   return CTRL[e.key] || ""
 }
 

@@ -38,6 +38,9 @@ Scope {
     property var pending: null
     property var select: null
     property var usage: ({})
+    // Row highlighted when the current search began; resetSearch() returns to it.
+    property var searchFrom: null
+    property string lastQuery: ""
 
     Component.onCompleted: Model.setBin(Util.home() + "/.local/bin/")
 
@@ -80,6 +83,7 @@ Scope {
         calcResult = ""
         pending = null
         select = null
+        searchFrom = null
         stack = [{ name: "root", title: "" }]
     }
     onShownChanged: {
@@ -177,6 +181,9 @@ Scope {
 
     onRowsChanged: cursor = Math.min(cursor, Math.max(0, rows.length - 1))
     onQueryChanged: {
+        if (lastQuery === "" && query !== "")
+            searchFrom = { cursor: cursor, id: current ? current.id : undefined }
+        lastQuery = query
         cursor = 0
         if (calcMode)
             calcTimer.restart()
@@ -188,11 +195,12 @@ Scope {
     // Navigation never changes mode; only `i` does. The leaving frame
     // remembers its filter and highlighted row so back() restores them.
     function push(name, title) {
-        const top = Object.assign({}, stack[stack.length - 1], { query: query, chip: chip, cursor: cursor, id: current ? current.id : undefined })
+        const top = Object.assign({}, stack[stack.length - 1], { query: query, chip: chip, cursor: cursor, id: current ? current.id : undefined, searchFrom: searchFrom })
         stack = stack.slice(0, -1).concat([top, { name: name, title: title }])
         query = ""
         cursor = 0
         chip = 0
+        searchFrom = null
         focusMode()
     }
 
@@ -204,10 +212,24 @@ Scope {
         stack = stack.slice(0, -1)
         query = top.query || ""
         chip = top.chip || 0
-        const i = rows.findIndex(r => r.id !== undefined && r.id === top.id)
-        cursor = i >= 0 ? i : (top.cursor || 0)
+        searchFrom = top.searchFrom || null
+        restoreCursor(top)
         focusMode()
         return true
+    }
+
+    // Clears the query and returns to the row highlighted before searching.
+    function resetSearch() {
+        const from = searchFrom
+        query = ""
+        if (from)
+            restoreCursor(from)
+        searchFrom = null
+    }
+
+    function restoreCursor(saved) {
+        const i = rows.findIndex(r => r.id !== undefined && r.id === saved.id)
+        cursor = i >= 0 ? i : (saved.cursor || 0)
     }
 
     function focusMode() {
@@ -332,18 +354,23 @@ Scope {
         return col === gridCols - 1 ? cursor : KeyModel.move(cursor, rows.length, 1)
     }
 
+    // 70% of the visible rows, so Ctrl-D/U keep some context on screen.
+    function pageSize() {
+        const visible = grid ? Math.floor(gridView.height / gridView.cellHeight) * gridCols : Math.floor(list.height / Style.rowHeight)
+        return Math.max(1, Math.round(visible * 0.7))
+    }
+
     // Both modes funnel here. Returns true when handled.
     function perform(a) {
         if (!a)
             return false
-        const pageSize = 6
         let next = -1
         if (grid && (a === "up" || a === "down"))
             next = KeyModel.move(cursor, rows.length, a === "up" ? -gridCols : gridCols)
         else if (grid && (a === "left" || a === "right"))
             next = gridStep(a)
         else
-            next = KeyModel.step(a, cursor, rows.length, pageSize)
+            next = KeyModel.step(a, cursor, rows.length, pageSize())
         if (next >= 0) {
             cursor = next
             return true
@@ -351,7 +378,7 @@ Scope {
         switch (a) {
         case "activate": activate(current); return true
         case "right": descend(current); return true
-        case "left": if (mode === "normal" || query === "") back(); else setMode("normal"); return true
+        case "left": if (query !== "") resetSearch(); else back(); return true
         case "back": if (!back()) close(); return true
         case "escape": if (mode === "insert") setMode("normal"); else close(); return true
         case "close": close(); return true
@@ -360,7 +387,7 @@ Scope {
         case "paste": if (current && current.clip) copyRow(current); else activate(current); return true
         case "delete": deleteRow(current); return true
         case "deleteWord": query = query.replace(/\s*\S+\s*$/, ""); return true
-        case "clear": query = ""; return true
+        case "reset": resetSearch(); return true
         case "nextChip": if (chips.length) cycleChip(1); else descend(current); return true
         case "prevChip": cycleChip(-1); return true
         }
