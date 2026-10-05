@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Networking
 
 // Weather state: bin/qs-weather writes ~/.local/state/qs/weather.json
 // (open-meteo, location from weather-location.json or IP). This watches the
@@ -76,6 +77,11 @@ Singleton {
     }
 
     function refresh() {
+        if (!online) {
+            pending = true;
+            return;
+        }
+        pending = false;
         run(["refresh"]);
     }
 
@@ -93,9 +99,30 @@ Singleton {
         proc.running = true;
     }
 
+    // Resume fires refresh() before NetworkManager is back; hold it until
+    // connectivity returns, and retry a few times if the fetch still fails.
+    readonly property bool online: Networking.connectivity === NetworkConnectivity.Full
+    property bool pending: false
+    property int retries: 0
+    onOnlineChanged: if (online && pending) refresh()
+
     Process {
         id: proc
-        onExited: root.busy = false // qmllint disable signal-handler-parameters
+        onExited: code => { // qmllint disable signal-handler-parameters
+            root.busy = false;
+            if (code === 0) {
+                root.retries = 0;
+            } else if (root.retries < 5) {
+                root.retries++;
+                retry.restart();
+            }
+        }
+    }
+
+    Timer {
+        id: retry
+        interval: 30000
+        onTriggered: root.refresh()
     }
 
     FileView {
