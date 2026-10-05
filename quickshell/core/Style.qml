@@ -27,6 +27,7 @@ QtObject {
     readonly property int cardWidth: 680
     readonly property int cardMaxHeight: 520
     readonly property int rowHeight: 36
+    readonly property int crumbHeight: 14
     readonly property int cardRadius: 10
     readonly property int cardPadding: 10
 

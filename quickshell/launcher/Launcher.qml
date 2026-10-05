@@ -137,7 +137,26 @@ Scope {
         }
     }
 
-    function frecency(id) { return Usage.score(usage, id) }
+    function frecency(r) { return Usage.score(usage, usageKey(r)) }
+
+    // Rows reached via a submenu are keyed by origin so the same id in two
+    // menus (e.g. "theme" under Install and Edit) keeps separate stats.
+    // Browsing a section and finding its row from root search share a key.
+    function usageKey(r) {
+        const o = r.origin || (section === "root" || section === "apps" ? "" : section)
+        return o ? o + ":" + r.id : r.id
+    }
+
+    // Flattened tree for global search from root. Rebuilds only when a
+    // source changes, not per keystroke.
+    readonly property var searchIndex: {
+        if (!shown)
+            return []
+        let out = sectionRows("root").concat(appRows())
+        for (const s of Model.SEARCH_SECTIONS)
+            out = out.concat(Model.fromSection(sectionRows(s), s, Model.rootTitle(s)))
+        return out
+    }
 
     readonly property var rows: {
         if (!shown)
@@ -147,14 +166,14 @@ Scope {
         const q = query.trim()
         if (!q && section !== "apps")
             return sectionRows(section)
-        let base = Search.sorted(sectionRows(section), q, section === "root" || section === "apps" ? frecency : null)
-        if (section === "root" && q)
-            base = base.concat(Search.sorted(appRows(), q, frecency))
-        return base
+        if (section === "root")
+            return Search.sorted(searchIndex, q, frecency)
+        return Search.sorted(sectionRows(section), q, frecency)
     }
     readonly property bool grid: section === "wallpaper" && !query
     readonly property int gridCols: 3
     readonly property var current: rows[cursor]
+    readonly property int rowsHeight: rows.reduce((h, r) => h + Style.rowHeight + (r.crumb ? Style.crumbHeight : 0), 0)
 
     onRowsChanged: cursor = Math.min(cursor, Math.max(0, rows.length - 1))
     onQueryChanged: {
@@ -199,8 +218,8 @@ Scope {
     }
 
     function remember(r) {
-        if (r && r.id && (section === "root" || section === "apps"))
-            usage = Usage.bump(usage, r.id)
+        if (r && r.id && section !== "confirm")
+            usage = Usage.bump(usage, usageKey(r))
     }
 
     function activate(r) {
@@ -214,6 +233,7 @@ Scope {
             return
         }
         if (r.confirm) {
+            remember(r)
             pending = r
             push("confirm", r.name + "?")
             return
@@ -225,6 +245,7 @@ Scope {
             return
         }
         if (r.popup) {
+            remember(r)
             close()
             Popups.open(r.popup)
             return
@@ -235,6 +256,7 @@ Scope {
             return
         }
         if (r.toggle) {
+            remember(r)
             Toggles.flip(r.toggle)
             return
         }
@@ -480,13 +502,12 @@ Scope {
                     id: list
                     width: parent.width
                     visible: !root.grid
-                    height: visible ? Math.min(rows.count * Style.rowHeight, Style.cardMaxHeight - y - Style.cardPadding) : 0
+                    height: visible ? Math.min(root.rowsHeight, Style.cardMaxHeight - y - Style.cardPadding) : 0
                     clip: true
                     model: root.grid ? [] : root.rows
                     currentIndex: root.cursor
                     highlightMoveDuration: 0
                     onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
-                    readonly property var rows: root.grid ? { count: 0 } : { count: root.rows.length }
 
                     delegate: ListRow {
                         id: entry
@@ -498,6 +519,7 @@ Scope {
                         glyphColor: Color.accent
                         title: modelData.name
                         subtext: modelData.genericName || ""
+                        crumb: modelData.crumb || ""
                         trailing: {
                             if (modelData.popup && Popups.current === modelData.popup) return "current"
                             if (modelData.checked === true) return "●"

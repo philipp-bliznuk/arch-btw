@@ -5,6 +5,8 @@ import qs.core
 
 // List row for popups and the launcher: icon24 | title | subtext (fills) |
 // trailing text | trailing slot. Title is capped at 55% when a subtext exists.
+// A crumb adds a second muted line under the title (search results from a
+// submenu show where they came from).
 Rectangle {
     id: root
 
@@ -13,6 +15,7 @@ Rectangle {
     property string iconSource: ""
     property string title: ""
     property string subtext: ""
+    property string crumb: ""
     property string trailing: ""
     property color trailingColor: Color.muted
     property bool selected: false
@@ -24,7 +27,7 @@ Rectangle {
 
     width: parent ? parent.width : implicitWidth
     implicitWidth: layout.implicitWidth + Style.spaceMd * 2
-    implicitHeight: Style.rowHeight
+    implicitHeight: Style.rowHeight + (crumb !== "" ? Style.crumbHeight : 0)
     radius: Style.radius
     color: selected ? Color.rowSelected : (hovered ? Color.segmentHover : "transparent")
     opacity: dim ? 0.55 : 1
@@ -42,9 +45,12 @@ Rectangle {
 
     RowLayout {
         id: layout
-        anchors.fill: parent
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
         anchors.leftMargin: Style.spaceMd
         anchors.rightMargin: Style.spaceMd
+        height: root.crumb !== "" ? Style.rowHeight - Style.spaceXs : Style.rowHeight
         spacing: Style.spaceMd
 
         Item {
@@ -96,5 +102,16 @@ Rectangle {
             implicitWidth: childrenRect.width
             Layout.fillHeight: true
         }
+    }
+
+    Label {
+        visible: root.crumb !== ""
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: Style.spaceSm
+        anchors.left: parent.left
+        anchors.leftMargin: Style.spaceMd + 24 + Style.spaceMd
+        text: "↳ " + root.crumb
+        color: Color.muted
+        font.pixelSize: Style.fontCaption
     }
 }

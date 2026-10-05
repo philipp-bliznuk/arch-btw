@@ -38,6 +38,22 @@ function row(id, name, generic, glyph, extra) {
   return r
 }
 
+// Sections whose rows join global search from root. Dynamic content
+// (clipboard, notifications, wallpaper files) stays out.
+var SEARCH_SECTIONS = ["system", "capture", "toggle", "setup", "learn", "keybinds", "tmux"]
+
+// Tags rows with their origin section so search results can show a
+// breadcrumb and usage stats stay distinct per submenu.
+function fromSection(rows, section, title) {
+  return rows.filter(function (r) { return r && r.id }).map(function (r) {
+    var c = {}
+    for (var k in r) c[k] = r[k]
+    c.origin = section
+    c.crumb = title
+    return c
+  })
+}
+
 // updates = count from checkupdates; reboot = System.summary ("" when not needed)
 function rootRows(I, updates, reboot) {
   return [

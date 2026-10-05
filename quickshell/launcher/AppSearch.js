@@ -1,7 +1,10 @@
 // Ranked search over launcher rows { id, name, genericName, keywords, comment }.
 // Tiers (higher wins): exact > prefix > word-prefix > substring > fuzzy
-// (subsequence). Equal tier → frecency (Usage.js score) → shorter name → a-z.
+// (subsequence). Strong matches (substring or better) rank above fuzzy ones;
+// within a group frecency (Usage.js score) wins, then tier → shorter name → a-z.
 .pragma library
+
+var STRONG = 100 // per-term tier floor for exact/prefix/word/substring
 
 function text(v) {
   return String(v || "").toLowerCase()
@@ -42,32 +45,41 @@ function termScore(entry, term) {
   return 0
 }
 
-function score(entry, query) {
+// Returns { score, strong }. score 0 = no match; strong = every term hit a
+// substring-or-better tier.
+function match(entry, query) {
   var terms = text(query).trim().split(/\s+/).filter(function (t) { return t })
-  if (!terms.length) return 1
+  if (!terms.length) return { score: 1, strong: true }
   var total = 0
+  var strong = true
   for (var i = 0; i < terms.length; i++) {
     var s = termScore(entry, terms[i])
-    if (!s) return 0
+    if (!s) return { score: 0, strong: false }
+    if (s <= STRONG) strong = false
     total += s
   }
-  return total
+  return { score: total, strong: strong }
 }
 
-// usage: optional function(id) -> frecency number
+function score(entry, query) {
+  return match(entry, query).score
+}
+
+// usage: optional function(row) -> frecency number
 function sorted(values, query, usage) {
   var q = String(query || "").trim()
   var rows = []
   for (var i = 0; i < values.length; i++) {
     var e = values[i]
     if (!e || !e.name) continue
-    var s = score(e, q)
-    if (!s) continue
-    rows.push({ entry: e, score: s, use: usage ? usage(e.id) : 0, key: text(e.name) })
+    var m = match(e, q)
+    if (!m.score) continue
+    rows.push({ entry: e, score: m.score, strong: m.strong, use: usage ? usage(e) : 0, key: text(e.name) })
   }
   rows.sort(function (a, b) {
-    if (q && a.score !== b.score) return b.score - a.score
+    if (q && a.strong !== b.strong) return a.strong ? -1 : 1
     if (a.use !== b.use) return b.use - a.use
+    if (q && a.score !== b.score) return b.score - a.score
     if (q && a.key.length !== b.key.length) return a.key.length - b.key.length
     return a.key < b.key ? -1 : a.key > b.key ? 1 : 0
   })
