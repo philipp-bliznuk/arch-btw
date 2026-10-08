@@ -4,7 +4,7 @@ import Quickshell.Widgets
 import qs.core
 
 // List row for popups and the launcher: icon24 | title | subtext (fills) |
-// trailing text | trailing slot. Title is capped at 55% when a subtext exists.
+// trailing text. Title is capped at 55% when a subtext exists.
 // A crumb adds a second muted line under the title (search results from a
 // submenu show where they came from).
 Rectangle {
@@ -20,7 +20,6 @@ Rectangle {
     property color trailingColor: Color.muted
     property bool selected: false
     property bool dim: false
-    property alias trailingItem: trailSlot.data
     readonly property bool hovered: hover.hovered
 
     signal clicked(var mouse)
@@ -94,13 +93,6 @@ Rectangle {
             text: root.trailing
             color: root.trailingColor
             font.pixelSize: Style.fontCaption
-        }
-
-        Item {
-            id: trailSlot
-            visible: children.length > 0
-            implicitWidth: childrenRect.width
-            Layout.fillHeight: true
         }
     }
 

@@ -24,7 +24,6 @@ Scope {
     readonly property string section: stack[stack.length - 1].name
     readonly property bool calcMode: query.startsWith("=")
     property string calcResult: ""
-    property int chip: 0
 
     required property var notifications
     required property var clipboard
@@ -34,15 +33,18 @@ Scope {
     property var caps: ({ canSuspend: true, canHibernate: true })
     property var wallpapers: []
     property string wallpaper: ""
-    property int updates: 0
     property var pending: null
-    property var select: null
     property var usage: ({})
+    // .desktop ids qs-apps allows (explicit packages minus apps-hide). Empty = show all.
+    property var allowedApps: ({})
     // Row highlighted when the current search began; resetSearch() returns to it.
     property var searchFrom: null
     property string lastQuery: ""
 
-    Component.onCompleted: Model.setBin(Util.home() + "/.local/bin/")
+    Component.onCompleted: {
+        Model.setBin(Util.home() + "/.local/bin/")
+        appsProbe.running = true
+    }
 
     // ---- open / close -----------------------------------------------------
 
@@ -55,22 +57,13 @@ Scope {
         capsProbe.running = true
         shown = true
     }
-    function openSelect(prompt, tsv, outfile) {
-        reset()
-        const rows = []
-        const lines = tsv.split("\n").filter(l => l.trim())
-        for (let i = 0; i < lines.length; i++) {
-            const f = lines[i].split("\t")
-            rows.push({ id: "sel-" + i, name: f[0], genericName: f[1] || "", keywords: [], glyph: f[2] || Icons.chevronRight, selectValue: f[0] })
-        }
-        select = { prompt: prompt, rows: rows, outfile: outfile }
-        stack = [{ name: "select", title: prompt }]
-        shown = true
-    }
+    // Re-reads the installed app list (pacman hook touches /run/qs-apps-changed
+    // automatically; Ctrl+R / r covers flatpak and other sources).
+    function refresh() { appsProbe.running = true }
     function openSection(name) {
         reset()
         if (name && name !== "root")
-            stack = [{ name: "root", title: "", id: name }, { name: name, title: Model.rootTitle(name) }]
+            stack = [{ name: "root", title: "", id: name }, { name: name, title: Model.sectionTitle(name) }]
         if (name === "wallpaper")
             wallpaperList.running = true
         shown = true
@@ -78,11 +71,9 @@ Scope {
     function reset() {
         query = ""
         cursor = 0
-        chip = 0
         mode = "insert"
         calcResult = ""
         pending = null
-        select = null
         searchFrom = null
         stack = [{ name: "root", title: "" }]
     }
@@ -90,52 +81,39 @@ Scope {
         if (shown) {
             pointer = Qt.point(-1, -1)
             field.input.forceActiveFocus()
-            return
         }
-        if (select)
-            Quickshell.execDetached(["bash", "-c", '[ -s "$1" ] || : > "$1"', "bash", select.outfile])
     }
 
     // ---- rows -------------------------------------------------------------
 
     function appRows() {
         const out = []
+        const filter = Object.keys(allowedApps).length > 0
         for (const e of DesktopEntries.applications.values) {
-            if (e.noDisplay)
+            if (e.noDisplay || (filter && !allowedApps[e.id]))
                 continue
-            out.push({ id: e.id, name: e.name, genericName: e.genericName || e.comment || "", keywords: e.keywords || [], icon: e.icon, entry: e, category: Model.categoryOf(e) })
+            out.push({ id: e.id, name: e.name, genericName: e.genericName || e.comment || "", keywords: e.keywords || [], icon: e.icon, entry: e })
         }
         return out
     }
 
-    readonly property var chips: {
-        if (!shown || section !== "apps")
-            return []
-        const present = {}
-        for (const r of appRows())
-            present[r.category] = true
-        return ["All"].concat(Model.CATEGORIES.filter(c => present[c]))
-    }
-
     function sectionRows(name) {
         switch (name) {
-        case "root": return Model.rootRows(Icons, updates, System.summary)
-        case "apps": {
-            const all = appRows()
-            const c = chips[chip]
-            return c && c !== "All" ? all.filter(r => r.category === c) : all
-        }
+        case "root": return Model.rootRows(Icons, System.summary)
+        case "apps": return appRows()
         case "system": return Model.systemRows(Icons, caps, System.summary)
         case "confirm": return pending ? Model.confirmRows(Icons, pending) : []
-        case "keybinds": return Model.parseSwayBinds(swayConfig, Icons)
-        case "tmux": return Model.parseTmuxBinds(tmuxConfig, Icons)
+        case "keys": return Model.keyRows(Icons)
+        case "keys-sway": return Model.swayKeyRows(swayConfig, Icons)
+        case "keys-tmux": return Model.tmuxKeyRows(tmuxConfig, Icons)
+        case "keys-launcher": return Model.launcherKeyRows(Icons)
+        case "keys-popups": return Model.popupKeyRows(Icons)
         case "capture": return Model.captureRows(Icons)
+        case "packages": return Model.packageRows(Icons, System.summary)
         case "toggle": return Model.toggleRows(Icons, Toggles.active)
         case "setup": return Model.setupRows(Icons, Util.home())
         case "wallpaper": return Model.wallpaperRows(Icons, wallpapers, wallpaper)
-        case "select": return select ? select.rows : []
         case "clipboard": return Model.clipboardRows(Icons, clipboard.entries, Util)
-        case "learn": return Model.learnRows(Icons)
         case "notifications": return Model.notificationRows(Icons, notifications.history, Util)
         default: return []
         }
@@ -144,8 +122,9 @@ Scope {
     function frecency(r) { return Usage.score(usage, usageKey(r)) }
 
     // Rows reached via a submenu are keyed by origin so the same id in two
-    // menus (e.g. "theme" under Install and Edit) keeps separate stats.
-    // Browsing a section and finding its row from root search share a key.
+    // menus (e.g. "update" under Packages vs a future Setup row) keeps
+    // separate stats. Browsing a section and finding its row from root
+    // search share a key.
     function usageKey(r) {
         const o = r.origin || (section === "root" || section === "apps" ? "" : section)
         return o ? o + ":" + r.id : r.id
@@ -158,7 +137,7 @@ Scope {
             return []
         let out = sectionRows("root").concat(appRows())
         for (const s of Model.SEARCH_SECTIONS)
-            out = out.concat(Model.fromSection(sectionRows(s), s, Model.rootTitle(s)))
+            out = out.concat(Model.fromSection(sectionRows(s), s, Model.sectionTitle(s)))
         return out
     }
 
@@ -188,30 +167,27 @@ Scope {
         if (calcMode)
             calcTimer.restart()
     }
-    onChipChanged: cursor = 0
 
     // ---- actions ----------------------------------------------------------
 
     // Navigation never changes mode; only `i` does. The leaving frame
     // remembers its filter and highlighted row so back() restores them.
     function push(name, title) {
-        const top = Object.assign({}, stack[stack.length - 1], { query: query, chip: chip, cursor: cursor, id: current ? current.id : undefined, searchFrom: searchFrom })
+        const top = Object.assign({}, stack[stack.length - 1], { query: query, cursor: cursor, id: current ? current.id : undefined, searchFrom: searchFrom })
         stack = stack.slice(0, -1).concat([top, { name: name, title: title }])
         query = ""
         cursor = 0
-        chip = 0
         searchFrom = null
         focusMode()
     }
 
-    // Pops one frame. Returns false at root (or in select mode).
+    // Pops one frame. Returns false at root.
     function back() {
-        if (select || stack.length <= 1)
+        if (stack.length <= 1)
             return false
         const top = stack[stack.length - 2]
         stack = stack.slice(0, -1)
         query = top.query || ""
-        chip = top.chip || 0
         searchFrom = top.searchFrom || null
         restoreCursor(top)
         focusMode()
@@ -260,12 +236,6 @@ Scope {
             push("confirm", r.name + "?")
             return
         }
-        if (r.selectValue !== undefined) {
-            const out = select.outfile
-            close()
-            Quickshell.execDetached(["bash", "-c", 'printf %s "$1" > "$2"', "bash", r.selectValue, out])
-            return
-        }
         if (r.popup) {
             remember(r)
             close()
@@ -292,12 +262,31 @@ Scope {
     }
 
     function runAction(name) {
+        if (name.startsWith("hide:")) {
+            hideApp(name.slice(5))
+            return
+        }
         switch (name) {
         case "notifications-clear": notifications.clearHistory(); break
         case "notifications-dismiss": close(); break
         case "back": back(); break
         case "clipboard-clear": clipboard.clear(); break
         }
+    }
+
+    // Ctrl+- on an app row: confirm, then append its id to apps-hide via
+    // qs-apps. Undo is manual (Setup > Edit App blacklist).
+    function askHide(r) {
+        if (mode !== "normal" || section !== "apps" || !r || !r.entry)
+            return
+        pending = { name: "Blacklist " + r.name, genericName: "undo: delete its line in ~/.config/quickshell/apps-hide", glyph: Icons.eyeOff, confirm: { action: "hide:" + r.id } }
+        push("confirm", "Do you really want to blacklist " + r.name + "?")
+    }
+
+    function hideApp(id) {
+        appsProbe.command = [Util.bin("qs-apps"), "hide", id]
+        appsProbe.running = true
+        back()
     }
 
     function copyRow(r) {
@@ -325,11 +314,6 @@ Scope {
     function setMode(m) {
         mode = m
         focusMode()
-    }
-
-    function cycleChip(delta) {
-        if (chips.length)
-            chip = (chip + delta + chips.length) % chips.length
     }
 
     // Cursor follows the pointer only when it actually moves. A static pointer
@@ -384,12 +368,12 @@ Scope {
         case "close": close(); return true
         case "insert": setMode("insert"); return true
         case "copy": copyRow(current); return true
-        case "paste": if (current && current.clip) copyRow(current); else activate(current); return true
+        case "paste": if (current && current.clip) copyRow(current); return true
         case "delete": deleteRow(current); return true
         case "deleteWord": query = query.replace(/\s*\S+\s*$/, ""); return true
         case "reset": resetSearch(); return true
-        case "nextChip": if (chips.length) cycleChip(1); else descend(current); return true
-        case "prevChip": cycleChip(-1); return true
+        case "refresh": refresh(); return true
+        case "hide": askHide(current); return true
         }
         return false
     }
@@ -446,16 +430,30 @@ Scope {
     }
 
     Process {
-        id: updatesProbe
-        command: ["bash", "-c", "checkupdates 2>/dev/null | wc -l"]
-        stdout: StdioCollector { onStreamFinished: root.updates = parseInt(text.trim()) || 0 }
+        id: appsProbe
+        command: [Util.bin("qs-apps"), "list"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const set = {}
+                for (const id of JSON.parse(text || "[]"))
+                    set[id] = true
+                root.allowedApps = set
+                appsProbe.command = [Util.bin("qs-apps"), "list"]
+            }
+        }
     }
-    Timer {
-        interval: 6 * 3600 * 1000
-        running: true
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: updatesProbe.running = true
+    // Both files only trigger a probe; apps-hide content is read by qs-apps.
+    FileView {
+        path: "/run/qs-apps-changed"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: root.refresh()
+    }
+    FileView {
+        path: Util.home() + "/.config/quickshell/apps-hide"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: root.refresh()
     }
 
     // ---- window -----------------------------------------------------------
@@ -498,7 +496,7 @@ Scope {
 
                 Header {
                     glyph: root.calcMode ? Icons.calc : (root.stack.length > 1 ? Icons.chevronRight : Icons.apps)
-                    crumbs: root.select ? [root.select.prompt] : root.stack.slice(1).map(s => s.title)
+                    crumbs: root.stack.slice(1).map(s => s.title)
                     mode: root.mode
                     status: root.calcMode ? "= " + (root.calcResult || "…") : (root.rows.length ? (root.cursor + 1) + "/" + root.rows.length : "")
                 }
@@ -508,7 +506,7 @@ Scope {
                     width: parent.width
                     text: root.query
                     onTextChanged: root.query = text
-                    placeholder: root.select ? root.select.prompt : (root.stack.length > 1 ? "Type to filter…  Esc for normal mode" : "Search apps, =expr to calculate…  Esc for normal mode")
+                    placeholder: root.stack.length > 1 ? "Type to filter…  Esc for normal mode" : "Search apps, =expr to calculate…  Esc for normal mode"
                     onAccepted: root.activate(root.current)
                     onEscaped: root.perform("escape")
                     onKeyPressed: e => {
@@ -516,13 +514,6 @@ Scope {
                         if (a && root.perform(a))
                             e.accepted = true
                     }
-                }
-
-                Chips {
-                    visible: root.chips.length > 0
-                    names: root.chips
-                    current: root.chip
-                    onPicked: i => root.chip = i
                 }
 
                 ListView {
@@ -548,12 +539,18 @@ Scope {
                         subtext: modelData.genericName || ""
                         crumb: modelData.crumb || ""
                         trailing: {
+                            if (modelData.tag) return modelData.tag
                             if (modelData.popup && Popups.current === modelData.popup) return "current"
-                            if (modelData.checked === true) return "●"
+                            if (modelData.checked === true || modelData.warn === true) return "●"
                             if (modelData.section) return "→"
                             return ""
                         }
-                        trailingColor: modelData.checked === true ? Color.green : (modelData.popup && Popups.current === modelData.popup ? Color.accent : Color.muted)
+                        trailingColor: {
+                            if (modelData.warn === true) return Color.yellow
+                            if (modelData.checked === true) return Color.green
+                            if (modelData.popup && Popups.current === modelData.popup) return Color.accent
+                            return Color.muted
+                        }
                         selected: index === root.cursor
                         dim: modelData.disabled === true
                         onClicked: root.activate(modelData)

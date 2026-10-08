@@ -1,9 +1,11 @@
-// Ranked search over launcher rows { id, name, genericName, keywords, comment }.
+// Ranked search over launcher rows { id, name, genericName, keywords }.
 // Tiers (higher wins): exact > prefix > word-prefix > substring > fuzzy
-// (subsequence). Strong matches (substring or better) rank above fuzzy ones;
-// within a group frecency (Usage.js score) wins, then tier → shorter name → a-z.
+// (subsequence). Named matches (every term hits the row's own name) rank
+// above keyword/description hits, which rank above fuzzy ones; within a
+// group frecency (Usage.js score) wins, then tier → shorter name → a-z.
 .pragma library
 
+var NAMED = 300 // per-term tier floor for exact/prefix/word-prefix on the name itself
 var STRONG = 100 // per-term tier floor for exact/prefix/word/substring
 
 function text(v) {
@@ -36,29 +38,33 @@ function termScore(entry, term) {
   var id = text(entry.id)
   if (name === term || id === term) return 500
   if (name.indexOf(term) === 0) return 400 - name.length
-  var ws = words(entry.name).concat(words(entry.genericName), words(keywordText(entry)))
-  for (var i = 0; i < ws.length; i++) if (ws[i].indexOf(term) === 0) return 300 - i
-  var hay = [name, text(entry.genericName), text(entry.comment), text(keywordText(entry)), id].join(" ")
+  var nw = words(entry.name)
+  for (var i = 0; i < nw.length; i++) if (nw[i].indexOf(term) === 0) return 350 - i
+  var ws = words(entry.genericName).concat(words(keywordText(entry)))
+  for (var j = 0; j < ws.length; j++) if (ws[j].indexOf(term) === 0) return 300 - j
+  var hay = [name, text(entry.genericName), text(keywordText(entry)), id].join(" ")
   var at = hay.indexOf(term)
   if (at >= 0) return 200 - Math.min(at, 99)
   if (term.length >= 2 && subsequence(name, term)) return 100 - name.length
   return 0
 }
 
-// Returns { score, strong }. score 0 = no match; strong = every term hit a
-// substring-or-better tier.
+// Returns { score, named, strong }. score 0 = no match; named = every term hit
+// the name itself; strong = every term hit a substring-or-better tier.
 function match(entry, query) {
   var terms = text(query).trim().split(/\s+/).filter(function (t) { return t })
-  if (!terms.length) return { score: 1, strong: true }
+  if (!terms.length) return { score: 1, named: true, strong: true }
   var total = 0
+  var named = true
   var strong = true
   for (var i = 0; i < terms.length; i++) {
     var s = termScore(entry, terms[i])
-    if (!s) return { score: 0, strong: false }
+    if (!s) return { score: 0, named: false, strong: false }
+    if (s <= NAMED) named = false
     if (s <= STRONG) strong = false
     total += s
   }
-  return { score: total, strong: strong }
+  return { score: total, named: named, strong: strong }
 }
 
 function score(entry, query) {
@@ -74,9 +80,10 @@ function sorted(values, query, usage) {
     if (!e || !e.name) continue
     var m = match(e, q)
     if (!m.score) continue
-    rows.push({ entry: e, score: m.score, strong: m.strong, use: usage ? usage(e) : 0, key: text(e.name) })
+    rows.push({ entry: e, score: m.score, named: m.named, strong: m.strong, use: usage ? usage(e) : 0, key: text(e.name) })
   }
   rows.sort(function (a, b) {
+    if (q && a.named !== b.named) return a.named ? -1 : 1
     if (q && a.strong !== b.strong) return a.strong ? -1 : 1
     if (a.use !== b.use) return b.use - a.use
     if (q && a.score !== b.score) return b.score - a.score

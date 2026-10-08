@@ -7,9 +7,9 @@
 // normal(event)           - plain letters. Handles the `gg` prefix itself.
 //
 // Actions: up down halfUp halfDown top bottom activate left right back
-//          escape close insert copy paste delete deleteWord reset nextChip
-//          prevChip jump:N. Popup-specific letters live in each PopupCard
-//          keymap instead.
+//          escape close insert copy paste delete deleteWord reset refresh
+//          hide jump:N. Popup-specific letters live in each PopupCard keymap
+//          instead.
 .pragma library
 
 var pendingG = false
@@ -30,8 +30,6 @@ SHARED[Qt.Key_Enter] = "activate"
 SHARED[Qt.Key_Left] = "left"
 SHARED[Qt.Key_Right] = "right"
 SHARED[Qt.Key_Escape] = "escape"
-SHARED[Qt.Key_Tab] = "nextChip"
-SHARED[Qt.Key_Backtab] = "prevChip"
 SHARED[Qt.Key_Delete] = "delete"
 
 var CTRL = {}
@@ -46,6 +44,8 @@ CTRL[Qt.Key_H] = "back"
 CTRL[Qt.Key_Y] = "copy"
 CTRL[Qt.Key_W] = "deleteWord"
 CTRL[Qt.Key_O] = "reset"
+CTRL[Qt.Key_R] = "refresh"
+CTRL[Qt.Key_Minus] = "hide"
 
 var NORMAL = {}
 NORMAL[Qt.Key_J] = "down"
@@ -57,12 +57,12 @@ NORMAL[Qt.Key_P] = "paste"
 NORMAL[Qt.Key_D] = "delete"
 NORMAL[Qt.Key_X] = "delete"
 NORMAL[Qt.Key_I] = "insert"
+NORMAL[Qt.Key_R] = "refresh"
 NORMAL[Qt.Key_Q] = "close"
 NORMAL[Qt.Key_Space] = "activate"
 
 var NORMAL_SHIFT = {}
 NORMAL_SHIFT[Qt.Key_G] = "bottom"
-NORMAL_SHIFT[Qt.Key_Backtab] = "prevChip"
 
 function insert(e, hasText) {
   if (e.key === Qt.Key_Left || e.key === Qt.Key_Right) return ""

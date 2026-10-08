@@ -267,6 +267,8 @@ step_firewall() {
 # Flag /run/reboot-required (tmpfs → cleared by the reboot itself) after
 # packages that need one. The shell watches the file; kernels are also checked
 # once at startup (/usr/lib/modules/$(uname -r) vanishes on upgrade).
+# /run/qs-apps-changed is touched whenever a .desktop file is installed or
+# removed so the launcher re-reads the app list (bin/qs-apps).
 step_pacman_hooks() {
 	sudo mkdir -p /etc/pacman.d/hooks
 	sudo tee /etc/pacman.d/hooks/zz-reboot-required.hook >/dev/null <<'EOF'
@@ -294,6 +296,19 @@ Description = Flagging reboot-required...
 When = PostTransaction
 NeedsTargets
 Exec = /bin/sh -c 'cat >> /run/reboot-required'
+EOF
+	sudo tee /etc/pacman.d/hooks/zz-qs-apps.hook >/dev/null <<'EOF'
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Path
+Target = usr/share/applications/*.desktop
+
+[Action]
+Description = Flagging launcher app list refresh...
+When = PostTransaction
+Exec = /bin/sh -c 'date +%s > /run/qs-apps-changed'
 EOF
 }
 

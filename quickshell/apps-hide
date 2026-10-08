@@ -1,0 +1,3 @@
+# Apps hidden from the launcher, one .desktop id per line (filename without
+# .desktop). Added by Ctrl+- in the Apps menu. Delete a line to unhide.
+gscriptor

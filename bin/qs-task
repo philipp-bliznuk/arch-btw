@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# qs-task <cmd> [args...]  -> run <cmd> in a floating terminal, keep it open
+#                             with "Done!" / "Failed!" until Enter is pressed
+# qs-task run <cmd> [...]  -> inner mode, executed inside the terminal
+#
+# Window class qs-task is matched by sway (floating, 75% centered). Exit code
+# 130 (Ctrl-C / fzf abort) closes silently - the user already said no.
+# The only place besides sway/config and Commands.qml that names the terminal.
+set -Eeuo pipefail
+
+term=(kitty --class qs-task --title "qs-task"
+	-o background=#181825 -o window_padding_width=12)
+
+usage() {
+	sed -n '2,4p' "$0" >&2
+	exit 64
+}
+
+drain_tty() {
+	while read -rs -t 0.05 -n 1 _ </dev/tty; do :; done
+}
+
+# sway draws floating windows under a fullscreen one; drop fullscreen first
+leave_fullscreen() {
+	command -v swaymsg >/dev/null || return 0
+	swaymsg -t get_tree 2>/dev/null \
+		| jq -e '[.. | objects | select(.focused? == true) | .fullscreen_mode] | any(. == 1)' >/dev/null \
+		&& swaymsg fullscreen disable >/dev/null
+}
+
+header() {
+	local shown=()
+	local a
+	for a in "$@"; do shown+=("${a##*/}"); done
+	printf '\033[36m❯ %s\033[0m\n\n' "${shown[*]}"
+}
+
+run() {
+	local code=0
+	header "$@"
+	"$@" || code=$?
+	(( code == 130 )) && exit 130
+	drain_tty
+	if (( code == 0 )); then
+		printf '\n\033[32m●\033[0m Done! Press Enter to close...'
+	else
+		printf '\n\033[31m●\033[0m Failed (exit %d)! Press Enter to close...' "$code"
+	fi
+	read -r _ </dev/tty
+	exit "$code"
+}
+
+(( $# )) || usage
+
+case "$1" in
+	run)
+		shift
+		(( $# )) || usage
+		run "$@"
+		;;
+	*)
+		leave_fullscreen || true
+		setsid -f "${term[@]}" -- "$0" run "$@" >/dev/null 2>&1
+		;;
+esac

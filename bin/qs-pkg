@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# qs-pkg install         -> pick official packages in fzf, pacman -S
+# qs-pkg aur             -> pick AUR packages in fzf, yay -S (yay-git when AUR is down)
+# qs-pkg remove          -> pick installed packages in fzf, pacman -Rns
+# qs-pkg update          -> yay -Syu (repo-only when AUR is down)
+# qs-pkg pkgbuild <pkg>  -> print PKGBUILD of an official package (fzf preview)
+#
+# Meant to run inside qs-task (floating terminal). fzf exits 130 on Esc/empty,
+# which qs-task treats as "closed quietly". pacman keeps its own prompts.
+set -Eeuo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/qs-pkg"
+self="$here/qs-pkg"
+
+usage() {
+	sed -n '2,6p' "$0" >&2
+	exit 64
+}
+
+fzf_pick() {
+	# $1 = pointer/marker color, $2 = default preview, $3 = alt-b preview, $4 = alt-b label
+	local color="$1" preview="$2" alt="$3" label="${4:-pkgbuild}"
+	fzf --multi --ansi --layout=reverse \
+		--preview "$preview" \
+		--preview-window 'down:65%:wrap' \
+		--preview-label=" alt-p: preview, alt-b: $label, alt-i: info, alt-j/k: scroll, tab: select " \
+		--preview-label-pos=bottom \
+		--bind 'alt-p:toggle-preview' \
+		--bind 'alt-d:preview-half-page-down,alt-u:preview-half-page-up' \
+		--bind 'alt-k:preview-up,alt-j:preview-down' \
+		--bind "alt-b:change-preview:$alt" \
+		--bind "alt-i:change-preview:$preview" \
+		--color "pointer:$color,marker:$color"
+}
+
+aur_up() {
+	curl -sf --connect-timeout 5 --retry 1 \
+		'https://aur.archlinux.org/rpc/?v=5&type=info&arg=base' >/dev/null
+}
+
+fetch_pkgbuild() {
+	# $1 = pkgbase, $2 = destination. GitLab answers 302 (login page) for
+	# unknown repos, which curl -f lets through, so check the status code.
+	local code
+	code="$(curl -s --connect-timeout 5 -o "$2" -w '%{http_code}' \
+		"https://gitlab.archlinux.org/archlinux/packaging/packages/$1/-/raw/main/PKGBUILD")" || return 1
+	[[ "$code" == 200 ]] || { rm -f "$2"; return 1; }
+}
+
+pkgbase_of() {
+	# pacman -Sii has no pkgbase field; ask archlinux.org (only hit on a miss)
+	curl -sf --connect-timeout 5 "https://archlinux.org/packages/search/json/?name=$1" |
+		jq -r '.results[0].pkgbase // empty' 2>/dev/null
+}
+
+pkgbuild() {
+	local pkg="$1" base f
+	[[ -n "$pkg" ]] || return 1
+	mkdir -p "$cache"
+	f="$cache/$pkg.PKGBUILD"
+	if [[ ! -s "$f" || -n "$(find "$f" -mmin +60)" ]]; then
+		if ! fetch_pkgbuild "$pkg" "$f.tmp"; then
+			base="$(pkgbase_of "$pkg")"
+			[[ -n "$base" && "$base" != "$pkg" ]] && fetch_pkgbuild "$base" "$f.tmp" || true
+		fi
+		if [[ -s "$f.tmp" ]]; then
+			mv "$f.tmp" "$f"
+		else
+			rm -f "$f.tmp"
+			echo "PKGBUILD not found for $pkg"
+			return 0
+		fi
+	fi
+	if command -v bat >/dev/null; then
+		bat --color=always --style=plain --language=bash "$f"
+	else
+		cat "$f"
+	fi
+}
+
+install_repo() {
+	local -a pkgs
+	mapfile -t pkgs < <(pacman -Slq | fzf_pick green 'pacman -Sii {1}' "$self pkgbuild {1}")
+	(( ${#pkgs[@]} )) || exit 130
+	sudo pacman -S "${pkgs[@]}"
+}
+
+install_aur() {
+	local -a pkgs
+	local names
+	if ! aur_up; then
+		printf '\033[33m●\033[0m AUR unreachable - falling back to yay-git (GitHub mirror).\n'
+		# fzf exits 1 (no items) on Enter but still prints the query; Esc exits 130
+		names=$(fzf --disabled --print-query --no-info --height 3 --layout reverse \
+			--prompt 'Package names (space separated)> ' </dev/null) || (( $? != 130 )) || exit 130
+		read -ra pkgs <<<"$names"
+		(( ${#pkgs[@]} )) || exit 130
+		exec "$here/yay-git" "${pkgs[@]}"
+	fi
+	mapfile -t pkgs < <(yay -Slqa | fzf_pick green 'yay -Siia {1}' 'yay -Gpa {1} | tail -n +5')
+	(( ${#pkgs[@]} )) || exit 130
+	yay -S "${pkgs[@]/#/aur/}"
+}
+
+remove_pkgs() {
+	local -a pkgs
+	mapfile -t pkgs < <(pacman -Qqe | fzf_pick red 'pacman -Qi {1}' 'pacman -Qlq {1}' files)
+	(( ${#pkgs[@]} )) || exit 130
+	sudo pacman -Rns "${pkgs[@]}"
+}
+
+update() {
+	if aur_up; then
+		yay -Syu
+	else
+		printf '\033[33m●\033[0m AUR unreachable - updating official repositories only.\n'
+		yay -Syu --repo
+	fi
+}
+
+(( $# )) || usage
+
+case "$1" in
+	install) install_repo ;;
+	aur) install_aur ;;
+	remove) remove_pkgs ;;
+	update) update ;;
+	pkgbuild) pkgbuild "${2:-}" ;;
+	*) usage ;;
+esac

@@ -53,10 +53,6 @@ ShellRoot {
         function close(): void {
             launcher.close();
         }
-
-        function select(prompt: string, tsv: string, outfile: string): void {
-            launcher.openSelect(prompt, tsv, outfile);
-        }
     }
 
     IpcHandler {
@@ -64,18 +60,6 @@ ShellRoot {
 
         function refresh(): void {
             Toggles.refresh();
-        }
-    }
-
-    IpcHandler {
-        target: "system"
-
-        function refresh(): void {
-            System.refresh();
-        }
-
-        function rebootRequired(): string {
-            return System.summary;
         }
     }
 
@@ -92,10 +76,6 @@ ShellRoot {
 
         function close(): void {
             Popups.close();
-        }
-
-        function current(): string {
-            return Popups.current;
         }
     }
 
