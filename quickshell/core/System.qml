@@ -8,7 +8,7 @@ import Quickshell.Io
 //                          watched for creation/changes; tmpfs, so a reboot clears it
 //   kernel               - /usr/lib/modules/$(uname -r) missing at startup
 //                          (upgrade happened before the shell started)
-// Notifies once per boot; Indicators + launcher show it until reboot.
+// Indicators + launcher show it until reboot; no notification (too easy to miss).
 Singleton {
     id: root
 
@@ -20,12 +20,6 @@ Singleton {
     }
     readonly property bool rebootRequired: reasons.length > 0
     readonly property string summary: reasons.join(", ")
-    property bool notified: false
-
-    function refresh() {
-        flag.reload();
-        probe.running = true;
-    }
 
     FileView {
         id: flag
@@ -44,14 +38,5 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: root.kernel = text.trim() ? ["kernel"] : []
         }
-    }
-
-    onRebootRequiredChanged: {
-        if (!rebootRequired || notified)
-            return;
-        notified = true;
-        Commands.run({
-            argv: [Util.bin("qs-notify"), "-i", "system-reboot", "Reboot required", summary]
-        });
     }
 }

@@ -5,7 +5,9 @@ import Quickshell.I3
 import Quickshell.Io
 
 // Sway facts derived from Quickshell.I3, shared by panel/popups/launcher.
-// focusedScreen chain: focusedMonitor → focusedWorkspace.monitor → screens[0].
+// focusedScreen chain: get_outputs focused name → I3 focusedMonitor →
+// focusedWorkspace.monitor → screens[0]. Name comes first because after an
+// output hotplug sway recreates the output and I3.focusedMonitor goes stale.
 //
 // Quickshell.I3 only forwards workspace/output events, so one persistent
 // `swaymsg -m subscribe` here carries everything else the bar needs:
@@ -14,7 +16,11 @@ Singleton {
     id: root
 
     readonly property var focusedMonitor: I3.focusedMonitor ?? (I3.focusedWorkspace ? I3.focusedWorkspace.monitor : null)
-    readonly property var focusedScreen: screenFor(focusedMonitor) ?? (Quickshell.screens.length ? Quickshell.screens[0] : null)
+    readonly property var focusedScreen: screenNamed(focusedOutput) ?? screenFor(focusedMonitor) ?? (Quickshell.screens.length ? Quickshell.screens[0] : null)
+
+    // Output name sway reports as focused (get_outputs), refreshed on
+    // workspace/output events.
+    property string focusedOutput: ""
 
     // Active binding mode ("default", "resize", "popup"…).
     property string mode: "default"
@@ -40,6 +46,14 @@ Singleton {
     }
 
     Process {
+        id: outputsProbe
+        command: ["sh", "-c", "swaymsg -t get_outputs | jq -r '.[] | select(.focused) | .name'"]
+        stdout: StdioCollector {
+            onStreamFinished: root.focusedOutput = text.trim()
+        }
+    }
+
+    Process {
         id: inputProbe
         running: true
         command: ["swaymsg", "-t", "get_inputs"]
@@ -57,12 +71,21 @@ Singleton {
     Connections {
         target: I3
         function onRawEvent(event) {
-            if (event.type === "workspace" || event.type === "output")
+            if (event.type === "output") {
+                I3.refreshMonitors();
+                I3.refreshWorkspaces();
+            }
+            if (event.type === "workspace" || event.type === "output") {
                 treeProbe.running = true;
+                outputsProbe.running = true;
+            }
         }
     }
 
-    Component.onCompleted: treeProbe.running = true
+    Component.onCompleted: {
+        treeProbe.running = true;
+        outputsProbe.running = true;
+    }
 
     // Workspace occupancy lives in get_workspaces' `representation`, which only
     // moves when a window appears, leaves or changes workspace; focus and
@@ -104,6 +127,16 @@ Singleton {
         id: retry
         interval: 2000
         onTriggered: events.running = true
+    }
+
+    function screenNamed(name) {
+        if (!name)
+            return null;
+        for (const s of Quickshell.screens) {
+            if (s.name === name)
+                return s;
+        }
+        return null;
     }
 
     function screenFor(monitor) {

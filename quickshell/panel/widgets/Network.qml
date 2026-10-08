@@ -66,12 +66,23 @@ Segment {
     property var pending: null
     property bool eap: false
     property string failure: ""
+    // SSID the user picked on purpose; once connected its profile becomes the
+    // autoconnect favourite (qs-wifi-prefer). Disconnects never set it.
+    property string chosen: ""
 
     icon: !device ? Icons.wifiOff : (wifi ? Icons.wifiFor(strength) : Icons.ethernet)
     iconColor: !device ? Color.muted : (portal || limited ? Color.yellow : Color.text)
     active: popup.open
 
     onClicked: popup.toggle()
+
+    onNetworkChanged: {
+        if (!network || network.name !== chosen)
+            return;
+        prefer.command = [Util.bin("qs-wifi-prefer"), chosen];
+        prefer.running = true;
+        chosen = "";
+    }
 
     function secure(n) {
         return n.security !== WifiSecurityType.Open && n.security !== WifiSecurityType.Owe;
@@ -102,6 +113,7 @@ Segment {
             n.disconnect();
             return;
         }
+        chosen = n.name;
         if (n.known || !secure(n)) {
             n.connect();
             return;
@@ -173,6 +185,24 @@ Segment {
         repeat: true
         triggeredOnStart: true
         onTriggered: statusProbe.running = true
+    }
+
+    Process {
+        id: prefer
+    }
+
+    // NM re-checks connectivity every 60 s (connectivity.conf); while the link
+    // reports limited/portal, poke it faster so a router coming back is noticed.
+    Process {
+        id: recheck
+        command: ["nmcli", "networking", "connectivity", "check"]
+    }
+
+    Timer {
+        interval: 15000
+        running: root.limited || root.portal
+        repeat: true
+        onTriggered: recheck.running = true
     }
 
     // WPA-EAP (PEAP/MSCHAPv2) profile via nmcli; password over stdin.

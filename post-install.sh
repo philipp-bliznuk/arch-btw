@@ -24,6 +24,7 @@ readonly REPO_SSH="git@pb:philipp-bliznuk/arch-btw.git"
 readonly STEPS=(
 	"bootloader:step_bootloader"
 	"network:step_network"
+	"nm_connectivity:step_nm_connectivity"
 	"snapper:step_snapper"
 	"luks_header:step_luks_header"
 	"sdboot_snaps:step_sdboot_snaps"
@@ -187,6 +188,18 @@ step_network() {
 	printf 'SSID: ' >/dev/tty
 	read -r ssid </dev/tty
 	nmcli device wifi connect "$ssid" --ask
+}
+
+# NetworkManager re-checks connectivity every 300 s by default; after a router
+# outage the shell shows "limited" for minutes although the link is back. 60 s
+# keeps the status honest without spamming the check URL.
+step_nm_connectivity() {
+	sudo mkdir -p /etc/NetworkManager/conf.d
+	sudo tee /etc/NetworkManager/conf.d/connectivity.conf >/dev/null <<'EOF'
+[connectivity]
+interval=60
+EOF
+	sudo nmcli general reload conf 2>/dev/null || true
 }
 
 step_snapper() {
