@@ -4,7 +4,8 @@ set $left h
 set $down j
 set $up k
 set $right l
-set $term ghostty
+# kitty -1: single instance, one process shares GPU context across windows
+set $term kitty -1
 set $menu qs-shell launcher toggle
 
 ### Input
@@ -51,7 +52,7 @@ bindsym $mod+n exec qs-shell launcher open notifications
 bindsym $mod+c exec qs-shell launcher open clipboard
 bindsym $mod+Shift+t exec qs-toggle nightlight
 bindsym $mod+Shift+w exec qs-wallpaper random
-bindsym $mod+Shift+Return exec $term --class=qs-float
+bindsym $mod+Shift+Return exec $term --class qs-float
 floating_modifier $mod normal
 
 ### Focus / move
@@ -59,18 +60,10 @@ bindsym $mod+$left focus left
 bindsym $mod+$down focus down
 bindsym $mod+$up focus up
 bindsym $mod+$right focus right
-bindsym $mod+Left focus left
-bindsym $mod+Down focus down
-bindsym $mod+Up focus up
-bindsym $mod+Right focus right
 bindsym $mod+Shift+$left move left
 bindsym $mod+Shift+$down move down
 bindsym $mod+Shift+$up move up
 bindsym $mod+Shift+$right move right
-bindsym $mod+Shift+Left move left
-bindsym $mod+Shift+Down move down
-bindsym $mod+Shift+Up move up
-bindsym $mod+Shift+Right move right
 
 ### Workspaces
 # 1, 4 → laptop; 2, 3 → first external when present (fall back to laptop).
@@ -82,7 +75,7 @@ workspace 4 output eDP-1
 # Home workspaces per app. Zoom runs under XWayland, so it matches on
 # `class`, not `app_id`.
 assign [app_id="^[Ss]lack$"] workspace number 1
-assign [app_id="^com\.mitchellh\.ghostty$"] workspace number 2
+assign [app_id="^kitty$"] workspace number 2
 assign [app_id="^librewolf$"] workspace number 3
 assign [class="^[Zz]oom$"] workspace number 4
 bindsym $mod+1 workspace number 1
@@ -128,10 +121,6 @@ mode "resize" {
     bindsym $down resize grow height 10px
     bindsym $up resize shrink height 10px
     bindsym $right resize grow width 10px
-    bindsym Left resize shrink width 10px
-    bindsym Down resize grow height 10px
-    bindsym Up resize shrink height 10px
-    bindsym Right resize grow width 10px
     bindsym Return mode "default"
     bindsym Escape mode "default"
 }
@@ -179,11 +168,15 @@ mouse_warping container
 focus_on_window_activation urgent
 
 ### Window rules
-for_window [app_id="^qs-float$"] floating enable, resize set 1300 900, move position center
+# `border pixel`: kitty negotiates CSD, which sway honours for floating windows (no border)
+for_window [app_id="^qs-float$"] floating enable, border pixel 1, resize set 1300 900, move position center
+# qs-task: launcher-spawned terminal tasks (install, remove, update)
+for_window [app_id="^qs-task$"] floating enable, border pixel 1, resize set 75 ppt 75 ppt, move position center
 
 ### Appearance
-default_border pixel 2
-gaps inner 4
+default_border pixel 1
+default_floating_border pixel 1
+gaps inner 0
 client.focused          #89b4fa #89b4fa #1e1e2e #b4befe #89b4fa
 client.focused_inactive #45475a #45475a #cdd6f4 #45475a #45475a
 client.unfocused        #313244 #313244 #6c7086 #313244 #313244

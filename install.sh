@@ -34,7 +34,7 @@ PACKAGES=(
 	pacman-contrib
 	polkit mesa sway swaylock swayidle quickshell upower
 	"<vaapi>" libva-utils # hardware video decode (browser video otherwise burns a CPU core + GPU uploads); vainfo to verify
-	wl-clipboard grim slurp ghostty xorg-xwayland
+	wl-clipboard grim slurp kitty xorg-xwayland
 	xdg-desktop-portal-wlr xdg-desktop-portal-gtk
 	ttf-jetbrains-mono-nerd noto-fonts noto-fonts-cjk noto-fonts-emoji # cjk: fallback glyphs for app menus/titles (tray menus, window titles)
 	brightnessctl playerctl xdg-user-dirs man-db man-pages

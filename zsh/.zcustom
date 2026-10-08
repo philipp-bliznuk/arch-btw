@@ -7,6 +7,9 @@ function zvm_after_init() {
   # FZF widgets (zvm stomps these on init)
   bindkey '^R' fzf-history-widget
   bindkey '^T' fzf-file-widget
+
+  # Shift+Enter arrives as CSI-u from kitty; at the prompt it is plain Enter
+  bindkey '^[[13;2u' accept-line
 }
 
 # Normal/visual-mode keybindings (load lazily on first ESC)
