@@ -32,7 +32,9 @@ ShellRoot {
 
     Agent {}
 
-    Osd {}
+    Osd {
+        id: osd
+    }
 
     Clipboard {
         id: clipboard
@@ -99,6 +101,38 @@ ShellRoot {
                 return;
             launcher.close();
             Popups.close();
+        }
+    }
+
+    // sway media binds; the same player the bar shows, then the OSD toast.
+    IpcHandler {
+        target: "media"
+
+        function toggle(): void {
+            Player.toggle();
+            osd.showMedia();
+        }
+
+        function next(): void {
+            Player.next();
+            osd.showMedia();
+        }
+
+        function previous(): void {
+            Player.previous();
+            osd.showMedia();
+        }
+
+        function status(): string {
+            const p = Player.player;
+            return JSON.stringify({
+                player: p ? p.identity : null,
+                playing: Player.playing,
+                line: Player.line,
+                streams: Player.streams.length,
+                volume: Player.volume,
+                volumeMax: Player.volumeMax
+            });
         }
     }
 

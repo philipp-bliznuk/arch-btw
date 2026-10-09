@@ -179,7 +179,7 @@ Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage
 | Network (`$mod+o n`) | `j`/`k` · `Enter` connect/disconnect (inline PSK, WPA-EAP identity) · `w` Wi-Fi on/off · `r` rescan · captive portal row when NM reports Portal |
 | Weather (`$mod+o w`) | current conditions, sunrise/sunset, night-light mode · `e` change city (open-meteo geocoding) · `d` back to IP location · `u` °C/°F · `r` refresh |
 | Tray menu (right-click icon) | `j`/`k` row · `l`/`Enter` activate or enter submenu · `h` back (closes at top level). Checked entries show `✓`. |
-| Media (`$mod+o m`, `$mod+Shift+p`) | cover · title · artist · album · `p` play-pause · `h`/`l` (or `[`/`]`) prev/next · `j`/`k` volume. Volume is the player's PipeWire stream (matched by process/app name, up to 150 % like the audio popup), falling back to MPRIS (0-100 %). Global: `$mod+p`, `$mod+[`/`]` (OSD toast). MPRIS; prefers Feishin, else the playing player, else the first one. |
+| Media (`$mod+o m`, `$mod+Shift+p`) | cover · title · artist · album · `p` play-pause · `h`/`l` (or `[`/`]`) prev/next · `j`/`k` volume. Volume is the player's PipeWire stream (matched by process binary / app name / node name against the MPRIS identity and desktop entry, both reduced to alphanumerics; up to 150 % like the audio popup), falling back to MPRIS (0-100 %). Global: `$mod+p`, `$mod+[`/`]` go through `qs-shell media toggle/next/previous`, so keys, bar and popup always drive the same player; the OSD toast waits for the MPRIS state to actually change (120 ms polls, 1.2 s cap) instead of guessing a delay. Player choice: Feishin, else a playing player with a live PipeWire stream, else any playing player, else one with track metadata, else the first; `playerctld`'s proxy is ignored. |
 
 | `bin/`                 | Purpose                                                                  |
 | ---------------------- | ------------------------------------------------------------------------ |
@@ -204,7 +204,7 @@ Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage
 
 State: `~/.local/state/qs/` (`toggles/`, `settings.json`, `notifications.json`, `clipboard.json`, `clipboard-images/`, `weather.json`, `weather-location.json`, `launcher-usage.json`, `background`). Clipboard history skips `x-kde-passwordManagerHint` sources (1Password) - the file is still plaintext, rely on LUKS.
 
-IPC targets: `launcher` (toggle/open/close) · `popups` (toggle/open/close) · `lock` (lock → `ok`/`already`/`fallback`, status JSON) · `notifications` (toggleDnd/clear/clearHistory/count/dismissLatest/actionLatest; sway `$mod+Shift+d` / `$mod+Shift+a`) · `clipboard` (refresh/clear/count) · `osd` (brightness/volume/mic/media) · `background` (refresh/current) · `toggles` (refresh) · `polkit` (status) · `shell` (ping/resume).
+IPC targets: `launcher` (toggle/open/close) · `popups` (toggle/open/close) · `lock` (lock → `ok`/`already`/`fallback`, status JSON) · `media` (toggle/next/previous, status JSON) · `notifications` (toggleDnd/clear/clearHistory/count/dismissLatest/actionLatest; sway `$mod+Shift+d` / `$mod+Shift+a`) · `clipboard` (refresh/clear/count) · `osd` (brightness/volume/mic/media) · `background` (refresh/current) · `toggles` (refresh) · `polkit` (status) · `shell` (ping/resume).
 
 Lint: `quickshell/lint.sh` (qmllint, must be clean).
 

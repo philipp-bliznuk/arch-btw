@@ -5,26 +5,28 @@ import Quickshell.Services.Mpris
 import Quickshell.Services.Pipewire
 
 // Which MPRIS player the shell talks to. Feishin (navidrome client) wins when
-// present, then whatever is playing, then the first player. Browser videos
-// therefore never hijack the widget while music is merely paused.
+// present, then a playing player that owns a live PipeWire stream, then any
+// playing player, then one with track metadata, then the first. playerctld's
+// proxy is skipped: it mirrors another player and would show up twice. Browser
+// videos therefore never hijack the widget while music is merely paused.
 //
 // Volume goes through the player's PipeWire output streams, not MPRIS:
 // browsers report a private multiplier there (Firefox says 1.0 until first
-// set) that matches neither the mixer nor the tab. Callers must keep the
-// streams bound with a PwObjectTracker while they read `volume`.
+// set) that matches neither the mixer nor the tab. Every output stream stays
+// bound here: PwNode.properties (application name, process binary) is empty
+// until the node is bound, and the player-to-stream match reads them.
 Singleton {
     id: root
 
-    readonly property var players: Mpris.players.values
+    readonly property var players: Mpris.players.values.filter(p => !isProxy(p))
+    readonly property var outStreams: Pipewire.nodes.values.filter(n => n.type === PwNodeType.AudioOutStream)
     readonly property var player: {
         const ps = players;
-        for (const p of ps)
-            if (isPreferred(p))
-                return p;
-        for (const p of ps)
-            if (p.isPlaying)
-                return p;
-        return ps.length ? ps[0] : null;
+        return ps.find(isPreferred)
+            ?? ps.find(p => p.isPlaying && streamsOf(p).length > 0)
+            ?? ps.find(p => p.isPlaying)
+            ?? ps.find(hasTrack)
+            ?? (ps.length ? ps[0] : null);
     }
     readonly property bool playing: player ? player.isPlaying : false
     readonly property string title: player ? (player.trackTitle || "") : ""
@@ -32,8 +34,10 @@ Singleton {
     readonly property string album: player ? (player.trackAlbum || "") : ""
     readonly property string artUrl: player ? (player.trackArtUrl || "") : ""
     readonly property string line: [artist, title].filter(x => x).join(" - ")
+    // Changes when a transport command took effect; the OSD waits for it.
+    readonly property string signature: [playing, title, artist, album].join("\u001f")
 
-    readonly property var streams: player ? Pipewire.nodes.values.filter(n => n.type === PwNodeType.AudioOutStream && owns(n)) : []
+    readonly property var streams: player ? streamsOf(player) : []
     readonly property bool volumeSupported: streams.length > 0 || (player !== null && player.volumeSupported)
     // PipeWire streams accept gain above unity; MPRIS volume is 0..1.
     readonly property real volumeMax: streams.length > 0 ? 1.5 : 1
@@ -44,16 +48,39 @@ Singleton {
         return player && player.volumeSupported ? player.volume : 0;
     }
 
+    PwObjectTracker {
+        objects: root.outStreams
+    }
+
     function isPreferred(p) {
         const id = ((p.identity || "") + " " + (p.desktopEntry || "")).toLowerCase();
         return id.includes("feishin");
     }
 
-    function owns(node) {
-        const p = node.properties || {};
-        const tags = [p["application.process.binary"], p["application.name"], node.name].filter(x => x).map(x => String(x).toLowerCase());
-        const ids = [player.desktopEntry, player.identity].filter(x => x).map(x => x.toLowerCase());
+    function isProxy(p) {
+        return (p.dbusName || "").includes("playerctld") || p.desktopEntry === "playerctld";
+    }
+
+    function hasTrack(p) {
+        return !!(p.trackTitle || p.trackArtist || p.trackAlbum || p.trackArtUrl);
+    }
+
+    function key(s) {
+        return String(s).toLowerCase().replace(/^pipewire alsa \[/, "").replace(/^alsa playback \[/, "").replace(/\]$/, "").replace(/[^a-z0-9]+/g, "");
+    }
+
+    // Identity and desktop entry against the stream's binary, app name and
+    // node name, both sides reduced to alphanumerics. Not the D-Bus name:
+    // LibreWolf registers as "firefox" and would claim Firefox's streams.
+    function owns(node, p) {
+        const props = node.properties || {};
+        const tags = [props["application.process.binary"], props["application.name"], node.name].filter(x => x).map(key).filter(x => x);
+        const ids = [p.desktopEntry, p.identity].filter(x => x).map(key).filter(x => x);
         return tags.some(t => ids.some(i => t.includes(i) || i.includes(t)));
+    }
+
+    function streamsOf(p) {
+        return outStreams.filter(n => owns(n, p));
     }
 
     function toggle() {

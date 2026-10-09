@@ -7,9 +7,10 @@ import Quickshell.Services.Pipewire
 import qs.core
 import qs.ui
 
-// On-screen display for volume / mic / brightness.
+// On-screen display for volume / mic / brightness / media.
 // Volume + mic: reacts to Pipewire node changes (any source: keys, wheel, apps).
 // Brightness: sysfs has no inotify → sway bind calls `qs-shell -q osd brightness`.
+// Media: the `media` IPC target in shell.qml runs the command, then showMedia().
 Scope {
     id: root
 
@@ -37,16 +38,27 @@ Scope {
         hide.restart();
     }
 
-    // Media toast: icon + one line, no bar. MPRIS lags the playerctl call, so
-    // the sway bind fires this and we read the state a moment later.
+    // Media toast: icon + one line, no bar. MPRIS reports the new state a
+    // moment after the command, so poll Player.signature (every 120 ms, ten
+    // tries) and show as soon as it moved; after the last try show anyway.
     function showMedia() {
-        mediaDelay.restart();
+        mediaBefore = Player.signature;
+        mediaTries = 0;
+        mediaPoll.restart();
     }
 
+    property string mediaBefore: ""
+    property int mediaTries: 0
+
     Timer {
-        id: mediaDelay
-        interval: 350
+        id: mediaPoll
+        interval: 120
+        repeat: true
         onTriggered: {
+            root.mediaTries++;
+            if (Player.signature === root.mediaBefore && root.mediaTries < 10)
+                return;
+            stop();
             if (!root.player)
                 return;
             root.show(Player.playing ? Icons.play : Icons.pause, Util.truncate(Player.line || root.player.identity, 28), 0, !Player.playing);

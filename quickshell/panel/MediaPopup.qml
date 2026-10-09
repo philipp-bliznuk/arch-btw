@@ -1,10 +1,10 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import Quickshell.Services.Pipewire
 import qs.core
 import qs.ui
 
-// Media popup: art, track, transport, volume of the player's PipeWire stream.
+// Media popup: art, track, transport, volume of the player's PipeWire stream
+// (core/Player keeps the streams bound, so `volume` is live here).
 // Keys: p play/pause · h/l or [ ] prev/next · j/k volume ±5 %.
 PopupCard {
     id: root
@@ -19,10 +19,6 @@ PopupCard {
         { key: "h l [ ]", run: k => k === "h" || k === "[" ? Player.previous() : Player.next() },
         { key: "j k", run: k => Player.nudgeVolume(k === "j" ? -0.05 : 0.05) }
     ]
-
-    PwObjectTracker {
-        objects: root.open ? Player.streams : []
-    }
 
     component Button: Segment {
         property bool enabledState: true
