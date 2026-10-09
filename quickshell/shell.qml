@@ -91,6 +91,7 @@ ShellRoot {
         function resume(): void {
             Weather.refresh();
             Sun.wake();
+            Toggles.refresh();
             Metrics.resetRates();
         }
     }

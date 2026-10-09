@@ -11,22 +11,36 @@ Singleton {
     id: root
 
     property date now: new Date()
-    readonly property var today: pick(Weather.daily)
-    readonly property bool known: today !== null
-    readonly property date sunrise: known ? new Date(today.sunrise) : new Date(0)
-    readonly property date sunset: known ? new Date(today.sunset) : new Date(0)
-    readonly property bool isNight: known && (now < sunrise || now >= sunset)
     readonly property bool auto: Settings.get("nightLightAuto") === true
 
-    function pick(daily) {
+    // One binding computes everything from a single `now` snapshot. Separate
+    // bindings re-evaluated in arbitrary order and briefly compared the new
+    // date against yesterday's sunset after a resume, flipping isNight.
+    readonly property var day: compute(now, Weather.daily)
+    readonly property bool known: day.known
+    readonly property date sunrise: day.sunrise
+    readonly property date sunset: day.sunset
+    readonly property bool isNight: day.isNight
+
+    function compute(at, daily) {
+        const none = {
+            known: false,
+            sunrise: new Date(0),
+            sunset: new Date(0),
+            isNight: false
+        };
         if (!daily.time || !daily.sunrise || !daily.sunset)
-            return null;
-        const i = daily.time.indexOf(Qt.formatDate(now, "yyyy-MM-dd"));
+            return none;
+        const i = daily.time.indexOf(Qt.formatDate(at, "yyyy-MM-dd"));
         if (i < 0)
-            return null;
+            return none;
+        const sunrise = new Date(daily.sunrise[i]);
+        const sunset = new Date(daily.sunset[i]);
         return {
-            sunrise: daily.sunrise[i],
-            sunset: daily.sunset[i]
+            known: true,
+            sunrise,
+            sunset,
+            isNight: at < sunrise || at >= sunset
         };
     }
 
@@ -37,13 +51,11 @@ Singleton {
             Toggles.set("nightlight", isNight);
     }
 
-    // Applied once 2 s after startup (Toggles flag scan and the weather file
-    // load are in flight) and 2 s after every change of `known`; isNight
-    // transitions apply at once after that.
-    property bool settled: false
-
-    onIsNightChanged: if (settled) apply()
-    onAutoChanged: apply()
+    // Every input change only re-arms `settle`; apply() runs once the state
+    // has been stable for 2 s (startup flag scan and weather load in flight,
+    // weather file rewritten, clock jump on resume).
+    onIsNightChanged: settle.restart()
+    onAutoChanged: settle.restart()
     onKnownChanged: {
         Qt.callLater(() => root.now = new Date());
         settle.restart();
@@ -53,10 +65,7 @@ Singleton {
         id: settle
         interval: 2000
         running: true
-        onTriggered: {
-            root.settled = true;
-            root.apply();
-        }
+        onTriggered: root.apply()
     }
 
     // Wake only at the next sunrise, sunset or midnight (day rollover).

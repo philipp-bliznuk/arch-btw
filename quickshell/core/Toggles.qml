@@ -17,16 +17,23 @@ Singleton {
         return active[name] === true;
     }
 
+    // Last requested state per toggle, applied one qs-toggle at a time.
+    // Concurrent on/off runs raced and the slower one won.
+    property var pending: ({})
+
     function set(name, on) {
+        if (has(name) === on && pending[name] === undefined)
+            return;
         const next = Object.assign({}, active);
         if (on)
             next[name] = true;
         else
             delete next[name];
         active = next;
-        Commands.run({
-            argv: [Util.bin("qs-toggle"), name, on ? "on" : "off"]
+        pending = Object.assign({}, pending, {
+            [name]: on
         });
+        drain();
     }
 
     function flip(name) {
@@ -35,6 +42,25 @@ Singleton {
 
     function refresh() {
         lister.running = true;
+    }
+
+    function drain() {
+        if (runner.running)
+            return;
+        const name = Object.keys(pending)[0];
+        if (name === undefined)
+            return;
+        const on = pending[name];
+        const rest = Object.assign({}, pending);
+        delete rest[name];
+        pending = rest;
+        runner.command = [Util.bin("qs-toggle"), name, on ? "on" : "off"];
+        runner.running = true;
+    }
+
+    Process {
+        id: runner
+        onExited: root.drain() // qmllint disable signal-handler-parameters
     }
 
     Process {
