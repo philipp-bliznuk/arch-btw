@@ -156,6 +156,8 @@ Popups open from the keyboard tmux-style: `$mod+o` enters sway mode `popup`, the
 
 Workspaces: `1` and `4` live on the laptop panel, `2` and `3` on the first external output when one is present (sway moves them back out on plug-in, merges everything onto the laptop on unplug). `assign` rules send Slack → 1, kitty → 2, LibreWolf → 3, Zoom → 4; any other workspace is created on the focused output. Caps Lock is a second `$mod` (`caps:super`), so `Caps+N` switches workspaces one-handed. The workspace segment shows a dot on workspaces that hold windows (from sway's `representation`). `core/SwayState` runs one `swaymsg -m -r -t subscribe '["window","mode","input"]'` and fans out binding mode, xkb layout and window changes (workspace occupancy refresh on new/close/move/floating only, fullscreen probe) - Quickshell's I3 module only forwards workspace/output events.
 
+Notifications: popups stack top-right (4 visible; critical 10 s, others `min(expire, 10 s)`, default 5 s), history of 50 in `notifications.json`, `dnd` toggle. Summary and app name render as plain text; the body is Qt StyledText with every `<img>` removed whole-tag (`notifications/Body.js`, a naive regex can splice a live tag out of two dead halves) and Chromium's page-origin prefix dropped, so no sender can make the shell fetch a URL. A `replaces_id` update rewrites the live object without a second `onNotification`, so the card listens for summary/body/image changes, resets its countdown and re-snapshots the history row. The countdown pauses while hovered and resumes with what was left. Left-click runs the default action (else the first, else the `qs-exec-argv` hint), other buttons dismiss; the `qs-glyph` hint replaces the bell when there is no icon.
+
 Reboot required: `core/System.qml` watches `/run/reboot-required` (written by the pacman hook `zz-reboot-required.hook` for kernels/systemd/glibc/mesa/firmware/…, installed by `post-install.sh` step `pacman_hooks`) and checks `/usr/lib/modules/$(uname -r)` once at startup (gone after a kernel upgrade). No polling, no notification: shows ↻ in Indicators and a yellow dot on `Packages`/`Update`/`Reboot` rows until reboot (`/run` is tmpfs).
 
 Theme: Catppuccin Mocha, hardcoded in `core/Theme.qml` (named `Theme`, not `Color` - Qt 6.12 ships a `QtQuick/Color` singleton that shadows a singleton of ours by that name). GTK 3/4 share one `gtk/` dir (→ `~/.config/gtk-3.0` and `gtk-4.0`): `gtk.css` sets the libadwaita named colours, `settings.ini` is the fallback; `adw-gtk3-dark` + dark `color-scheme` + fonts go through `gsettings` in `post-install.sh` step `theme`, because GTK3 on Wayland reads `org.gnome.desktop.interface` and ignores `settings.ini` for those keys. Qt apps (incl. `pinentry-qt`) use `qt6ct/` (Fusion, `colors/catppuccin-mocha.conf`, Adwaita Sans) via `QT_QPA_PLATFORMTHEME=qt6ct` from `zsh/.zprofile`; `qs-session` imports it into the systemd user environment so gpg-agent's pinentry gets it too. Quickshell is unaffected: every text goes through `ui/Label`/`ui/Glyph` with explicit font and colour.
@@ -177,13 +179,13 @@ Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage
 
 | `bin/`                 | Purpose                                                                  |
 | ---------------------- | ------------------------------------------------------------------------ |
-| `qs-shell [-q] T FN`   | `qs ipc call` wrapper                                                    |
+| `qs-shell [-q] T FN`   | `qs ipc call` wrapper; exits 1 on unknown target/function/no instance (`qs ipc` says so with exit 0), 3 s timeout, finds the display from `$XDG_RUNTIME_DIR/wayland-*` when unset |
 | `qs-quit`              | SIGTERM the focused window's process (`$mod+Ctrl+q`; apps that hide to the tray on `kill` actually exit) |
 | `qs-session`           | `start` (sway `exec`), `restart` (`$mod+Shift+r`), `stop`                 |
 | `qs-toggle NAME`       | `awake` `nightlight` `dnd` `bar-hidden` - flag files + transient units   |
 | `qs-capture MODE`      | `region` `window` `screen` `region-clip` `color`                          |
 | `qs-wallpaper`         | `set PATH` `next` `random` `current` `list`                               |
-| `qs-notify`            | `notify-send` via `busctl`                                                |
+| `qs-notify`            | `notify-send` via `busctl`; `-r ID` replace, `-p` print id, `-g GLYPH` (hint `qs-glyph`, shown without icon), `-- CMD…` run on click (hint `qs-exec-argv`) |
 | `qs-weather`           | `refresh` `set CITY` `clear` `status` - open-meteo → `weather.json`        |
 | `qs-battery`           | `status` `limit [on\|off]` - UPower charge thresholds (JSON)              |
 | `qs-network-status`    | internal, JSON for the network popup (ip/gateway/ping/traffic)             |

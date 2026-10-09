@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
-# qs-notify [-u low|normal|critical] [-i icon] [-t ms] [-a app] <summary> [body]
+# qs-notify [-u low|normal|critical] [-i icon] [-g glyph] [-t ms] [-a app] [-r id] [-p] <summary> [body] [-- cmd args...]
 # notify-send replacement via busctl (no libnotify dependency).
+#   -g  Nerd glyph shown by the shell when there is no icon (hint qs-glyph)
+#   -r  replace notification <id> in place
+#   -p  print the notification id (feed it back to -r)
+#   --  argv the shell runs when the popup is clicked (hint qs-exec-argv);
+#       busctl callers cannot receive ActionInvoked, so this stands in for
+#       a default action
 set -Eeuo pipefail
 
-urgency=1 icon="" timeout=-1 app="qs"
-while getopts 'u:i:t:a:' opt; do
+usage="usage: qs-notify [-u urgency] [-i icon] [-g glyph] [-t ms] [-a app] [-r id] [-p] <summary> [body] [-- cmd args...]"
+urgency=1 icon="" glyph="" timeout=-1 app="qs" replaces=0 print=0
+while getopts 'u:i:g:t:a:r:p' opt; do
 	case "$opt" in
 	u) case "$OPTARG" in
 		low) urgency=0 ;;
@@ -12,15 +19,35 @@ while getopts 'u:i:t:a:' opt; do
 		*) urgency=1 ;;
 		esac ;;
 	i) icon="$OPTARG" ;;
+	g) glyph="$OPTARG" ;;
 	t) timeout="$OPTARG" ;;
 	a) app="$OPTARG" ;;
-	*) exit 2 ;;
+	r) replaces="$OPTARG" ;;
+	p) print=1 ;;
+	*)
+		echo "$usage" >&2
+		exit 2
+		;;
 	esac
 done
 shift $((OPTIND - 1))
-summary="${1:?usage: qs-notify [-u urgency] [-i icon] [-t ms] [-a app] <summary> [body]}"
-body="${2:-}"
+summary="${1:?$usage}"
+shift
+body=""
+if [[ $# -gt 0 && "$1" != "--" ]]; then
+	body="$1"
+	shift
+fi
+[[ "${1:-}" == "--" ]] && shift
 
-busctl --user --quiet call org.freedesktop.Notifications /org/freedesktop/Notifications \
+hints=(urgency y "$urgency")
+[[ -n "$glyph" ]] && hints+=(qs-glyph s "$glyph")
+if [[ $# -gt 0 ]]; then
+	hints+=(qs-exec-argv s "$(jq -cn '$ARGS.positional' --args -- "$@")")
+fi
+
+out="$(busctl --user call org.freedesktop.Notifications /org/freedesktop/Notifications \
 	org.freedesktop.Notifications Notify 'susssasa{sv}i' \
-	"$app" 0 "$icon" "$summary" "$body" 0 1 urgency y "$urgency" -- "$timeout"
+	"$app" "$replaces" "$icon" "$summary" "$body" 0 $((${#hints[@]} / 3)) "${hints[@]}" -- "$timeout")"
+((print)) && printf '%s\n' "${out#u }"
+exit 0

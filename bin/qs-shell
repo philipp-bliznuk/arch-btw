@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # qs-shell [-q] <target> <function> [args...]
-# Thin wrapper over `qs ipc call`. -q swallows output and errors (fire-and-forget).
+# `qs ipc call` wrapper. Exits 1 with the reason on stderr when the shell is
+# not running, still starting, or the target/function/arguments are wrong -
+# `qs ipc` prints those on stdout and exits 0. Hung calls are killed after
+# 3 s. -q swallows output and errors (fire-and-forget for sway binds).
+# Without WAYLAND_DISPLAY (tty, ssh, udev) the display is taken from the
+# wayland-N socket in $XDG_RUNTIME_DIR that has a running instance.
 set -Eeuo pipefail
 
 quiet=0
@@ -12,9 +17,58 @@ fi
 	echo "usage: qs-shell [-q] <target> <function> [args...]" >&2
 	exit 2
 }
+if ((quiet)); then
+	exec >/dev/null 2>&1
+fi
+
+find_display() {
+	local sock name
+	for sock in "${XDG_RUNTIME_DIR:-/run/user/$UID}"/wayland-[0-9]*; do
+		[[ -S "$sock" ]] || continue
+		name="${sock##*/}"
+		if WAYLAND_DISPLAY="$name" qs list -j 2>/dev/null | grep -q '"pid"'; then
+			printf '%s\n' "$name"
+			return 0
+		fi
+	done
+	return 1
+}
+
+call() {
+	local out rc=0
+	out="$(timeout --kill-after=1s 3s qs ipc call -- "$@")" || rc=$?
+	case "$rc" in
+	0) ;;
+	124 | 137)
+		echo "qs-shell: timed out" >&2
+		return 1
+		;;
+	*)
+		# "No running instances ..." lands on stdout
+		printf 'qs-shell: %s\n' "${out%%$'\n'*}" >&2
+		return 1
+		;;
+	esac
+	case "$out" in
+	"Target not found." | "Function not found." | "Not ready to accept queries yet." | "Too "*" arguments provided ("* | "Could not convert: "*)
+		printf 'qs-shell: %s\n' "${out%%$'\n'*}" >&2
+		return 1
+		;;
+	esac
+	[[ -z "$out" ]] || printf '%s\n' "$out"
+}
+
+if [[ -z "${WAYLAND_DISPLAY:-}" ]]; then
+	WAYLAND_DISPLAY="$(find_display)" || {
+		echo "qs-shell: no running shell on any wayland socket" >&2
+		((quiet)) && exit 0
+		exit 1
+	}
+	export WAYLAND_DISPLAY
+fi
 
 if ((quiet)); then
-	timeout 3 qs ipc call "$@" >/dev/null 2>&1 || true
+	call "$@" || true
 else
-	timeout 3 qs ipc call "$@"
+	call "$@"
 fi
