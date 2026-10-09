@@ -20,6 +20,8 @@ Singleton {
     }
 
     function open(id, screen) {
+        if (Lock.locked)
+            return;
         root.screen = screen ?? SwayState.focusedScreen;
         current = id;
     }

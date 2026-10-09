@@ -4,8 +4,9 @@ import Quickshell
 import Quickshell.Io
 
 // Boolean shell state as flag files in ~/.local/state/qs/toggles/<name>.
-// Side effects (wlsunset, systemd-inhibit) live in bin/qs-toggle so shell
-// scripts and the launcher share one implementation. qs-toggle calls
+// Side effects (wlsunset) live in bin/qs-toggle so shell scripts and the
+// launcher share one implementation; awake is read by the IdleInhibitor in
+// background/Background.qml. qs-toggle calls
 // `qs-shell -q toggles refresh` after each change.
 Singleton {
     id: root

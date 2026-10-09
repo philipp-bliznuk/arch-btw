@@ -78,7 +78,7 @@ function sectionTitle(section) {
 // caps = { canSuspend: bool, canHibernate: bool } from logind; reboot = System.summary
 function systemRows(I, caps, reboot) {
   return [
-    row("lock", "Lock", "swaylock", I.lock, { argv: ["swaylock", "-f"] }),
+    row("lock", "Lock", "lock screen", I.lock, { argv: [BIN + "qs-lock"] }),
     row("suspend", "Suspend", caps.canSuspend ? "systemctl suspend" : "unavailable (logind CanSuspend)", I.sleep,
       { argv: caps.canSuspend ? ["systemctl", "suspend"] : undefined, disabled: !caps.canSuspend }),
     row("hibernate", "Hibernate", caps.canHibernate ? "systemctl hibernate" : "unavailable (logind CanHibernate)", I.sleep,
@@ -225,7 +225,7 @@ var SWAY_LABELS = [
   [/^reload$/, "Reload sway config"],
   [/^swaynag .*exit/, "Exit sway"],
   [/^qs-session restart/, "Restart Quickshell"],
-  [/^swaylock/, "Lock screen"],
+  [/^qs-lock/, "Lock screen"],
   [/^qs-toggle dnd/, "Toggle do not disturb"],
   [/^qs-toggle nightlight/, "Toggle night light"],
   [/^qs-toggle (\w+)/, "Toggle $1"],

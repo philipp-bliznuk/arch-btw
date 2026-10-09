@@ -32,7 +32,7 @@ PACKAGES=(
 	sudo zsh efibootmgr snapper snap-pac
 	apparmor chrony firejail bubblewrap earlyoom ufw
 	pacman-contrib
-	polkit mesa sway swaylock swayidle quickshell upower
+	polkit mesa sway swaylock swayidle quickshell upower cmatrix
 	"<vaapi>" libva-utils # hardware video decode (browser video otherwise burns a CPU core + GPU uploads); vainfo to verify
 	wl-clipboard grim slurp kitty xorg-xwayland
 	xdg-desktop-portal-wlr xdg-desktop-portal-gtk

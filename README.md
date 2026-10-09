@@ -98,16 +98,17 @@ Runs as user, `sudo` where needed. Markers: `~/.local/state/arch-btw/done/`. Log
 | 8   | pacman_hooks    | -                                                                                                                                                                                                                 |
 | 9   | gpu_helper      | -                                                                                                                                                                                                                 |
 | 10  | battery_limit   | -                                                                                                                                                                                                                 |
-| 11  | yubikey_pam     | Insert key #1, then key #2 (`pamu2fcfg`). FIDO2 PIN asked once per key (CTAP2). Tests `sudo` at the end; password fallback stays (`sufficient`).                                                                  |
-| 12  | aur_helper      | -                                                                                                                                                                                                                 |
-| 13  | librewolf       | -                                                                                                                                                                                                                 |
-| 14  | firecfg         | Jails `ssh man wget librewolf`; ssh profile allows the gpg-agent socket.                                                                                                                                          |
-| 15  | dotfiles        | -                                                                                                                                                                                                                 |
-| 16  | theme           | -                                                                                                                                                                                                                 |
-| 17  | keys            | Insert USB with key material (layout below). Imports GPG public keys + `pb`/`gx` secrets + on-disk SSH keys. Then insert a YubiKey → `gpg --card-status`. Writes fresh `~/.ssh/config`, flips repo remote to SSH. |
-| 18  | finish          | -                                                                                                                                                                                                                 |
+| 11  | yubikey_pam     | Insert key #1, then key #2 (`pamu2fcfg`). FIDO2 PIN asked once per key (CTAP2). Tests `sudo` at the end; password fallback stays (`sufficient`). `/etc/u2f_mappings` is `0640 root:$USER` so the lock screen can run `pam_u2f` as the user. |
+| 12  | lock_pam        | Writes `/etc/pam.d/qs-lock-password` (`pam_unix`, no `nullok`; 2 s delay per wrong attempt, no lockout counter since the tally dir is root-only, same as swaylock) and `qs-lock-u2f` (`pam_u2f` touch only) for the Quickshell lock screen. |
+| 13  | aur_helper      | -                                                                                                                                                                                                                 |
+| 14  | librewolf       | -                                                                                                                                                                                                                 |
+| 15  | firecfg         | Jails `ssh man wget librewolf`; ssh profile allows the gpg-agent socket.                                                                                                                                          |
+| 16  | dotfiles        | -                                                                                                                                                                                                                 |
+| 17  | theme           | -                                                                                                                                                                                                                 |
+| 18  | keys            | Insert USB with key material (layout below). Imports GPG public keys + `pb`/`gx` secrets + on-disk SSH keys. Then insert a YubiKey → `gpg --card-status`. Writes fresh `~/.ssh/config`, flips repo remote to SSH. |
+| 19  | finish          | -                                                                                                                                                                                                                 |
 
-USB for steps 5 and 17: **FAT/exFAT** (mounted by root; ext4 leaves files unreadable). Layout:
+USB for steps 5 and 18: **FAT/exFAT** (mounted by root; ext4 leaves files unreadable). Layout:
 
 ```
 keys/gpg/ic/public.asc                                 # YubiKey identity - public only
@@ -133,12 +134,12 @@ After one clean boot into Sway:
 
 ## Desktop shell (Sway + Quickshell)
 
-One Quickshell process owns everything except lock/idle (`swaylock`/`swayidle` stay). `sway/config` and `tmux/tmux.conf` stay the single source of truth for keybindings - the launcher parses them live into the Keybindings menu (Sway · Tmux · Launcher · Popups), grouping `h/j/k/l` and `1-0` runs into one row and labelling commands from a table in `MenuModel.js`. Helper scripts live in `bin/` (→ `~/.local/bin`, prefix `qs-`, plus `yay-git`); launcher rows and panel buttons are data, `core/Commands.qml` turns them into processes (`argv`, `term` = kitty window, `task` = `qs-task` floating window that waits for Enter when done).
+One Quickshell process owns everything, including the lock screen and the idle ladder (`swaylock` stays installed as the fallback, `swayidle` only bridges logind's sleep signal). `sway/config` and `tmux/tmux.conf` stay the single source of truth for keybindings - the launcher parses them live into the Keybindings menu (Sway · Tmux · Launcher · Popups), grouping `h/j/k/l` and `1-0` runs into one row and labelling commands from a table in `MenuModel.js`. Helper scripts live in `bin/` (→ `~/.local/bin`, prefix `qs-`, plus `yay-git`); launcher rows and panel buttons are data, `core/Commands.qml` turns them into processes (`argv`, `term` = kitty window, `task` = `qs-task` floating window that waits for Enter when done).
 
 ```
 quickshell/
 ├── shell.qml          root: services + panel + launcher, IPC targets
-├── core/              Theme Style Icons Util Commands Toggles SwayState Popups System Metrics Player Weather Sun Power Settings (singletons)
+├── core/              Theme Style Icons Util Commands Toggles SwayState Popups System Metrics Player Weather Sun Power Settings Lock (singletons)
 ├── ui/                Label Glyph Marquee Segment Tooltip PopupCard PopupHost ListRow Chip Field Slider, KeyModel.js (vim keys)
 ├── panel/             Panel.qml, AudioPopup.qml, MediaPopup.qml, TrayMenu.qml, widgets/ (Workspaces Disk Ram Cpu Gpu NetRate Media Mode Tray
 │                      Weather Indicators Dnd NightLight Volume Network Battery KeyboardLayout Clock)
@@ -147,6 +148,7 @@ quickshell/
 ├── polkit/            polkit authentication agent
 ├── osd/               volume / mic / brightness OSD
 ├── clipboard/         clipboard history (wl-paste watchers → bin/qs-clipboard-capture)
+├── lock/              Locker (ext-session-lock + PAM), Surface (per-output lock screen), Idle (screensaver / lock / suspend ladder)
 └── background/        wallpaper layer (symlink ~/.local/state/qs/background)
 ```
 
@@ -157,6 +159,8 @@ Popups open from the keyboard tmux-style: `$mod+o` enters sway mode `popup`, the
 Workspaces: `1` and `4` live on the laptop panel, `2` and `3` on the first external output when one is present (sway moves them back out on plug-in, merges everything onto the laptop on unplug). `assign` rules send Slack → 1, kitty → 2, LibreWolf → 3, Zoom → 4; any other workspace is created on the focused output. Caps Lock is a second `$mod` (`caps:super`), so `Caps+N` switches workspaces one-handed. The workspace segment shows a dot on workspaces that hold windows (from sway's `representation`). `core/SwayState` runs one `swaymsg -m -r -t subscribe '["window","mode","input"]'` and fans out binding mode, xkb layout and window changes (workspace occupancy refresh on new/close/move/floating only, fullscreen probe) - Quickshell's I3 module only forwards workspace/output events.
 
 Notifications: popups stack top-right (4 visible; critical 10 s, others `min(expire, 10 s)`, default 5 s), history of 50 in `notifications.json`, `dnd` toggle. Summary and app name render as plain text; the body is Qt StyledText with every `<img>` removed whole-tag (`notifications/Body.js`, a naive regex can splice a live tag out of two dead halves) and Chromium's page-origin prefix dropped, so no sender can make the shell fetch a URL. A `replaces_id` update rewrites the live object without a second `onNotification`, so the card listens for summary/body/image changes, resets its countdown and re-snapshots the history row. The countdown pauses while hovered and resumes with what was left. Left-click runs the default action (else the first, else the `qs-exec-argv` hint), other buttons dismiss; the `qs-glyph` hint replaces the bell when there is no icon.
+
+Lock and idle: `lock/Locker.qml` holds the `ext-session-lock` (`WlSessionLock`) and two `PamContext`s that run as the user: `qs-lock-password` (`pam_unix`; faillock lines are present but tally nothing for an unprivileged caller, so a wrong password costs the 2 s delay and nothing more, same as swaylock) and `qs-lock-u2f` (`pam_u2f`, touch only, no PIN; the mappings file is group-readable for that). Both PAM files come from `post-install.sh` step `lock_pam`; without the password one `lock()` falls back to `swaylock -f`. Engaging: `qs-lock` (sway `$mod+Escape`, also `--locked`), the launcher's `Lock` row, the idle ladder, or `swayidle before-sleep 'qs-lock --wait'` (polls `lock status` for `"secure":true` for 3 s, then starts swaylock and gives it the last second of a 4 s budget under logind's 5 s delay). The flag `$XDG_RUNTIME_DIR/qs/locked` is written before the lock is requested and emptied after unlock, so a shell crash, `qs-session restart` or a config reload re-locks on startup (sway keeps the session locked with a red screen in between; `$mod+Escape` re-locks by hand; `FileView` preloads asynchronously even with `blockLoading`, so the check reads `text()`, never `loaded`, before a job was awaited). State lives in `core/Lock` (`locked` = our request, `secure` = compositor confirmed; never bind on `WlSessionLock.locked`, quickshell never emits its change on unlock). While locked, the launcher, popups and polkit prompt drop keyboard focus and stay closed (sway 1.12 lets exclusive layer surfaces take focus from the lock surface; fixed in sway master). The lock screen: blurred wallpaper, clock, one password field mirrored across outputs (`Esc`/`Ctrl+U` clear), `Enter` submits; with a FIDO token present (`udevadm` `ID_FIDO_TOKEN`, watched while locked) `pam_u2f` runs concurrently and a touch unlocks - it re-arms after each timeout, and three instant failures hand over to the password. Five idle seconds while locked power the outputs off (`IdleMonitor`); unlocking powers them on. Idle ladder (`lock/Idle.qml`, `IdleMonitor`s on `ext-idle-notify`, compositor-timed so suspend cannot skew them): `idleScreensaver` 300 s → `qs-screensaver start` (`cmatrix` in a fullscreen kitty per output, `inhibit_idle none`), `idleLock` 900 s → lock (which also stops the screensaver), `idleSuspend` 1800 s → `systemctl suspend-then-hibernate`; `0` disables a rung. The `awake` toggle is an `IdleInhibitor` on the wallpaper layer (always mapped; a hidden bar would not count) - `systemd-inhibit --what=idle` never reached swayidle. No `unlock` IPC exists on purpose; `lock status` never includes typed text. `qs-session` runs quickshell under its own supervisor (`QS_DISABLE_CRASH_HANDLER=1`, relaunch unless three deaths within 60 s; `$XDG_RUNTIME_DIR/qs/supervise.pid` names its process group so `stop`/`restart` take supervisor, shell and child processes down together; before relaunching it kills the dead instance's leftover children, since a PAM fork or `wl-paste --watch` still holding the old D-Bus sockets stops the new shell from registering the notification server and the polkit agent, which quickshell never retries).
 
 Reboot required: `core/System.qml` watches `/run/reboot-required` (written by the pacman hook `zz-reboot-required.hook` for kernels/systemd/glibc/mesa/firmware/…, installed by `post-install.sh` step `pacman_hooks`) and checks `/usr/lib/modules/$(uname -r)` once at startup (gone after a kernel upgrade). No polling, no notification: shows ↻ in Indicators and a yellow dot on `Packages`/`Update`/`Reboot` rows until reboot (`/run` is tmpfs).
 
@@ -181,8 +185,10 @@ Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage
 | ---------------------- | ------------------------------------------------------------------------ |
 | `qs-shell [-q] T FN`   | `qs ipc call` wrapper; exits 1 on unknown target/function/no instance (`qs ipc` says so with exit 0), 3 s timeout, finds the display from `$XDG_RUNTIME_DIR/wayland-*` when unset |
 | `qs-quit`              | SIGTERM the focused window's process (`$mod+Ctrl+q`; apps that hide to the tray on `kill` actually exit) |
-| `qs-session`           | `start` (sway `exec`), `restart` (`$mod+Shift+r`), `stop`                 |
-| `qs-toggle NAME`       | `awake` `nightlight` `dnd` `bar-hidden` - flag files + transient units   |
+| `qs-session`           | `start` (sway `exec`), `restart` (`$mod+Shift+r`), `stop`, `supervise` (internal relaunch loop) |
+| `qs-toggle NAME`       | `awake` `nightlight` `dnd` `bar-hidden` - flag files; nightlight also runs `wlsunset` as a transient unit |
+| `qs-lock [--wait]`     | lock via IPC (`swaylock` fallback); `--wait` blocks until the compositor confirms, 4 s max |
+| `qs-screensaver MODE`  | `start` `stop` - fullscreen `cmatrix` kitty per output (`app_id` `qs-screensaver`); no-op without `cmatrix` |
 | `qs-capture MODE`      | `region` `window` `screen` `region-clip` `color`                          |
 | `qs-wallpaper`         | `set PATH` `next` `random` `current` `list`                               |
 | `qs-notify`            | `notify-send` via `busctl`; `-r ID` replace, `-p` print id, `-g GLYPH` (hint `qs-glyph`, shown without icon), `-- CMD…` run on click (hint `qs-exec-argv`) |
@@ -198,7 +204,7 @@ Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage
 
 State: `~/.local/state/qs/` (`toggles/`, `settings.json`, `notifications.json`, `clipboard.json`, `clipboard-images/`, `weather.json`, `weather-location.json`, `launcher-usage.json`, `background`). Clipboard history skips `x-kde-passwordManagerHint` sources (1Password) - the file is still plaintext, rely on LUKS.
 
-IPC targets: `launcher` (toggle/open/close) · `popups` (toggle/open/close) · `notifications` (toggleDnd/clear/clearHistory/count/dismissLatest/actionLatest; sway `$mod+Shift+d` / `$mod+Shift+a`) · `clipboard` (refresh/clear/count) · `osd` (brightness/volume/mic/media) · `background` (refresh/current) · `toggles` (refresh) · `polkit` (status) · `shell` (ping/resume).
+IPC targets: `launcher` (toggle/open/close) · `popups` (toggle/open/close) · `lock` (lock → `ok`/`already`/`fallback`, status JSON) · `notifications` (toggleDnd/clear/clearHistory/count/dismissLatest/actionLatest; sway `$mod+Shift+d` / `$mod+Shift+a`) · `clipboard` (refresh/clear/count) · `osd` (brightness/volume/mic/media) · `background` (refresh/current) · `toggles` (refresh) · `polkit` (status) · `shell` (ping/resume).
 
 Lint: `quickshell/lint.sh` (qmllint, must be clean).
 
@@ -208,3 +214,5 @@ Lint: `quickshell/lint.sh` (qmllint, must be clean).
 
 - Broken boot: systemd-boot menu → older snapshot UKI → **btrfs-assistant → Restore**. Not `snapper rollback` (openSUSE layout).
 - Neither key unlocks: boot without key, passphrase (keyslot 0), re-enroll.
+- Red screen, no lock prompt (shell died while locked): `$mod+Escape` re-locks (bound `--locked`), or from another VT `WAYLAND_DISPLAY=wayland-1 SWAYSOCK=$(ls /run/user/1000/sway-ipc.*) qs-session restart`, which re-locks from the flag. Lock screen itself broken: from the VT `qs-session stop`, then `WAYLAND_DISPLAY=wayland-1 swaylock` (replaces the abandoned lock), unlock on the sway VT, fix, `qs-session start` (drops the stale flag; `restart` would re-lock).
+- Lock prompt refuses a correct password: `/etc/pam.d/qs-lock-password` broken → `post-install.sh --redo lock_pam` (when the file is missing `qs-lock` falls back to `swaylock` by itself).

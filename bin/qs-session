@@ -3,13 +3,17 @@
 # Sway-side shell bootstrap:
 #   1. push Wayland env into systemd --user + dbus so transient units, portals
 #      and gpg-agent's pinentry-qt (QT_QPA_PLATFORMTHEME) see it
-#   2. start quickshell once (idempotent), wait until IPC answers
-#   3. re-apply persistent toggles (nightlight / stay-awake) after a restart
+#   2. start quickshell under a supervisor (relaunch on crash so a lock that
+#      died comes back), wait until IPC answers
+#   3. re-apply the nightlight toggle after a restart (awake is read by the
+#      shell itself)
 set -Eeuo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 state="${XDG_STATE_HOME:-$HOME/.local/state}/qs"
-mkdir -p "$state/toggles"
+runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/qs"
+pidfile="$runtime/supervise.pid"
+mkdir -p "$state/toggles" "$runtime"
 
 import_env() {
 	systemctl --user import-environment WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP XDG_SESSION_TYPE QT_QPA_PLATFORMTHEME 2>/dev/null || true
@@ -18,31 +22,89 @@ import_env() {
 
 start_qs() {
 	pgrep -x quickshell >/dev/null && return 0
-	setsid -f quickshell >/dev/null 2>&1
+	[[ -n "$(kill_targets)" ]] && return 0 # supervisor alive, mid-relaunch
+	setsid -f "$here"/qs-session supervise >/dev/null 2>&1
+}
+
+# One restart policy: quickshell's own crash relauncher is off (it ignores a
+# plain exit 255, which is what losing the last output while locked does).
+# A clean exit (quickshell kill) ends the loop; three deaths within 60 s too.
+# Children of a dead instance (swaymsg -m, udevadm, wl-paste --watch, a PAM
+# fork) outlive it inside this process group and keep its D-Bus sockets open,
+# which blocks the relaunched shell from registering the notification server
+# and the polkit agent (never retried), so they are reaped before relaunching.
+# Launched apps are not affected: execDetached puts them in their own session.
+reap() {
+	local p pgid
+	pgid=$(ps -o pgid= -p $$ | tr -d ' ')
+	for p in $(pgrep -g "$pgid"); do
+		[[ $p == "$$" ]] || kill -KILL "$p" 2>/dev/null || true
+	done
+}
+
+supervise() {
+	export QS_DISABLE_CRASH_HANDLER=1
+	echo $$ >"$pidfile"
+	local -a deaths=()
+	local rc now
+	while :; do
+		rc=0
+		quickshell || rc=$?
+		reap
+		((rc == 0)) && break
+		now=$EPOCHSECONDS
+		deaths+=("$now")
+		((${#deaths[@]} > 3)) && deaths=("${deaths[@]:1}")
+		if ((${#deaths[@]} == 3 && now - deaths[0] < 60)); then
+			logger -t qs-session "quickshell died 3 times within 60 s (last rc $rc), giving up" || true
+			rm -f "$pidfile"
+			return 1
+		fi
+		logger -t qs-session "quickshell exited with $rc, relaunching" || true
+		sleep 1
+	done
+	rm -f "$pidfile"
+}
+
+# quickshell does not kill its Process children (swaymsg -m, udevadm,
+# wl-paste --watch) on SIGTERM, and the supervisor would relaunch it, so the
+# target is a process group: the supervisor's (setsid leader, quickshell and
+# its children inside) or a bare quickshell's when it was started by hand.
+# Never pgrep -f here: a pattern naming this script matches the caller too.
+kill_targets() {
+	local p pgid own
+	own="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')"
+	if [[ -r "$pidfile" ]]; then
+		p="$(<"$pidfile")"
+		if [[ -n "$p" && "$p" != "$$" && "$p" != "$own" && "$(ps -o args= -p "$p" 2>/dev/null)" == *qs-session* ]]; then
+			echo "-$p"
+		fi
+	fi
+	for p in $(pgrep -x quickshell || true); do
+		pgid="$(ps -o pgid= -p "$p" 2>/dev/null | tr -d ' ')"
+		case "$(ps -o args= -p "${pgid:-0}" 2>/dev/null)" in
+		quickshell* | *qs-session*) echo "-$pgid" ;;
+		*) echo "$p" ;;
+		esac
+	done | sort -u
 }
 
 stop_qs() {
-	local pids p
-	pids="$(pgrep -x quickshell || true)"
-	[[ -z "$pids" ]] && return 0
-	# quickshell does not kill its Process children (swaymsg -m, udevadm,
-	# wl-paste --watch) on SIGTERM; it is a group leader via setsid, so
-	# signal the whole group. Fall back to the pid when started by hand.
-	for p in $pids; do
-		kill -TERM -- "-$p" 2>/dev/null || kill -TERM "$p" 2>/dev/null || true
-	done
+	local t targets
+	targets="$(kill_targets)"
+	[[ -z "$targets" ]] && return 0
+	for t in $targets; do kill -TERM -- "$t" 2>/dev/null || true; done
 	for _ in $(seq 1 30); do
-		pgrep -x quickshell >/dev/null || return 0
+		[[ -z "$(kill_targets)" ]] && break
 		sleep 0.1
 	done
-	for p in $pids; do
-		kill -KILL -- "-$p" 2>/dev/null || kill -KILL "$p" 2>/dev/null || true
-	done
+	for t in $targets; do kill -KILL -- "$t" 2>/dev/null || true; done
+	rm -f "$pidfile"
 }
 
 wait_ready() {
 	for _ in $(seq 1 50); do
-		if [[ "$(qs ipc call shell ping 2>/dev/null || true)" == "pong" ]]; then
+		if [[ "$("$here"/qs-shell shell ping 2>/dev/null || true)" == "pong" ]]; then
 			return 0
 		fi
 		sleep 0.1
@@ -52,15 +114,15 @@ wait_ready() {
 }
 
 reapply_toggles() {
-	local name
-	for name in nightlight awake; do
-		[[ -e "$state/toggles/$name" ]] && "$here"/qs-toggle "$name" on
-	done
+	[[ -e "$state/toggles/nightlight" ]] && "$here"/qs-toggle nightlight on
 	return 0
 }
 
 case "${1:-start}" in
 start)
+	# fresh sway session: a lock flag left by a session that died must not
+	# lock the new one
+	rm -f "$runtime/locked"
 	import_env
 	start_qs
 	wait_ready
@@ -73,6 +135,7 @@ restart)
 	reapply_toggles
 	;;
 stop) stop_qs ;;
+supervise) supervise ;;
 *)
 	echo "usage: qs-session [start|restart|stop]" >&2
 	exit 2

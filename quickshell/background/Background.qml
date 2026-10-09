@@ -102,6 +102,13 @@ Scope {
 
             Layer { id: a; source: root.current; opacity: 1 }
             Layer { id: b }
+
+            // Stay-awake toggle. Sway counts a layer-surface inhibitor only
+            // while its surface is mapped, which the wallpaper always is.
+            IdleInhibitor {
+                enabled: Toggles.has("awake")
+                window: panel
+            }
         }
     }
 }

@@ -33,6 +33,7 @@ readonly STEPS=(
 	"gpu_helper:step_gpu_helper"
 	"battery_limit:step_battery_limit"
 	"yubikey_pam:step_yubikey_pam"
+	"lock_pam:step_lock_pam"
 	"aur_helper:step_aur_helper"
 	"librewolf:step_librewolf"
 	"firecfg:step_firecfg"
@@ -350,7 +351,8 @@ step_yubikey_pam() {
 	pause "Now swap to YubiKey #2, then Enter"
 	pamu2fcfg -n -o pam://arch-yubikey -i pam://arch-yubikey >>"$tmp"
 
-	sudo install -o root -g root -m 600 "$tmp" /etc/u2f_mappings
+	# group-readable: the Quickshell lock screen runs pam_u2f as the user
+	sudo install -o root -g "$(id -gn)" -m 640 "$tmp" /etc/u2f_mappings
 	rm -f "$tmp"
 
 	local pam=/etc/pam.d/system-auth
@@ -365,6 +367,35 @@ step_yubikey_pam() {
 	info "Testing (touch a key):"
 	sudo -k
 	sudo true && success "sudo works." || warn "Test failed - password still works; verify $pam before logging out."
+}
+
+# PAM services for the Quickshell lock screen (quickshell/lock/Locker.qml).
+# Password: system-auth's unix stack without pam_systemd_home (no homed here)
+# and without nullok. YubiKey: pam_u2f alone, presence only (no PIN), on a
+# second PAM context that waits for a touch while the password field is live.
+step_lock_pam() {
+	sudo install -o root -g root -m 644 /dev/stdin /etc/pam.d/qs-lock-password <<-'EOF'
+		#%PAM-1.0
+		# Quickshell lock screen, password. Written by post-install.sh (lock_pam).
+		auth       required                    pam_faillock.so  preauth
+		auth       [success=1 default=bad]     pam_unix.so      try_first_pass
+		auth       [default=die]               pam_faillock.so  authfail
+		auth       optional                    pam_permit.so
+		auth       required                    pam_env.so
+		auth       required                    pam_faillock.so  authsucc
+		account    include                     system-auth
+	EOF
+	sudo install -o root -g root -m 644 /dev/stdin /etc/pam.d/qs-lock-u2f <<-'EOF'
+		#%PAM-1.0
+		# Quickshell lock screen, YubiKey touch. Written by post-install.sh (lock_pam).
+		auth       required   pam_u2f.so  authfile=/etc/u2f_mappings cue origin=pam://arch-yubikey appid=pam://arch-yubikey
+		account    include    system-auth
+	EOF
+	if [[ -f /etc/u2f_mappings ]]; then
+		sudo chgrp "$(id -gn)" /etc/u2f_mappings
+		sudo chmod 640 /etc/u2f_mappings
+	fi
+	success "PAM services qs-lock-password and qs-lock-u2f written."
 }
 
 # yay for AUR-only desktop apps (slack-desktop, zoom). yay-bin: no Go toolchain.

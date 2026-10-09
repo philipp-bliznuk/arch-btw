@@ -8,13 +8,23 @@ import "notifications"
 import "polkit"
 import "osd"
 import "clipboard"
+import "lock"
 import qs.core
 import qs.ui
 
 ShellRoot {
     id: root
 
-    Background {}
+    Background {
+        id: background
+    }
+
+    Locker {
+        id: locker
+        wallpaper: background.current
+    }
+
+    Idle {}
 
     Service {
         id: notifications
@@ -76,6 +86,32 @@ ShellRoot {
 
         function close(): void {
             Popups.close();
+        }
+    }
+
+    // Locking must close anything holding exclusive keyboard focus: sway 1.12
+    // lets such layer surfaces keep the keyboard away from the lock surface.
+    Connections {
+        target: Lock
+
+        function onLockedChanged() {
+            if (!Lock.locked)
+                return;
+            launcher.close();
+            Popups.close();
+        }
+    }
+
+    // No unlock here on purpose: any process of the user can call IPC.
+    IpcHandler {
+        target: "lock"
+
+        function lock(): string {
+            return locker.lock();
+        }
+
+        function status(): string {
+            return locker.statusJson();
         }
     }
 

@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# qs-screensaver start|stop
+# cmatrix fullscreen in a kitty window (app_id qs-screensaver; sway/config
+# fullscreens it and clears idle inhibit) on every active output. Started by
+# the shell's idle ladder (lock/Idle.qml), stopped on activity or lock. Without
+# cmatrix or kitty installed start is a no-op.
+set -Eeuo pipefail
+
+app=qs-screensaver
+
+present() {
+	swaymsg -t get_tree -r | jq -e --arg a "$app" --arg o "${1:-}" '
+		(if $o == "" then . else .nodes[] | select(.name == $o) end)
+		| .. | objects | select(.app_id? == $a)' >/dev/null 2>&1
+}
+
+start() {
+	command -v cmatrix >/dev/null && command -v kitty >/dev/null || exit 0
+	present && exit 0
+	local focused out
+	focused="$(swaymsg -t get_outputs -r | jq -r '.[] | select(.focused) | .name')"
+	for out in $(swaymsg -t get_outputs -r | jq -r '.[] | select(.active) | .name'); do
+		swaymsg -q focus output "$out"
+		setsid -f kitty --class "$app" -o confirm_os_window_close=0 -- cmatrix -ab >/dev/null 2>&1
+		for _ in $(seq 1 30); do
+			present "$out" && break
+			sleep 0.1
+		done
+	done
+	[[ -n "$focused" ]] && swaymsg -q focus output "$focused"
+	return 0
+}
+
+case "${1:-}" in
+start) start ;;
+stop) swaymsg -q "[app_id=\"^$app\$\"] kill" 2>/dev/null || true ;;
+*)
+	echo "usage: qs-screensaver start|stop" >&2
+	exit 2
+	;;
+esac

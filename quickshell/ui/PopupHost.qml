@@ -29,7 +29,7 @@ Variants {
         margins.top: Style.panelHeight // qmllint disable unqualified
         WlrLayershell.namespace: "qs-popup"
         WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.keyboardFocus: open ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        WlrLayershell.keyboardFocus: open && !Lock.locked ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
         Component.onCompleted: Popups.registerHost(modelData, slot)
         Component.onDestruction: Popups.unregisterHost(modelData, slot)

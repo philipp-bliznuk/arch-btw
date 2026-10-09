@@ -13,7 +13,10 @@ Singleton {
             powerSaverOnBattery: true,
             weatherUnit: "metric",
             weatherRefreshMinutes: 15,
-            nightLightAuto: true
+            nightLightAuto: true,
+            idleScreensaver: 300,
+            idleLock: 900,
+            idleSuspend: 1800
         })
     property var data: ({})
 

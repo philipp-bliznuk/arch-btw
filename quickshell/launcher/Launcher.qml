@@ -51,6 +51,8 @@ Scope {
     function toggle() { shown ? close() : open() }
     function close() { shown = false }
     function open() {
+        if (Lock.locked)
+            return
         reset()
         swayFile.reload()
         tmuxFile.reload()
@@ -61,6 +63,8 @@ Scope {
     // automatically; Ctrl+R / r covers flatpak and other sources).
     function refresh() { appsProbe.running = true }
     function openSection(name) {
+        if (Lock.locked)
+            return
         reset()
         if (name && name !== "root")
             stack = [{ name: "root", title: "", id: name }, { name: name, title: Model.sectionTitle(name) }]
@@ -467,7 +471,7 @@ Scope {
         exclusionMode: ExclusionMode.Ignore
         WlrLayershell.namespace: "qs-launcher"
         WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.keyboardFocus: root.shown ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        WlrLayershell.keyboardFocus: root.shown && !Lock.locked ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
         Rectangle {
             anchors.fill: parent

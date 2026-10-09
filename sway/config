@@ -27,13 +27,11 @@ output HDMI-A-2 mode 2560x1440@60Hz scale 1 position 1366 0
 # qs-session: import env into systemd --user, start quickshell, wait for IPC, re-apply toggles
 exec qs-session start
 
-# Idle + lock ladder (swaylock/swayidle stay outside Quickshell on purpose).
+# Idle ladder (screensaver / lock / blank / suspend) and the lock screen live
+# in Quickshell (lock/). swayidle only bridges logind sleep: lock before
+# suspend (qs-lock falls back to swaylock), refresh clock-bound state after.
 exec swayidle -w \
-    timeout 900 'pgrep -x swaylock || swaylock -f' \
-    timeout 905 'swaymsg "output * power off"' \
-    resume 'swaymsg "output * power on"' \
-    timeout 1800 'systemctl suspend-then-hibernate' \
-    before-sleep 'pgrep -x swaylock || swaylock -f' \
+    before-sleep 'qs-lock --wait' \
     after-resume 'qs-shell -q shell resume'
 
 ### Basics
@@ -44,7 +42,8 @@ bindsym $mod+Ctrl+q exec qs-quit
 bindsym $mod+Shift+c reload
 bindsym $mod+Shift+e exec swaynag -t warning -m 'Exit sway?' -B 'Yes' 'swaymsg exit'
 bindsym $mod+Shift+r exec qs-session restart
-bindsym $mod+Escape exec swaylock -f
+# --locked: also re-locks a red screen left by a dead lock client
+bindsym --locked $mod+Escape exec qs-lock
 bindsym $mod+Shift+n exec qs-toggle dnd
 bindsym $mod+Shift+d exec qs-shell -q notifications dismissLatest
 bindsym $mod+Shift+a exec qs-shell -q notifications actionLatest
@@ -172,6 +171,8 @@ focus_on_window_activation urgent
 for_window [app_id="^qs-float$"] floating enable, border pixel 1, resize set 1300 900, move position center
 # qs-task: launcher-spawned terminal tasks (install, remove, update)
 for_window [app_id="^qs-task$"] floating enable, border pixel 1, resize set 75 ppt 75 ppt, move position center
+# qs-screensaver: cmatrix in kitty, one per output (bin/qs-screensaver)
+for_window [app_id="^qs-screensaver$"] fullscreen enable, inhibit_idle none
 
 ### Appearance
 default_border pixel 1

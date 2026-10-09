@@ -70,9 +70,10 @@ Scope {
         }
     }
 
+    // Hidden while locked: the request stays pending and shows after unlock.
     PanelWindow {
         id: win
-        visible: root.active
+        visible: root.active && !Lock.locked
         screen: SwayState.focusedScreen
         anchors {
             top: true
@@ -84,7 +85,7 @@ Scope {
         exclusionMode: ExclusionMode.Ignore
         WlrLayershell.namespace: "qs-polkit"
         WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.keyboardFocus: root.active ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        WlrLayershell.keyboardFocus: win.visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
         Rectangle {
             anchors.fill: parent

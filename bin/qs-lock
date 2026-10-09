@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# qs-lock [--wait]
+# Lock the session through the shell (ext-session-lock + PAM); swaylock when
+# the shell is not answering or has no PAM service file. Idempotent: sway
+# replaces a lock whose client died, so this also recovers a red screen.
+# --wait returns once the compositor reports the lock secure (4 s budget:
+# logind InhibitDelayMaxSec is 5 s, swayidle before-sleep runs us inside it).
+set -Eeuo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+wait=0
+[[ "${1:-}" == --wait ]] && wait=1
+
+budget() { # budget MS CMD...: poll CMD until it succeeds or MS elapse
+	local ms=$1 start=${EPOCHREALTIME/./}
+	shift
+	until "$@"; do
+		(((${EPOCHREALTIME/./} - start) / 1000 >= ms)) && return 1
+		sleep 0.1
+	done
+}
+
+secure() {
+	local status
+	status="$("$here"/qs-shell lock status 2>/dev/null)" || return 1
+	[[ $status == *'"secure":true'* ]]
+}
+
+swaylock_up() {
+	pgrep -x swaylock >/dev/null
+}
+
+result="$("$here"/qs-shell lock lock 2>/dev/null)" || result=error
+case "$result" in
+ok | already) shell=1 ;;
+fallback) shell=0 ;; # the shell already spawned swaylock -f
+*)
+	shell=0
+	swaylock_up || setsid -f swaylock >/dev/null 2>&1
+	;;
+esac
+((wait)) || exit 0
+if ((shell)); then
+	budget 3000 secure && exit 0
+	# the shell took the request but the compositor never confirmed: swaylock
+	# replaces an abandoned lock, so the sleep still happens behind a lock
+	swaylock_up || setsid -f swaylock >/dev/null 2>&1
+	budget 1000 swaylock_up
+else
+	budget 4000 swaylock_up
+fi

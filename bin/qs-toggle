@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # qs-toggle <name> [on|off]
 # Flag file ~/.local/state/qs/toggles/<name> + side effect. No arg = flip.
-# Names: awake (systemd-inhibit idle), nightlight (wlsunset), dnd, bar-hidden.
+# Names: awake (IdleInhibitor in the shell), nightlight (wlsunset), dnd, bar-hidden.
 set -Eeuo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -34,13 +34,6 @@ stop_daemon() {
 }
 
 case "$name" in
-awake)
-	if [[ "$mode" == on ]]; then
-		start_daemon qs-awake systemd-inhibit --what=idle --who=qs --why="Stay awake" sleep infinity
-	else
-		stop_daemon qs-awake
-	fi
-	;;
 nightlight)
 	if [[ "$mode" == on ]]; then
 		command -v wlsunset >/dev/null || {
@@ -58,7 +51,7 @@ nightlight)
 		pkill -x wlsunset 2>/dev/null || true
 	fi
 	;;
-dnd | bar-hidden) ;;
+awake | dnd | bar-hidden) ;;
 *)
 	echo "qs-toggle: unknown toggle '$name'" >&2
 	exit 2
