@@ -42,6 +42,7 @@ PACKAGES=(
 	libqalculate systemd-ukify btrfs-assistant
 	pam-u2f libfido2 yubikey-manager ccid pcsc-tools
 	kguiaddons kwindowsystem # pinentry-qt links against these (gpg passphrase prompt)
+	qt6ct adw-gtk-theme      # Catppuccin for Qt (qt6ct palette) and GTK 3/4 (adw-gtk3 + gtk/gtk.css named colours)
 	librewolf
 	eza fzf fd ripgrep bat zoxide yazi ouch tmux fastfetch git-delta lazygit jujutsu podman
 	poppler ffmpeg 7zip jq go-yq btop tree # go-yq = mikefarah yq

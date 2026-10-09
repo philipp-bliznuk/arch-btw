@@ -5,7 +5,7 @@ LUKS2 → Btrfs subvolumes → UKI → systemd-boot → snapper + sdboot-snaps �
 ```
 
 - `install.sh` - live ISO. Partition, encrypt, pacstrap, base config, FIDO2 LUKS enrollment, clone this repo, reboot. Prompts: disk, timezone, username, three passwords.
-- `post-install.sh` - installed system, first boot. Bootloader cleanup, snapper, sdboot-snaps, firewall, pacman reboot-required hook, Intel GPU PMU helper, YubiKey PAM, yay (AUR helper for `slack-desktop`, `zoom`; built with `bin/yay-git`, which falls back to the GitHub AUR mirror when aur.archlinux.org is down - `yay-git slack-desktop zoom` works without yay too), LibreWolf (firejail XDG whitelist + overrides), dotfiles symlinks, key import, GPG/SSH. Resumable via done-markers.
+- `post-install.sh` - installed system, first boot. Bootloader cleanup, snapper, sdboot-snaps, firewall, pacman reboot-required hook, Intel GPU PMU helper, YubiKey PAM, yay (AUR helper for `slack-desktop`, `zoom`; built with `bin/yay-git`, which falls back to the GitHub AUR mirror when aur.archlinux.org is down - `yay-git slack-desktop zoom` works without yay too), LibreWolf (firejail XDG whitelist + overrides), dotfiles symlinks, GTK/Qt theme (adw-gtk3 + qt6ct), key import, GPG/SSH. Resumable via done-markers.
 
 Prerequisite: both YubiKeys provisioned per [YUBIKEY.md](./YUBIKEY.md) (GPG identity on card, FIDO2 PIN set).
 
@@ -86,22 +86,28 @@ Unlock, then `Ctrl-Alt-F2` → log in on **TTY2** (TTY1 `exec sway` once dotfile
 
 Runs as user, `sudo` where needed. Markers: `~/.local/state/arch-btw/done/`. Log: `~/.local/state/arch-btw/post-install.log`.
 
-| #   | Step         | Hands-on                                                                                                                                                                                                          |
-| --- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | bootloader   | Confirm deleting stale EFI entries (partuuid ≠ current ESP).                                                                                                                                                      |
-| 2   | network      | Only if offline - `nmcli … --ask`.                                                                                                                                                                                |
-| 3   | snapper      | -                                                                                                                                                                                                                 |
-| 4   | luks_header  | Insert + pick USB partition (`s` skips). Backup written to USB only.                                                                                                                                              |
-| 5   | sdboot_snaps | -                                                                                                                                                                                                                 |
-| 6   | firewall     | -                                                                                                                                                                                                                 |
-| 7   | yubikey_pam  | Insert key #1, then key #2 (`pamu2fcfg`). FIDO2 PIN asked once per key (CTAP2). Mappings are world-readable so swaylock (runs as user) can verify too. Tests `sudo` at the end; password fallback stays (`sufficient`). |
-| 8   | librewolf    | -                                                                                                                                                                                                                 |
-| 9   | firecfg      | Jails `ssh man wget librewolf`; ssh profile allows the gpg-agent socket.                                                                                                                                          |
-| 10  | dotfiles     | -                                                                                                                                                                                                                 |
-| 11  | keys         | Insert USB with key material (layout below). Imports GPG public keys + `pb`/`gx` secrets + on-disk SSH keys. Then insert a YubiKey → `gpg --card-status`. Writes fresh `~/.ssh/config`, flips repo remote to SSH. |
-| 12  | finish       | -                                                                                                                                                                                                                 |
+| #   | Step            | Hands-on                                                                                                                                                                                                          |
+| --- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | bootloader      | Confirm deleting stale EFI entries (partuuid ≠ current ESP).                                                                                                                                                      |
+| 2   | network         | Only if offline - `nmcli … --ask`.                                                                                                                                                                                |
+| 3   | nm_connectivity | -                                                                                                                                                                                                                 |
+| 4   | snapper         | -                                                                                                                                                                                                                 |
+| 5   | luks_header     | Insert + pick USB partition (`s` skips). Backup written to USB only.                                                                                                                                              |
+| 6   | sdboot_snaps    | -                                                                                                                                                                                                                 |
+| 7   | firewall        | -                                                                                                                                                                                                                 |
+| 8   | pacman_hooks    | -                                                                                                                                                                                                                 |
+| 9   | gpu_helper      | -                                                                                                                                                                                                                 |
+| 10  | battery_limit   | -                                                                                                                                                                                                                 |
+| 11  | yubikey_pam     | Insert key #1, then key #2 (`pamu2fcfg`). FIDO2 PIN asked once per key (CTAP2). Tests `sudo` at the end; password fallback stays (`sufficient`).                                                                  |
+| 12  | aur_helper      | -                                                                                                                                                                                                                 |
+| 13  | librewolf       | -                                                                                                                                                                                                                 |
+| 14  | firecfg         | Jails `ssh man wget librewolf`; ssh profile allows the gpg-agent socket.                                                                                                                                          |
+| 15  | dotfiles        | -                                                                                                                                                                                                                 |
+| 16  | theme           | -                                                                                                                                                                                                                 |
+| 17  | keys            | Insert USB with key material (layout below). Imports GPG public keys + `pb`/`gx` secrets + on-disk SSH keys. Then insert a YubiKey → `gpg --card-status`. Writes fresh `~/.ssh/config`, flips repo remote to SSH. |
+| 18  | finish          | -                                                                                                                                                                                                                 |
 
-USB for steps 4 and 11: **FAT/exFAT** (mounted by root; ext4 leaves files unreadable). Layout:
+USB for steps 5 and 17: **FAT/exFAT** (mounted by root; ext4 leaves files unreadable). Layout:
 
 ```
 keys/gpg/ic/public.asc                                 # YubiKey identity - public only
@@ -132,7 +138,7 @@ One Quickshell process owns everything except lock/idle (`swaylock`/`swayidle` s
 ```
 quickshell/
 ├── shell.qml          root: services + panel + launcher, IPC targets
-├── core/              Color Style Icons Util Commands Toggles SwayState Popups System Metrics Player Weather Sun Power Settings (singletons)
+├── core/              Theme Style Icons Util Commands Toggles SwayState Popups System Metrics Player Weather Sun Power Settings (singletons)
 ├── ui/                Label Glyph Marquee Segment Tooltip PopupCard PopupHost ListRow Chip Field Slider, KeyModel.js (vim keys)
 ├── panel/             Panel.qml, AudioPopup.qml, MediaPopup.qml, TrayMenu.qml, widgets/ (Workspaces Disk Ram Cpu Gpu NetRate Media Mode Tray
 │                      Weather Indicators Dnd NightLight Volume Network Battery KeyboardLayout Clock)
@@ -151,6 +157,8 @@ Popups open from the keyboard tmux-style: `$mod+o` enters sway mode `popup`, the
 Workspaces: `1` and `4` live on the laptop panel, `2` and `3` on the first external output when one is present (sway moves them back out on plug-in, merges everything onto the laptop on unplug). `assign` rules send Slack → 1, kitty → 2, LibreWolf → 3, Zoom → 4; any other workspace is created on the focused output. Caps Lock is a second `$mod` (`caps:super`), so `Caps+N` switches workspaces one-handed. The workspace segment shows a dot on workspaces that hold windows (from sway's `representation`). `core/SwayState` runs one `swaymsg -m -r -t subscribe '["window","mode","input"]'` and fans out binding mode, xkb layout and window changes (workspace occupancy refresh on new/close/move/floating only, fullscreen probe) - Quickshell's I3 module only forwards workspace/output events.
 
 Reboot required: `core/System.qml` watches `/run/reboot-required` (written by the pacman hook `zz-reboot-required.hook` for kernels/systemd/glibc/mesa/firmware/…, installed by `post-install.sh` step `pacman_hooks`) and checks `/usr/lib/modules/$(uname -r)` once at startup (gone after a kernel upgrade). No polling, no notification: shows ↻ in Indicators and a yellow dot on `Packages`/`Update`/`Reboot` rows until reboot (`/run` is tmpfs).
+
+Theme: Catppuccin Mocha, hardcoded in `core/Theme.qml` (named `Theme`, not `Color` - Qt 6.12 ships a `QtQuick/Color` singleton that shadows a singleton of ours by that name). GTK 3/4 share one `gtk/` dir (→ `~/.config/gtk-3.0` and `gtk-4.0`): `gtk.css` sets the libadwaita named colours, `settings.ini` is the fallback; `adw-gtk3-dark` + dark `color-scheme` + fonts go through `gsettings` in `post-install.sh` step `theme`, because GTK3 on Wayland reads `org.gnome.desktop.interface` and ignores `settings.ini` for those keys. Qt apps (incl. `pinentry-qt`) use `qt6ct/` (Fusion, `colors/catppuccin-mocha.conf`, Adwaita Sans) via `QT_QPA_PLATFORMTHEME=qt6ct` from `zsh/.zprofile`; `qs-session` imports it into the systemd user environment so gpg-agent's pinentry gets it too. Quickshell is unaffected: every text goes through `ui/Label`/`ui/Glyph` with explicit font and colour.
 
 Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage.json`, keys namespaced per section), wallpaper thumbnail grid, `=expr` calculator. Root search also covers System, Packages, Capture, Toggle, Setup and every Keybindings section (rows show a `↳ Section` crumb); name matches rank above keyword matches, then frecency. Apps lists only explicitly installed packages' desktop entries (`bin/qs-apps`), minus `quickshell/apps-hide` (`C--` on a row blacklists it after confirmation). Packages → `qs-pkg` in a `qs-task` window: fzf pickers for pacman (`alt-b` PKGBUILD), AUR (`yay`, `yay-git` when the AUR is unreachable), remove (`pacman -Rns`), update (`yay -Syu`). Two key modes, shown in the header:
 

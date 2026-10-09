@@ -37,6 +37,7 @@ readonly STEPS=(
 	"librewolf:step_librewolf"
 	"firecfg:step_firecfg"
 	"dotfiles:step_dotfiles"
+	"theme:step_theme"
 	"keys:step_keys"
 	"finish:step_finish"
 )
@@ -349,9 +350,7 @@ step_yubikey_pam() {
 	pause "Now swap to YubiKey #2, then Enter"
 	pamu2fcfg -n -o pam://arch-yubikey -i pam://arch-yubikey >>"$tmp"
 
-	# Public key handles only; world-readable so swaylock (runs as the user,
-	# not setuid) can verify the key too, not just sudo.
-	sudo install -o root -g root -m 644 "$tmp" /etc/u2f_mappings
+	sudo install -o root -g root -m 600 "$tmp" /etc/u2f_mappings
 	rm -f "$tmp"
 
 	local pam=/etc/pam.d/system-auth
@@ -432,9 +431,11 @@ link() {
 
 step_dotfiles() {
 	local pkg
-	for pkg in bat fastfetch ghostty git kitty nvim quickshell ruff sway tmux wallpapers yazi zsh; do
+	for pkg in bat fastfetch ghostty git kitty nvim qt6ct quickshell ruff sway tmux wallpapers yazi zsh; do
 		link "$DOTFILES/$pkg" "$XDG_CONFIG_HOME/$pkg"
 	done
+	link "$DOTFILES/gtk" "$XDG_CONFIG_HOME/gtk-3.0" # same gtk.css + settings.ini for GTK 3 and 4
+	link "$DOTFILES/gtk" "$XDG_CONFIG_HOME/gtk-4.0"
 	link "$DOTFILES/jj/config.toml" "$XDG_CONFIG_HOME/jj/config.toml"
 	link "$DOTFILES/containers/containers.conf" "$XDG_CONFIG_HOME/containers/containers.conf"
 	link "$DOTFILES/containers/registries.conf" "$XDG_CONFIG_HOME/containers/registries.conf"
@@ -446,6 +447,21 @@ step_dotfiles() {
 	xdg-user-dirs-update
 	rustup default stable
 	success "Dotfiles linked."
+}
+
+# GTK 3 on Wayland reads org.gnome.desktop.interface from dconf when the schema
+# exists and ignores settings.ini for those keys; libadwaita and the settings
+# portal (dark mode for Electron apps, LibreWolf) read color-scheme from the
+# same place. Needs the user D-Bus socket, present on any systemd login.
+step_theme() {
+	local iface=org.gnome.desktop.interface
+	gsettings set "$iface" gtk-theme adw-gtk3-dark
+	gsettings set "$iface" color-scheme prefer-dark
+	gsettings set "$iface" font-name 'Adwaita Sans 10'
+	gsettings set "$iface" monospace-font-name 'JetBrainsMono Nerd Font Mono 10'
+	gsettings set "$iface" icon-theme Adwaita
+	gsettings set "$iface" cursor-theme Adwaita
+	success "GTK theme set (adw-gtk3-dark, prefer-dark); Qt follows via QT_QPA_PLATFORMTHEME=qt6ct from .zprofile."
 }
 
 step_keys() {
