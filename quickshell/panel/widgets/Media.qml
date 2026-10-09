@@ -12,6 +12,7 @@ Segment {
     readonly property var player: Player.player
     hoverable: false
     icon: Player.playing ? Icons.music : Icons.pause
+    iconAlternatives: Icons.playbackIcons
     iconColor: Player.playing ? Theme.sky : Theme.muted
     active: popup.open
 

@@ -274,6 +274,7 @@ PopupCard {
                 Segment {
                     readonly property bool muted: !root.sink || !root.sink.audio || root.sink.audio.muted
                     icon: muted ? Icons.volumeMute : Icons.volumeHigh
+                    iconAlternatives: Icons.volumeIcons
                     iconColor: muted ? Theme.red : Theme.text
                     label: "out"
                     labelSize: Style.fontCaption
@@ -284,6 +285,7 @@ PopupCard {
                 Segment {
                     readonly property bool muted: !root.source || !root.source.audio || root.source.audio.muted
                     icon: muted ? Icons.micOff : Icons.mic
+                    iconAlternatives: Icons.micIcons
                     iconColor: muted ? Theme.red : Theme.text
                     label: "mic"
                     labelSize: Style.fontCaption

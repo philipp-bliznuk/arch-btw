@@ -10,6 +10,8 @@ Rectangle {
 
     property string icon: ""
     property color iconColor: Theme.icon
+    // Every glyph the icon may switch to, so the slot keeps the widest width.
+    property list<string> iconAlternatives: []
     property string label: ""
     property color labelColor: Theme.label
     property int labelSize: Style.fontSmall
@@ -65,6 +67,7 @@ Rectangle {
             visible: root.icon !== ""
             height: parent.height
             text: root.icon
+            alternatives: root.iconAlternatives
             glyphColor: root.iconColor
         }
 

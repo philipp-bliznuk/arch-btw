@@ -162,7 +162,9 @@ Scope {
                 spacing: 12
 
                 Glyph {
+                    id: icon
                     text: root.icon
+                    alternatives: [...Icons.volumeIcons, ...Icons.micIcons, ...Icons.playbackIcons, Icons.brightness]
                     glyphColor: root.muted ? Theme.muted : Theme.accent
                     size: Style.fontTitle + 2
                     anchors.verticalCenter: parent.verticalCenter
@@ -170,7 +172,7 @@ Scope {
 
                 Rectangle {
                     visible: !root.text
-                    width: parent.width - 30 - 52 - parent.spacing * 2
+                    width: parent.width - icon.width - value.width - parent.spacing * 2
                     height: 6
                     radius: 3
                     color: Theme.surface1
@@ -188,7 +190,11 @@ Scope {
                 }
 
                 Text {
-                    width: root.text ? parent.width - 30 - parent.spacing : 52
+                    id: value
+                    // Widest label the value column shows; measured once so a
+                    // "7%" → "100%" swap never moves the bar.
+                    readonly property int slotWidth: Math.ceil(Math.max(pctMetrics.advanceWidth, mutedMetrics.advanceWidth))
+                    width: root.text ? parent.width - icon.width - parent.spacing : slotWidth
                     text: root.label
                     color: Theme.text
                     elide: Text.ElideRight
@@ -197,6 +203,20 @@ Scope {
                     font.pixelSize: Style.fontSmall
                     font.weight: Font.DemiBold
                     anchors.verticalCenter: parent.verticalCenter
+
+                    TextMetrics {
+                        id: pctMetrics
+                        font: value.font
+                        renderType: value.renderType
+                        text: "100%"
+                    }
+
+                    TextMetrics {
+                        id: mutedMetrics
+                        font: value.font
+                        renderType: value.renderType
+                        text: "Mic muted"
+                    }
                 }
             }
         }

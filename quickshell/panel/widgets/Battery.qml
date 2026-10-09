@@ -15,6 +15,7 @@ Segment {
 
     visible: Power.present
     icon: Icons.batteryFor(Power.pct, charging)
+    iconAlternatives: Icons.batteryIcons
     iconColor: charging ? Theme.green : (Power.pct < 10 ? Theme.red : (Power.pct < 30 ? Theme.yellow : Theme.text))
     label: showPct ? Power.pct + "%" : ""
     active: popup.open

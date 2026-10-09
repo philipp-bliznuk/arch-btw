@@ -58,6 +58,7 @@ QtObject {
     readonly property string wifi0: g(0xF092F)
     readonly property string wifiOff: g(0xF092E)
     readonly property string ethernet: g(0xF0200)
+    readonly property list<string> networkIcons: [wifi4, wifi3, wifi2, wifi1, wifi0, wifiOff, ethernet]
     readonly property string arrowUp: "\u21e1"
     readonly property string arrowDown: "\u21e3"
 
@@ -66,18 +67,25 @@ QtObject {
     readonly property string volumeLow: g(0xF057F)
     readonly property string volumeMed: g(0xF0580)
     readonly property string volumeHigh: g(0xF057E)
+    readonly property list<string> volumeIcons: [volumeMute, volumeLow, volumeMed, volumeHigh]
     readonly property string headphones: g(0xF02CB)
     readonly property string speaker: g(0xF04C3)
     readonly property string mic: g(0xF036C)
     readonly property string micOff: g(0xF036D)
+    readonly property list<string> micIcons: [mic, micOff]
     readonly property string music: g(0xF2EB)
     readonly property string play: g(0xF040A)
     readonly property string pause: g(0xF03E4)
+    readonly property list<string> playbackIcons: [music, play, pause]
     readonly property string skipPrev: g(0xF04AE)
     readonly property string skipNext: g(0xF04AD)
 
     // Battery
     readonly property string batteryFull: g(0xF0079)
+    readonly property list<string> batteryLevels: [0xF008E, 0xF007A, 0xF007B, 0xF007C, 0xF007D, 0xF007E, 0xF007F, 0xF0080, 0xF0081, 0xF0082].map(g)
+    readonly property list<string> batteryChargingLevels: [0xF089F, 0xF089C, 0xF0086, 0xF0087, 0xF0088, 0xF089D, 0xF0089, 0xF089E, 0xF008A, 0xF008B].map(g)
+    readonly property string batteryChargingFull: g(0xF0085)
+    readonly property list<string> batteryIcons: [batteryFull, batteryChargingFull, ...batteryLevels, ...batteryChargingLevels]
     readonly property string leaf: g(0xF032A)
     readonly property string scale: g(0xF05D5)
     readonly property string rocket: g(0xF14DE)
@@ -94,6 +102,7 @@ QtObject {
     readonly property string wSnowy: g(0xF0598)
     readonly property string wSnowyRainy: g(0xF067F)
     readonly property string wLightning: g(0xF0593)
+    readonly property list<string> weatherIcons: [wSunny, wNight, wPartly, wNightPartly, wCloudy, wFog, wRainy, wPouring, wSnowy, wSnowyRainy, wLightning]
     readonly property string thermometer: g(0xF050F)
     readonly property string windy: g(0xF059D)
     readonly property string humidity: g(0xF058E)
@@ -131,10 +140,8 @@ QtObject {
 
     function batteryFor(pct, charging) {
         const step = Math.max(0, Math.min(9, Math.floor(pct / 10)));
-        if (charging)
-            return pct >= 100 ? g(0xF0085) : g([0xF089F, 0xF089C, 0xF0086, 0xF0087, 0xF0088, 0xF089D, 0xF0089, 0xF089E, 0xF008A, 0xF008B][step]);
         if (pct >= 100)
-            return batteryFull;
-        return g([0xF008E, 0xF007A, 0xF007B, 0xF007C, 0xF007D, 0xF007E, 0xF007F, 0xF0080, 0xF0081, 0xF0082][step]);
+            return charging ? batteryChargingFull : batteryFull;
+        return charging ? batteryChargingLevels[step] : batteryLevels[step];
     }
 }

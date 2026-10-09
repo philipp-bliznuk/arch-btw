@@ -14,6 +14,7 @@ Segment {
     readonly property real vol: node && node.audio ? node.audio.volume : 0
     visible: node !== null
     icon: Icons.volumeFor(vol, muted)
+    iconAlternatives: Icons.volumeIcons
     iconColor: muted ? Theme.muted : Theme.text
     label: Math.round(vol * 100) + "%"
     labelColor: muted ? Theme.muted : Theme.text

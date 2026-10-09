@@ -10,6 +10,7 @@ Segment {
     id: root
     visible: Weather.ready
     icon: Weather.glyph(Weather.current.weather_code, Weather.current.is_day)
+    iconAlternatives: Icons.weatherIcons
     iconColor: Theme.yellow
     label: Weather.temp(Weather.current.temperature_2m)
     active: popup.open

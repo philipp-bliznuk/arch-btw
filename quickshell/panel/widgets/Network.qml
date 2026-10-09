@@ -71,6 +71,7 @@ Segment {
     property string chosen: ""
 
     icon: !device ? Icons.wifiOff : (wifi ? Icons.wifiFor(strength) : Icons.ethernet)
+    iconAlternatives: Icons.networkIcons
     iconColor: !device ? Theme.muted : (portal || limited ? Theme.yellow : Theme.text)
     active: popup.open
 

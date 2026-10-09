@@ -101,6 +101,7 @@ PopupCard {
             }
             Button {
                 icon: Player.playing ? Icons.pause : Icons.play
+                iconAlternatives: Icons.playbackIcons
                 iconColor: Theme.sky
                 enabledState: root.has && root.player.canTogglePlaying
                 onClicked: Player.toggle()
