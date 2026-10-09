@@ -7,8 +7,8 @@ import qs.core
 import qs.ui
 
 // Audio popup: hero with mood + out/mic mute buttons, OUTPUT slider + devices
-// (only when there is a choice), INPUT slider + sources, one playback row per
-// app (streams grouped by name, up to 150 %).
+// (only when there is a choice), INPUT slider with a live level bar + sources,
+// one playback row per app (streams grouped by name, up to 150 %).
 // Keys: j/k row · h/l ±5 % · m mute row · Enter pick device / mute.
 PopupCard {
     id: root
@@ -47,6 +47,14 @@ PopupCard {
 
     PwObjectTracker {
         objects: root.open ? root.sinks.concat(root.sources).concat(root.streams) : []
+    }
+
+    // Live input level for the INPUT row. Opens a capture stream on the
+    // source, so it only runs while the card is on screen.
+    PwNodePeakMonitor {
+        id: micPeak
+        node: root.source
+        enabled: root.open && root.source !== null
     }
 
     function mood(vol, muted) {
@@ -133,6 +141,7 @@ PopupCard {
         // Every stream this row drives (several tabs of one browser); node is the first.
         property var nodes: node ? [node] : []
         property real max: 1
+        property real peak: -1
         property string fallbackIcon: Icons.volumeHigh
         property string title: ""
         readonly property int slot: root.slotOf("volume", node)
@@ -187,6 +196,7 @@ PopupCard {
                     width: parent.width
                     value: vr.has ? vr.node.audio.volume / vr.max : 0
                     muted: vr.has && vr.node.audio.muted
+                    peak: vr.peak
                     onMoved: v => { if (vr.has) root.setVolume(vr.nodes, v * vr.max, vr.max); }
                 }
             }
@@ -313,6 +323,7 @@ PopupCard {
 
         VolumeRow {
             node: root.source
+            peak: micPeak.enabled ? micPeak.peak : -1
             fallbackIcon: root.source && root.source.audio && root.source.audio.muted ? Icons.micOff : Icons.mic
             title: root.source ? (root.source.description || root.source.name) : "No input"
         }

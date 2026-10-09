@@ -89,6 +89,10 @@ ShellRoot {
         function close(): void {
             Popups.close();
         }
+
+        function current(): string {
+            return Popups.current;
+        }
     }
 
     // Locking must close anything holding exclusive keyboard focus: sway 1.12

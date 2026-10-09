@@ -2,11 +2,13 @@ import QtQuick
 import qs.core
 
 // Horizontal slider, 0..1. Emits moved(value) while dragging / on wheel.
+// `peak` >= 0 draws a live level bar inside the track (mic meter).
 Item {
     id: root
     property real value: 0
     property color fill: Theme.accent
     property bool muted: false
+    property real peak: -1
 
     signal moved(real value)
 
@@ -24,6 +26,18 @@ Item {
             height: parent.height
             radius: parent.radius
             color: root.muted ? Theme.overlay0 : root.fill
+        }
+
+        Rectangle {
+            visible: root.peak >= 0
+            anchors.verticalCenter: parent.verticalCenter
+            width: parent.width * Util.clamp(root.peak, 0, 1)
+            height: 4
+            radius: 2
+            color: root.muted ? Theme.overlay2 : Theme.green
+            Behavior on width {
+                NumberAnimation { duration: 60 }
+            }
         }
 
         Rectangle {
