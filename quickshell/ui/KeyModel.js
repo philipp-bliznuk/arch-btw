@@ -67,7 +67,8 @@ NORMAL_SHIFT[Qt.Key_G] = "bottom"
 function insert(e, hasText) {
   if (e.key === Qt.Key_Left || e.key === Qt.Key_Right) return ""
   if (SHARED[e.key] !== undefined && plain(e)) return SHARED[e.key]
-  if (e.key === Qt.Key_Backspace && !hasText && plain(e)) return "back"
+  // Backspace (plain or Ctrl, which deletes a word natively) on an empty field
+  if (e.key === Qt.Key_Backspace && !hasText && !(e.modifiers & (Qt.AltModifier | Qt.MetaModifier))) return "back"
   if (!ctrl(e)) return ""
   return CTRL[e.key] || ""
 }

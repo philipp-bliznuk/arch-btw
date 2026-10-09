@@ -160,7 +160,44 @@ Scope {
     readonly property bool grid: section === "wallpaper" && !query
     readonly property int gridCols: 3
     readonly property var current: rows[cursor]
-    readonly property int rowsHeight: rows.reduce((h, r) => h + Style.rowHeight + (r.crumb ? Style.crumbHeight : 0), 0)
+    // Crumb rows (search hits from a submenu) are taller.
+    readonly property var rowHeights: rows.map(r => Style.rowHeight + (r.crumb ? Style.crumbHeight : 0))
+    readonly property int rowPeek: Math.round(Style.rowHeight * 0.55)
+
+    // When every row fits the list takes its full height. When they do not,
+    // the list ends mid-row: a clipped row is what tells the eye there is
+    // more below the fold, so it never comes out even on a row boundary.
+    function foldedHeight(heights, available, peek) {
+        let total = 0
+        const totals = heights.map(h => total += h)
+        if (total <= available)
+            return total
+        let full = totals.filter(t => t <= available).length
+        while (full > 1 && totals[full - 1] + peek > available)
+            full--
+        return full > 0 ? totals[full - 1] + peek : available
+    }
+
+    // Contain alone parks the cursor row flush with the viewport edge and
+    // hides its neighbour, losing the fold cue. Keep the next row peeking
+    // past the cursor on both sides when there is one. A model swap fires
+    // currentIndexChanged before the folded height binding has caught up, so
+    // the view calls this again from onHeightChanged / onCountChanged.
+    function reveal(view, mode, peek) {
+        if (view.height <= 0 || view.currentIndex < 0)
+            return
+        view.positionViewAtIndex(view.currentIndex, mode)
+        const item = view.itemAtIndex(view.currentIndex)
+        if (!item)
+            return
+        const maxY = Math.max(view.originY, view.originY + view.contentHeight - view.height)
+        const over = item.y + item.height + peek - (view.contentY + view.height)
+        if (view.currentIndex < view.count - 1 && over > 0)
+            view.contentY = Math.min(view.contentY + over, maxY)
+        const under = view.contentY - (item.y - peek)
+        if (view.currentIndex > 0 && under > 0)
+            view.contentY = Math.max(view.contentY - under, view.originY)
+    }
 
     onRowsChanged: cursor = Math.min(cursor, Math.max(0, rows.length - 1))
     onQueryChanged: {
@@ -322,11 +359,13 @@ Scope {
 
     // Cursor follows the pointer only when it actually moves. A static pointer
     // must not steal the cursor when the list scrolls under it (keyboard nav)
-    // or when the card appears beneath it.
+    // or when the card appears beneath it; sub-pixel touchpad jitter does not
+    // count as movement either.
     property point pointer: Qt.point(-1, -1)
     function follow(view, p) {
-        const moved = pointer.x >= 0 && (p.x !== pointer.x || p.y !== pointer.y)
-        pointer = p
+        const moved = pointer.x >= 0 && (Math.abs(p.x - pointer.x) > 1 || Math.abs(p.y - pointer.y) > 1)
+        if (pointer.x < 0 || moved)
+            pointer = p
         if (!moved)
             return
         const i = view.indexAt(p.x + view.contentX, p.y + view.contentY)
@@ -524,12 +563,14 @@ Scope {
                     id: list
                     width: parent.width
                     visible: !root.grid
-                    height: visible ? Math.min(root.rowsHeight, Style.cardMaxHeight - y - Style.cardPadding) : 0
+                    height: visible ? root.foldedHeight(root.rowHeights, Style.cardMaxHeight - y - Style.cardPadding, root.rowPeek) : 0
                     clip: true
                     model: root.grid ? [] : root.rows
                     currentIndex: root.cursor
                     highlightMoveDuration: 0
-                    onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+                    onCurrentIndexChanged: root.reveal(list, ListView.Contain, root.rowPeek)
+                    onHeightChanged: root.reveal(list, ListView.Contain, root.rowPeek)
+                    onCountChanged: root.reveal(list, ListView.Contain, root.rowPeek)
 
                     delegate: ListRow {
                         id: entry
@@ -567,14 +608,17 @@ Scope {
                     id: gridView
                     width: parent.width
                     visible: root.grid
-                    height: visible ? Math.min(Math.ceil(count / root.gridCols) * cellHeight, Style.cardMaxHeight - y - Style.cardPadding) : 0
+                    readonly property int peek: Math.round(cellHeight * 0.55)
+                    height: visible ? root.foldedHeight(Array(Math.ceil(count / root.gridCols)).fill(cellHeight), Style.cardMaxHeight - y - Style.cardPadding, peek) : 0
                     clip: true
                     model: root.grid ? root.rows : []
                     cellWidth: Math.floor(width / root.gridCols)
                     cellHeight: Math.round(cellWidth * 9 / 16) + Style.spaceXl * 2
                     currentIndex: root.cursor
                     highlightMoveDuration: 0
-                    onCurrentIndexChanged: positionViewAtIndex(currentIndex, GridView.Contain)
+                    onCurrentIndexChanged: root.reveal(gridView, GridView.Contain, peek)
+                    onHeightChanged: root.reveal(gridView, GridView.Contain, peek)
+                    onCountChanged: root.reveal(gridView, GridView.Contain, peek)
 
                     delegate: Item {
                         id: cell
