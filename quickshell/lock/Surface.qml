@@ -19,7 +19,7 @@ WlSessionLockSurface {
     Image {
         id: wallpaper
         anchors.fill: parent
-        source: surface.service.wallpaper
+        source: Util.fileUrl(surface.service.wallpaper)
         fillMode: Image.PreserveAspectCrop
         sourceSize.width: surface.screen ? surface.screen.width : surface.width
         sourceSize.height: surface.screen ? surface.screen.height : surface.height

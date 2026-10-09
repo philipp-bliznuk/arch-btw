@@ -577,7 +577,7 @@ Scope {
                         required property var modelData
                         required property int index
                         width: list.width
-                        iconSource: modelData.thumb ? modelData.thumb : (modelData.icon ? Quickshell.iconPath(modelData.icon, true) : "")
+                        iconSource: modelData.thumb ? Util.fileUrl(modelData.thumb) : (modelData.icon ? Quickshell.iconPath(modelData.icon, true) : "")
                         glyph: modelData.glyph || Icons.apps
                         glyphColor: Theme.accent
                         title: modelData.name
@@ -639,7 +639,7 @@ Scope {
                                 anchors.fill: parent
                                 anchors.margins: Style.spaceSm
                                 anchors.bottomMargin: Style.spaceXl + Style.spaceSm
-                                source: cell.modelData.thumb ? "file://" + cell.modelData.thumb : ""
+                                source: Util.fileUrl(cell.modelData.thumb)
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                                 sourceSize.width: 320

@@ -7,6 +7,24 @@ QtObject {
         return Math.max(min, Math.min(max, value));
     }
 
+    // Wheel input in whole notches. Touchpads deliver a notch as a burst of
+    // small angleDelta values (and a flick as one huge one), so each event
+    // must not be a full step: callers keep `remainder` between events and act
+    // on `steps` only. A direction change drops what was accumulated.
+    function wheelSteps(remainder, delta) {
+        const d = clamp(delta, -120, 120);
+        const acc = remainder && Math.sign(remainder) !== Math.sign(d) ? 0 : remainder;
+        const total = acc + d;
+        const steps = Math.trunc(total / 120);
+        return { steps, remainder: total - steps * 120 };
+    }
+
+    // Image.source parses a plain path as a URL, so "#" or "?" in a file name
+    // cuts it short. Empty stays empty (no image).
+    function fileUrl(path) {
+        return path ? "file://" + String(path).split("/").map(encodeURIComponent).join("/") : "";
+    }
+
     function truncate(s, max) {
         s = String(s ?? "");
         return s.length > max ? s.slice(0, max - 1) + "…" : s;

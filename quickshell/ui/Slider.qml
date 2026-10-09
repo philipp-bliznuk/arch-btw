@@ -10,6 +10,8 @@ Item {
     property bool muted: false
     property real peak: -1
 
+    property real wheelAcc: 0
+
     signal moved(real value)
 
     implicitHeight: 18
@@ -57,6 +59,11 @@ Item {
             if (pressed)
                 root.moved(Util.clamp(m.x / width, 0, 1));
         }
-        onWheel: w => root.moved(Util.clamp(root.value + (w.angleDelta.y > 0 ? 0.05 : -0.05), 0, 1))
+        onWheel: w => {
+            const r = Util.wheelSteps(root.wheelAcc, w.angleDelta.y);
+            root.wheelAcc = r.remainder;
+            if (r.steps)
+                root.moved(Util.clamp(root.value + r.steps * 0.05, 0, 1));
+        }
     }
 }

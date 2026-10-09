@@ -75,7 +75,7 @@ Scope {
                 target: root
                 function onCurrentChanged() {
                     const back = panel.layers[1 - panel.front];
-                    back.source = root.current;
+                    back.source = Util.fileUrl(root.current);
                 }
             }
 
@@ -100,7 +100,7 @@ Scope {
                 }
             }
 
-            Layer { id: a; source: root.current; opacity: 1 }
+            Layer { id: a; source: Util.fileUrl(root.current); opacity: 1 }
             Layer { id: b }
 
             // Stay-awake toggle. Sway counts a layer-surface inhibitor only

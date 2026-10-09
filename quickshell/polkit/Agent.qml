@@ -32,6 +32,14 @@ Scope {
             flow.cancelAuthenticationRequest();
     }
 
+    // "Authentication is required to run `/usr/bin/x' as the super user" ->
+    // "Run /usr/bin/x as the super user": the title already says the rest.
+    function describe(message) {
+        const m = /^Authentication is (?:needed|required) to (.+)$/i.exec(message || "");
+        const s = m ? m[1].replace(/`([^`']+)'/g, "$1") : (message || "");
+        return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
     PolkitAgent {
         id: agent
         path: "/org/qs/PolkitAgent"
@@ -58,6 +66,7 @@ Scope {
             root.submitted = false;
             root.error = "Authentication failed";
             field.text = "";
+            shake.restart();
             Qt.callLater(() => field.input.forceActiveFocus());
         }
     }
@@ -66,7 +75,7 @@ Scope {
         target: "polkit"
 
         function status(): string {
-            return JSON.stringify({ registered: agent.isRegistered, active: agent.isActive });
+            return JSON.stringify({ registered: agent.isRegistered, active: agent.isActive, responseRequired: root.flow ? root.flow.isResponseRequired : false });
         }
     }
 
@@ -94,13 +103,22 @@ Scope {
 
         Rectangle {
             id: card
+            property int shakeOffset: 0
             anchors.centerIn: parent
+            anchors.horizontalCenterOffset: shakeOffset
             width: 420
             height: column.implicitHeight + Style.cardPadding * 2 + 8
             radius: Style.cardRadius
             color: Theme.cardBg
             border.width: 1
             border.color: root.error ? Theme.urgent : Theme.cardBorder
+
+            SequentialAnimation {
+                id: shake
+                NumberAnimation { target: card; property: "shakeOffset"; to: -8; duration: 35; easing.type: Easing.OutQuad }
+                NumberAnimation { target: card; property: "shakeOffset"; to: 8; duration: 50; easing.type: Easing.InOutQuad }
+                NumberAnimation { target: card; property: "shakeOffset"; to: 0; duration: 55; easing.type: Easing.OutQuad }
+            }
 
             Column {
                 id: column
@@ -135,7 +153,7 @@ Scope {
                         }
                         Text {
                             width: parent.width
-                            text: root.flow ? root.flow.message : ""
+                            text: root.flow ? root.describe(root.flow.message) : ""
                             color: Theme.subtext0
                             font.family: Style.fontFamily
                             font.pixelSize: Style.fontSmall
@@ -147,19 +165,21 @@ Scope {
                 Text {
                     width: parent.width
                     visible: text !== ""
-                    text: root.flow && root.flow.selectedIdentity ? "as " + root.flow.selectedIdentity : ""
+                    text: root.flow && root.flow.selectedIdentity ? "as " + root.flow.selectedIdentity.displayName : ""
                     color: Theme.muted
                     font.family: Style.fontFamily
                     font.pixelSize: Style.fontCaption
                 }
 
+                // Read-only, not disabled: a disabled item drops keyboard focus,
+                // and Esc must still cancel while PAM waits for a YubiKey touch.
                 Field {
                     id: field
                     width: parent.width
                     placeholder: root.flow && root.flow.inputPrompt ? root.flow.inputPrompt.replace(/:\s*$/, "") : "Password"
                     echoMode: root.flow && root.flow.responseVisible ? TextInput.Normal : TextInput.Password
-                    enabled: root.flow ? root.flow.isResponseRequired && !root.submitted : false
-                    opacity: enabled ? 1 : 0.5
+                    input.readOnly: root.flow ? !root.flow.isResponseRequired || root.submitted : true
+                    opacity: input.readOnly ? 0.5 : 1
                     onAccepted: root.submit()
                     onEscaped: root.cancel()
                 }

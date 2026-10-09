@@ -38,6 +38,9 @@ Segment {
                 IconImage {
                     anchors.fill: parent
                     source: item.modelData.icon
+                    // IconImage decodes at logical pixels; on a scaled output that is soft.
+                    backer.sourceSize.width: item.width * Screen.devicePixelRatio
+                    backer.sourceSize.height: item.height * Screen.devicePixelRatio
                 }
 
                 QsMenuOpener {

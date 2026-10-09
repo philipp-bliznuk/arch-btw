@@ -37,7 +37,14 @@ Singleton {
     readonly property var profiles: profilesAvailable ? [PowerProfile.PowerSaver, PowerProfile.Balanced].concat(PowerProfiles.hasPerformanceProfile ? [PowerProfile.Performance] : []) : []
     // Charge limit as reported by qs-battery status: {supported, enabled, start, end}.
     property var limit: ({ supported: false })
-    property int lastWarned: 100
+
+    // Survives config reloads: the plain property would reset to 100 and
+    // re-toast the same level on the next percentage change.
+    PersistentProperties {
+        id: persist
+        reloadableId: "power"
+        property int lastWarned: 100
+    }
 
     function fmt(seconds) {
         if (!seconds || seconds <= 0)
@@ -184,15 +191,15 @@ Singleton {
 
     onPctChanged: {
         if (!onBattery) {
-            lastWarned = 100;
+            persist.lastWarned = 100;
             return;
         }
         // UPower emits transient ~0-1 % readings at startup/resume; never warn on those.
         if (!present || dev.state !== UPowerDeviceState.Discharging || pct <= 1)
             return;
         for (const level of [5, 15]) {
-            if (pct <= level && lastWarned > level) {
-                lastWarned = level;
+            if (pct <= level && persist.lastWarned > level) {
+                persist.lastWarned = level;
                 Commands.run({ argv: [Util.bin("qs-notify"), "-u", level <= 5 ? "critical" : "normal", "-i", "battery-caution", "Battery " + pct + "%", remaining ? remaining.replace(" left", " remaining") : ""] });
                 return;
             }
