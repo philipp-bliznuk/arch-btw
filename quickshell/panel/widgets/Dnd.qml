@@ -7,6 +7,6 @@ import qs.ui
 Segment {
     readonly property bool on: Toggles.has("dnd")
     icon: Icons.bellOff
-    iconColor: on ? Color.yellow : Color.overlay1
+    iconColor: on ? Theme.yellow : Theme.overlay1
     onClicked: Toggles.flip("dnd")
 }

@@ -6,7 +6,7 @@ import qs.core
 // width, which otherwise pushes them past the right edge of a Segment.
 Item {
     property string text: ""
-    property color glyphColor: Color.icon
+    property color glyphColor: Theme.icon
     property int size: Style.fontIcon
 
     implicitWidth: Math.ceil(metrics.tightBoundingRect.width)

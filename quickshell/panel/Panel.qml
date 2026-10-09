@@ -22,7 +22,7 @@ Variants {
         }
         implicitHeight: Style.panelHeight
         exclusionMode: ExclusionMode.Auto
-        color: Color.panelBg
+        color: Theme.panelBg
 
         WlrLayershell.namespace: "qs-bar"
         WlrLayershell.layer: WlrLayer.Top
@@ -31,7 +31,7 @@ Variants {
             anchors.bottom: parent.bottom
             width: parent.width
             height: 1
-            color: Color.panelLine
+            color: Theme.panelLine
         }
 
         Item {

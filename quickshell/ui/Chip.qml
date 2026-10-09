@@ -14,7 +14,7 @@ Rectangle {
     implicitHeight: Style.segmentHeight - 2
     implicitWidth: label.implicitWidth + Style.spaceMd * 2
     radius: Style.radius
-    color: active ? Color.accent : (hovered ? Color.segmentActive : Color.surface0)
+    color: active ? Theme.accent : (hovered ? Theme.segmentActive : Theme.surface0)
 
     HoverHandler {
         id: hover
@@ -29,7 +29,7 @@ Rectangle {
         id: label
         anchors.centerIn: parent
         text: root.text
-        color: root.active ? Color.base : Color.subtext1
+        color: root.active ? Theme.base : Theme.subtext1
         font.pixelSize: Style.fontCaption
     }
 }

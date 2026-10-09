@@ -4,7 +4,7 @@ import qs.ui
 
 Segment {
     icon: Icons.memory
-    iconColor: Color.peach
+    iconColor: Theme.peach
     label: Metrics.mem + "%"
     labelTemplate: "99%"
     labelAlign: Text.AlignRight

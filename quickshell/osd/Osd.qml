@@ -152,9 +152,9 @@ Scope {
         Rectangle {
             anchors.fill: parent
             radius: Style.cardRadius
-            color: Color.cardBg
+            color: Theme.cardBg
             border.width: 1
-            border.color: Color.cardBorder
+            border.color: Theme.cardBorder
 
             Row {
                 anchors.fill: parent
@@ -163,7 +163,7 @@ Scope {
 
                 Glyph {
                     text: root.icon
-                    glyphColor: root.muted ? Color.muted : Color.accent
+                    glyphColor: root.muted ? Theme.muted : Theme.accent
                     size: Style.fontTitle + 2
                     anchors.verticalCenter: parent.verticalCenter
                 }
@@ -173,14 +173,14 @@ Scope {
                     width: parent.width - 30 - 52 - parent.spacing * 2
                     height: 6
                     radius: 3
-                    color: Color.surface1
+                    color: Theme.surface1
                     anchors.verticalCenter: parent.verticalCenter
 
                     Rectangle {
                         width: parent.width * Util.clamp(root.value, 0, 1)
                         height: parent.height
                         radius: parent.radius
-                        color: root.muted ? Color.overlay0 : Color.accent
+                        color: root.muted ? Theme.overlay0 : Theme.accent
                         Behavior on width {
                             NumberAnimation { duration: 80 }
                         }
@@ -190,7 +190,7 @@ Scope {
                 Text {
                     width: root.text ? parent.width - 30 - parent.spacing : 52
                     text: root.label
-                    color: Color.text
+                    color: Theme.text
                     elide: Text.ElideRight
                     horizontalAlignment: root.text ? Text.AlignLeft : Text.AlignRight
                     font.family: Style.fontFamily

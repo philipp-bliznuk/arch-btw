@@ -62,7 +62,7 @@ Scope {
                 right: true
             }
             exclusionMode: ExclusionMode.Ignore
-            color: Color.base
+            color: Theme.base
 
             WlrLayershell.namespace: "qs-wallpaper"
             WlrLayershell.layer: WlrLayer.Background

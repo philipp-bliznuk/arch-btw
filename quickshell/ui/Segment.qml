@@ -9,9 +9,9 @@ Rectangle {
     id: root
 
     property string icon: ""
-    property color iconColor: Color.icon
+    property color iconColor: Theme.icon
     property string label: ""
-    property color labelColor: Color.label
+    property color labelColor: Theme.label
     property int labelSize: Style.fontSmall
     // Sample text that fixes the label width (e.g. "99%"), so values that
     // change digit count do not shift the neighbours. Size it for the typical
@@ -31,7 +31,7 @@ Rectangle {
     implicitHeight: Style.segmentHeight
     implicitWidth: row.implicitWidth + Style.segmentPadX * 2
     radius: Style.radius
-    color: active ? Color.segmentActive : (hoverable && hovered ? Color.segmentHover : "transparent")
+    color: active ? Theme.segmentActive : (hoverable && hovered ? Theme.segmentHover : "transparent")
 
     // NativeRendering rounds the hinted width differently per digit set,
     // so measure the template once rather than the live text.

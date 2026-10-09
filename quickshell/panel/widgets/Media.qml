@@ -12,14 +12,14 @@ Segment {
     readonly property var player: Player.player
     hoverable: false
     icon: Player.playing ? Icons.music : Icons.pause
-    iconColor: Player.playing ? Color.sky : Color.muted
+    iconColor: Player.playing ? Theme.sky : Theme.muted
     active: popup.open
 
     content: Marquee {
         height: parent.height
         maxWidth: Style.mediaWidth
         text: Player.line || (root.player ? root.player.identity : "")
-        color: Player.playing ? Color.text : Color.muted
+        color: Player.playing ? Theme.text : Theme.muted
     }
 
     MediaPopup {

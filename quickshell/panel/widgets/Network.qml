@@ -71,7 +71,7 @@ Segment {
     property string chosen: ""
 
     icon: !device ? Icons.wifiOff : (wifi ? Icons.wifiFor(strength) : Icons.ethernet)
-    iconColor: !device ? Color.muted : (portal || limited ? Color.yellow : Color.text)
+    iconColor: !device ? Theme.muted : (portal || limited ? Theme.yellow : Theme.text)
     active: popup.open
 
     onClicked: popup.toggle()
@@ -229,7 +229,7 @@ Segment {
 
         Label {
             text: stat.title
-            color: Color.muted
+            color: Theme.muted
             font.pixelSize: Style.fontCaption
         }
         Label {
@@ -294,7 +294,7 @@ Segment {
                     Label {
                         width: parent.width
                         text: root.portal ? "SIGN-IN REQUIRED" : (root.limited ? "LIMITED INTERNET ACCESS" : (root.device ? (root.wifi ? Math.round(root.strength * 100) + "% signal" : root.stats.iface || "") : "NOT CONNECTED"))
-                        color: root.portal || root.limited ? Color.yellow : Color.muted
+                        color: root.portal || root.limited ? Theme.yellow : Theme.muted
                         font.pixelSize: Style.fontCaption
                     }
                 }
@@ -304,7 +304,7 @@ Segment {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: root.wifiDevice !== null
                     icon: Networking.wifiEnabled ? Icons.wifi4 : Icons.wifiOff
-                    iconColor: Networking.wifiEnabled ? Color.accent : Color.muted
+                    iconColor: Networking.wifiEnabled ? Theme.accent : Theme.muted
                     label: Networking.wifiEnabled ? "on" : "off"
                     labelSize: Style.fontCaption
                     onClicked: Networking.wifiEnabled = !Networking.wifiEnabled
@@ -314,7 +314,7 @@ Segment {
             ListRow {
                 visible: root.portal
                 glyph: Icons.web
-                glyphColor: Color.yellow
+                glyphColor: Theme.yellow
                 title: "Open captive portal"
                 onClicked: root.openPortal()
             }
@@ -336,7 +336,7 @@ Segment {
                 visible: root.failure !== ""
                 width: parent.width
                 text: root.failure
-                color: Color.red
+                color: Theme.red
                 font.pixelSize: Style.fontCaption
             }
 
@@ -347,7 +347,7 @@ Segment {
 
                 Label {
                     text: (root.eap ? "Credentials for " : "Passphrase for ") + (root.pending ? root.pending.name : "")
-                    color: Color.subtext0
+                    color: Theme.subtext0
                     font.pixelSize: Style.fontCaption
                 }
                 Field {
@@ -377,7 +377,7 @@ Segment {
             Label {
                 visible: root.known.length > 0
                 text: "KNOWN NETWORKS"
-                color: Color.muted
+                color: Theme.muted
                 font.pixelSize: Style.fontCaption
             }
 
@@ -389,7 +389,7 @@ Segment {
                     required property var modelData
                     required property int index
                     glyph: Icons.wifiFor(modelData.signalStrength)
-                    glyphColor: modelData.connected ? Color.accent : Color.text
+                    glyphColor: modelData.connected ? Theme.accent : Theme.text
                     title: modelData.name
                     subtext: root.stateText(modelData)
                     trailing: (root.secure(modelData) ? Icons.lock + " " : "") + (modelData.connected ? "disconnect" : "connect")
@@ -409,7 +409,7 @@ Segment {
             Label {
                 visible: root.other.length > 0
                 text: "OTHER NETWORKS"
-                color: Color.muted
+                color: Theme.muted
                 font.pixelSize: Style.fontCaption
             }
 
@@ -433,14 +433,14 @@ Segment {
             Label {
                 visible: root.wifiDevice && Networking.wifiEnabled && root.rows.length === 0
                 text: "Scanning…"
-                color: Color.muted
+                color: Theme.muted
                 font.pixelSize: Style.fontSmall
             }
 
             Rectangle {
                 width: parent.width
                 height: 1
-                color: Color.surface1
+                color: Theme.surface1
             }
 
             ListRow {

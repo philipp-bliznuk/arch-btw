@@ -42,7 +42,7 @@ PopupCard {
                 width: 72
                 height: 72
                 radius: Style.radius
-                color: Color.surface0
+                color: Theme.surface0
                 clip: true
 
                 Image {
@@ -58,7 +58,7 @@ PopupCard {
                     anchors.centerIn: parent
                     visible: art.status !== Image.Ready
                     text: Icons.music
-                    glyphColor: Color.overlay1
+                    glyphColor: Theme.overlay1
                     size: Style.fontTitle + 8
                 }
             }
@@ -77,14 +77,14 @@ PopupCard {
                     width: parent.width
                     visible: text !== ""
                     text: Player.artist
-                    color: Color.subtext1
+                    color: Theme.subtext1
                     font.pixelSize: Style.fontSmall
                 }
                 Label {
                     width: parent.width
                     visible: text !== ""
                     text: Player.album
-                    color: Color.muted
+                    color: Theme.muted
                     font.pixelSize: Style.fontCaption
                 }
             }
@@ -101,7 +101,7 @@ PopupCard {
             }
             Button {
                 icon: Player.playing ? Icons.pause : Icons.play
-                iconColor: Color.sky
+                iconColor: Theme.sky
                 enabledState: root.has && root.player.canTogglePlaying
                 onClicked: Player.toggle()
             }
@@ -121,7 +121,7 @@ PopupCard {
                 id: volGlyph
                 anchors.verticalCenter: parent.verticalCenter
                 text: Icons.volumeFor(Player.volume, false)
-                glyphColor: Color.muted
+                glyphColor: Theme.muted
             }
             Slider {
                 width: parent.width - volGlyph.width - volLabel.width - parent.spacing * 2

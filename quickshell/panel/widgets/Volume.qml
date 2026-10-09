@@ -14,9 +14,9 @@ Segment {
     readonly property real vol: node && node.audio ? node.audio.volume : 0
     visible: node !== null
     icon: Icons.volumeFor(vol, muted)
-    iconColor: muted ? Color.muted : Color.text
+    iconColor: muted ? Theme.muted : Theme.text
     label: Math.round(vol * 100) + "%"
-    labelColor: muted ? Color.muted : Color.text
+    labelColor: muted ? Theme.muted : Theme.text
     labelTemplate: "99%"
     labelAlign: Text.AlignRight
     tooltip: "right-click: mute"

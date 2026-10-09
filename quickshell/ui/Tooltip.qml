@@ -45,15 +45,15 @@ PopupWindow {
     Rectangle {
         anchors.fill: parent
         radius: Style.radius
-        color: Color.surface0
+        color: Theme.surface0
         border.width: 1
-        border.color: Color.cardBorder
+        border.color: Theme.cardBorder
 
         Label {
             id: label
             anchors.centerIn: parent
             text: root.text
-            color: Color.subtext1
+            color: Theme.subtext1
             font.pixelSize: Style.fontCaption
         }
     }

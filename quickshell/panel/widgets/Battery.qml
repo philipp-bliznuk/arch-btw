@@ -15,7 +15,7 @@ Segment {
 
     visible: Power.present
     icon: Icons.batteryFor(Power.pct, charging)
-    iconColor: charging ? Color.green : (Power.pct < 10 ? Color.red : (Power.pct < 30 ? Color.yellow : Color.text))
+    iconColor: charging ? Theme.green : (Power.pct < 10 ? Theme.red : (Power.pct < 30 ? Theme.yellow : Theme.text))
     label: showPct ? Power.pct + "%" : ""
     active: popup.open
 
@@ -69,7 +69,7 @@ Segment {
                     Label {
                         width: parent.width
                         text: Power.remaining || (Power.holding ? "charge limit reached" : "")
-                        color: Color.muted
+                        color: Theme.muted
                         font.pixelSize: Style.fontCaption
                     }
                 }
@@ -87,7 +87,7 @@ Segment {
                 width: parent.width
                 height: 6
                 radius: 3
-                color: Color.surface1
+                color: Theme.surface1
 
                 Rectangle {
                     id: fill
@@ -121,7 +121,7 @@ Segment {
                 width: parent.width
                 height: Style.rowHeight
                 radius: Style.radius
-                color: limitHover.hovered ? Color.surface1 : Color.surface0
+                color: limitHover.hovered ? Theme.surface1 : Theme.surface0
 
                 Row {
                     anchors.left: parent.left
@@ -132,7 +132,7 @@ Segment {
                     Glyph {
                         anchors.verticalCenter: parent.verticalCenter
                         text: Icons.batteryFor(Power.limit.end ?? 80, false)
-                        glyphColor: Power.limit.enabled ? Color.green : Color.subtext0
+                        glyphColor: Power.limit.enabled ? Theme.green : Theme.subtext0
                     }
                     Column {
                         anchors.verticalCenter: parent.verticalCenter
@@ -144,7 +144,7 @@ Segment {
                         }
                         Label {
                             text: Power.limit.enabled ? "charges " + Power.limit.start + " → " + Power.limit.end + " %, kinder to the cell" : "off - charges to 100 %"
-                            color: Color.muted
+                            color: Theme.muted
                             font.pixelSize: Style.fontCaption
                         }
                     }
@@ -154,7 +154,7 @@ Segment {
                     anchors.rightMargin: Style.spaceMd
                     anchors.verticalCenter: parent.verticalCenter
                     text: Power.limit.enabled ? "ON" : "OFF"
-                    color: Power.limit.enabled ? Color.green : Color.muted
+                    color: Power.limit.enabled ? Theme.green : Theme.muted
                     font.pixelSize: Style.fontCaption
                     font.weight: Font.Bold
                 }
@@ -170,14 +170,14 @@ Segment {
             Rectangle {
                 width: parent.width
                 height: 1
-                color: Color.surface1
+                color: Theme.surface1
                 visible: Power.profilesAvailable
             }
 
             Label {
                 visible: Power.profilesAvailable
                 text: "POWER PROFILE"
-                color: Color.muted
+                color: Theme.muted
                 font.pixelSize: Style.fontCaption
             }
 
@@ -197,9 +197,9 @@ Segment {
                         width: (parent.width - Style.spaceXs * (Power.profiles.length - 1)) / Power.profiles.length
                         height: 48
                         radius: Style.radius
-                        color: current ? Color.segmentActive : (popup.cursor === index ? Color.segmentHover : Color.surface0)
+                        color: current ? Theme.segmentActive : (popup.cursor === index ? Theme.segmentHover : Theme.surface0)
                         border.width: popup.cursor === index ? 1 : 0
-                        border.color: Color.accent
+                        border.color: Theme.accent
 
                         Column {
                             anchors.centerIn: parent
@@ -208,12 +208,12 @@ Segment {
                             Glyph {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 text: Power.profileGlyph(prof.modelData)
-                                glyphColor: prof.current ? Color.accent : Color.subtext0
+                                glyphColor: prof.current ? Theme.accent : Theme.subtext0
                             }
                             Label {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 text: Power.profileName(prof.modelData)
-                                color: prof.current ? Color.text : Color.muted
+                                color: prof.current ? Theme.text : Theme.muted
                                 font.pixelSize: Style.fontCaption
                             }
                         }

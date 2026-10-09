@@ -1,7 +1,8 @@
 pragma Singleton
 import QtQuick
 
-// Catppuccin Mocha, hardcoded.
+// Catppuccin Mocha, hardcoded. Named Theme: Qt 6.12 added a QtQuick/Color
+// singleton that shadowed a singleton called Color.
 QtObject {
     readonly property color rosewater: "#f5e0dc"
     readonly property color flamingo: "#f2cdcd"

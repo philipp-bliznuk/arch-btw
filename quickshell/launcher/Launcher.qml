@@ -471,7 +471,7 @@ Scope {
 
         Rectangle {
             anchors.fill: parent
-            color: Color.scrim
+            color: Theme.scrim
             MouseArea { anchors.fill: parent; onClicked: root.close() }
         }
 
@@ -482,9 +482,9 @@ Scope {
             width: Style.cardWidth
             height: Math.min(Style.cardMaxHeight, column.implicitHeight + Style.cardPadding * 2)
             radius: Style.cardRadius
-            color: Color.cardBg
+            color: Theme.cardBg
             border.width: 1
-            border.color: Color.cardBorder
+            border.color: Theme.cardBorder
 
             MouseArea { anchors.fill: parent }
 
@@ -534,7 +534,7 @@ Scope {
                         width: list.width
                         iconSource: modelData.thumb ? modelData.thumb : (modelData.icon ? Quickshell.iconPath(modelData.icon, true) : "")
                         glyph: modelData.glyph || Icons.apps
-                        glyphColor: Color.accent
+                        glyphColor: Theme.accent
                         title: modelData.name
                         subtext: modelData.genericName || ""
                         crumb: modelData.crumb || ""
@@ -546,10 +546,10 @@ Scope {
                             return ""
                         }
                         trailingColor: {
-                            if (modelData.warn === true) return Color.yellow
-                            if (modelData.checked === true) return Color.green
-                            if (modelData.popup && Popups.current === modelData.popup) return Color.accent
-                            return Color.muted
+                            if (modelData.warn === true) return Theme.yellow
+                            if (modelData.checked === true) return Theme.green
+                            if (modelData.popup && Popups.current === modelData.popup) return Theme.accent
+                            return Theme.muted
                         }
                         selected: index === root.cursor
                         dim: modelData.disabled === true
@@ -583,9 +583,9 @@ Scope {
                             anchors.fill: parent
                             anchors.margins: Style.spaceXs
                             radius: Style.radius
-                            color: cell.index === root.cursor ? Color.rowSelected : "transparent"
+                            color: cell.index === root.cursor ? Theme.rowSelected : "transparent"
                             border.width: cell.modelData.checked ? 2 : 0
-                            border.color: Color.accent
+                            border.color: Theme.accent
 
                             Image {
                                 anchors.fill: parent
@@ -601,7 +601,7 @@ Scope {
                                 anchors.centerIn: parent
                                 visible: cell.modelData.thumb === undefined
                                 text: cell.modelData.glyph
-                                glyphColor: Color.accent
+                                glyphColor: Theme.accent
                                 size: Style.fontTitle + 8
                             }
                             Label {
@@ -612,7 +612,7 @@ Scope {
                                 horizontalAlignment: Text.AlignHCenter
                                 text: cell.modelData.name
                                 font.pixelSize: Style.fontCaption
-                                color: cell.modelData.checked ? Color.accent : Color.subtext0
+                                color: cell.modelData.checked ? Theme.accent : Theme.subtext0
                             }
                             MouseArea { anchors.fill: parent; onClicked: root.activate(cell.modelData) }
                         }

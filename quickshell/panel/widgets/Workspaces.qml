@@ -32,14 +32,14 @@ Row {
             width: visible ? Math.max(Style.segmentHeight, label.implicitWidth + Style.segmentPadX * 2) : 0
             height: Style.segmentHeight
             radius: Style.radius
-            color: modelData.focused ? Color.accent : (modelData.active ? Color.segmentActive : (hovered ? Color.segmentHover : "transparent"))
+            color: modelData.focused ? Theme.accent : (modelData.active ? Theme.segmentActive : (hovered ? Theme.segmentHover : "transparent"))
 
             Label {
                 id: label
                 anchors.centerIn: parent
                 text: ws.modelData.name
                 font.pixelSize: Style.fontSmall
-                color: ws.modelData.focused ? Color.base : (ws.modelData.urgent ? Color.urgent : Color.text)
+                color: ws.modelData.focused ? Theme.base : (ws.modelData.urgent ? Theme.urgent : Theme.text)
             }
 
             Rectangle {
@@ -50,7 +50,7 @@ Row {
                 height: 3
                 radius: 1.5
                 visible: !ws.modelData.focused && (ws.occupied || ws.modelData.urgent)
-                color: ws.modelData.urgent ? Color.urgent : Color.overlay1
+                color: ws.modelData.urgent ? Theme.urgent : Theme.overlay1
             }
 
             HoverHandler {

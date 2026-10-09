@@ -10,7 +10,7 @@ Segment {
     id: root
     visible: Weather.ready
     icon: Weather.glyph(Weather.current.weather_code, Weather.current.is_day)
-    iconColor: Color.yellow
+    iconColor: Theme.yellow
     label: Weather.temp(Weather.current.temperature_2m)
     active: popup.open
     property bool editing: false
@@ -61,13 +61,13 @@ Segment {
                 spacing: Style.spaceXs
                 Glyph {
                     text: stat.glyph
-                    glyphColor: Color.muted
+                    glyphColor: Theme.muted
                     size: Style.fontSmall
                     height: 14
                 }
                 Label {
                     text: stat.title
-                    color: Color.muted
+                    color: Theme.muted
                     font.pixelSize: Style.fontCaption
                     height: 14
                 }
@@ -93,7 +93,7 @@ Segment {
                     width: 56
                     height: 56
                     text: root.icon
-                    glyphColor: Color.yellow
+                    glyphColor: Theme.yellow
                     size: 44
                 }
                 Column {
@@ -111,7 +111,7 @@ Segment {
                     Label {
                         width: parent.width
                         text: Weather.busy ? "updating…" : Weather.name
-                        color: Color.muted
+                        color: Theme.muted
                         font.pixelSize: Style.fontCaption
                     }
                 }
@@ -127,7 +127,7 @@ Segment {
             ListRow {
                 visible: !root.editing
                 glyph: Icons.mapMarker
-                glyphColor: Color.accent
+                glyphColor: Theme.accent
                 title: Weather.name || "Detecting location…"
                 onClicked: root.startEdit()
             }

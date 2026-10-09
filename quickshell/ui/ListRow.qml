@@ -11,13 +11,13 @@ Rectangle {
     id: root
 
     property string glyph: ""
-    property color glyphColor: Color.text
+    property color glyphColor: Theme.text
     property string iconSource: ""
     property string title: ""
     property string subtext: ""
     property string crumb: ""
     property string trailing: ""
-    property color trailingColor: Color.muted
+    property color trailingColor: Theme.muted
     property bool selected: false
     property bool dim: false
     readonly property bool hovered: hover.hovered
@@ -28,7 +28,7 @@ Rectangle {
     implicitWidth: layout.implicitWidth + Style.spaceMd * 2
     implicitHeight: Style.rowHeight + (crumb !== "" ? Style.crumbHeight : 0)
     radius: Style.radius
-    color: selected ? Color.rowSelected : (hovered ? Color.segmentHover : "transparent")
+    color: selected ? Theme.rowSelected : (hovered ? Theme.segmentHover : "transparent")
     opacity: dim ? 0.55 : 1
 
     HoverHandler {
@@ -83,7 +83,7 @@ Rectangle {
         Label {
             visible: root.subtext !== ""
             text: root.subtext
-            color: Color.muted
+            color: Theme.muted
             font.pixelSize: Style.fontSmall
             Layout.fillWidth: true
         }
@@ -103,7 +103,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.leftMargin: Style.spaceMd + 24 + Style.spaceMd
         text: "↳ " + root.crumb
-        color: Color.muted
+        color: Theme.muted
         font.pixelSize: Style.fontCaption
     }
 }

@@ -71,9 +71,9 @@ Rectangle {
     width: cardWidth
     height: host.childrenRect.height + Style.cardPadding * 2
     radius: Style.cardRadius
-    color: Color.cardBg
+    color: Theme.cardBg
     border.width: 1
-    border.color: Color.cardBorder
+    border.color: Theme.cardBorder
 
     onOpenChanged: {
         cursor = 0;

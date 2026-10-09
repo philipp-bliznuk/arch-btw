@@ -4,7 +4,7 @@ import qs.ui
 
 Segment {
     icon: Icons.cpu
-    iconColor: Color.green
+    iconColor: Theme.green
     label: Metrics.cpu + "%"
     labelTemplate: "99%"
     labelAlign: Text.AlignRight

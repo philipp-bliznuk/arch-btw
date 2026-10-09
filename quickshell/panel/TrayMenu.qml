@@ -84,7 +84,7 @@ PopupCard {
         Label {
             visible: root.entries.length === 0
             text: "Empty menu"
-            color: Color.muted
+            color: Theme.muted
             leftPadding: Style.spaceMd
             height: Style.rowHeight
         }
@@ -104,7 +104,7 @@ PopupCard {
                     anchors.centerIn: parent
                     width: parent.width - Style.spaceMd * 2
                     height: 1
-                    color: Color.cardBorder
+                    color: Theme.cardBorder
                 }
 
                 ListRow {
@@ -114,7 +114,7 @@ PopupCard {
                     dim: !row.modelData.enabled
                     selected: root.selected() === row.modelData
                     trailing: row.modelData.hasChildren ? "›" : (row.checked ? "✓" : "")
-                    trailingColor: row.checked ? Color.accent : Color.muted
+                    trailingColor: row.checked ? Theme.accent : Theme.muted
                     onHoveredChanged: {
                         const i = root.actionable.indexOf(row.modelData);
                         if (hovered && i >= 0)

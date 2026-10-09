@@ -84,7 +84,7 @@ Segment {
                     width: 32
                     height: 40
                     text: Icons.calendar
-                    glyphColor: Color.accent
+                    glyphColor: Theme.accent
                     size: Style.fontTitle + 8
                 }
                 Column {
@@ -102,7 +102,7 @@ Segment {
                     Label {
                         width: parent.width
                         text: "Week " + root.weekNumber(clock.date) + " · day " + root.dayOfYear(clock.date) + " of " + clock.date.getFullYear()
-                        color: Color.muted
+                        color: Theme.muted
                         font.pixelSize: Style.fontCaption
                     }
                 }
@@ -119,7 +119,7 @@ Segment {
                 Label {
                     id: yearLabel
                     text: clock.date.getFullYear()
-                    color: Color.muted
+                    color: Theme.muted
                     font.pixelSize: Style.fontCaption
                     height: 10
                 }
@@ -128,13 +128,13 @@ Segment {
                     height: 4
                     radius: 2
                     anchors.verticalCenter: parent.verticalCenter
-                    color: Color.surface1
+                    color: Theme.surface1
 
                     Rectangle {
                         width: parent.width * root.yearProgress(clock.date)
                         height: parent.height
                         radius: parent.radius
-                        color: Color.accent
+                        color: Theme.accent
                     }
                 }
                 Label {
@@ -142,7 +142,7 @@ Segment {
                     width: 34
                     horizontalAlignment: Text.AlignRight
                     text: Math.round(root.yearProgress(clock.date) * 100) + "%"
-                    color: Color.muted
+                    color: Theme.muted
                     font.pixelSize: Style.fontCaption
                     height: 10
                 }
@@ -151,7 +151,7 @@ Segment {
             Rectangle {
                 width: parent.width
                 height: 1
-                color: Color.surface1
+                color: Theme.surface1
             }
 
             Row {
@@ -192,7 +192,7 @@ Segment {
                         height: days.height
                         horizontalAlignment: Text.AlignHCenter
                         text: "W"
-                        color: Color.overlay0
+                        color: Theme.overlay0
                         font.pixelSize: Style.fontCaption
                     }
                     QC.WeekNumberColumn {
@@ -204,7 +204,7 @@ Segment {
                         delegate: Label {
                             required property int weekNumber
                             text: weekNumber
-                            color: Color.overlay0
+                            color: Theme.overlay0
                             font.pixelSize: Style.fontCaption
                             horizontalAlignment: Text.AlignHCenter
                         }
@@ -222,7 +222,7 @@ Segment {
                         delegate: Label {
                             required property string shortName
                             text: shortName
-                            color: Color.muted
+                            color: Theme.muted
                             font.pixelSize: Style.fontCaption
                             horizontalAlignment: Text.AlignHCenter
                         }
@@ -243,12 +243,12 @@ Segment {
                             readonly property bool weekend: model.date.getDay() === 0 || model.date.getDay() === 6
                             implicitHeight: 24
                             radius: Style.radius
-                            color: today ? Color.accent : "transparent"
+                            color: today ? Theme.accent : "transparent"
 
                             Label {
                                 anchors.centerIn: parent
                                 text: parent.model.day
-                                color: parent.today ? Color.base : (!parent.inMonth ? Color.surface2 : (parent.weekend ? Color.overlay1 : Color.text))
+                                color: parent.today ? Theme.base : (!parent.inMonth ? Theme.surface2 : (parent.weekend ? Theme.overlay1 : Theme.text))
                                 font.pixelSize: Style.fontSmall
                             }
                         }

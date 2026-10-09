@@ -5,7 +5,7 @@ import qs.core
 Item {
     id: root
     property real value: 0
-    property color fill: Color.accent
+    property color fill: Theme.accent
     property bool muted: false
 
     signal moved(real value)
@@ -17,13 +17,13 @@ Item {
         width: parent.width
         height: 6
         radius: 3
-        color: Color.surface1
+        color: Theme.surface1
 
         Rectangle {
             width: parent.width * Util.clamp(root.value, 0, 1)
             height: parent.height
             radius: parent.radius
-            color: root.muted ? Color.overlay0 : root.fill
+            color: root.muted ? Theme.overlay0 : root.fill
         }
 
         Rectangle {
@@ -32,7 +32,7 @@ Item {
             width: 12
             height: 12
             radius: 6
-            color: root.muted ? Color.overlay1 : Color.text
+            color: root.muted ? Theme.overlay1 : Theme.text
         }
     }
 

@@ -11,14 +11,14 @@ Segment {
         {
             name: "awake",
             glyph: Icons.eye,
-            color: Color.yellow
+            color: Theme.yellow
         }
     ].filter(i => Toggles.has(i.name))
     readonly property var items: toggles.concat(System.rebootRequired ? [
         {
             name: "reboot",
             glyph: Icons.restart,
-            color: Color.peach
+            color: Theme.peach
         }
     ] : [])
 

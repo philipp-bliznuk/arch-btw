@@ -17,9 +17,9 @@ Rectangle {
 
     implicitHeight: Style.rowHeight
     radius: Style.radius
-    color: Color.surface0
+    color: Theme.surface0
     border.width: 1
-    border.color: input.activeFocus ? Color.accent : Color.surface1
+    border.color: input.activeFocus ? Theme.accent : Theme.surface1
 
     TextInput {
         id: input
@@ -27,13 +27,13 @@ Rectangle {
         anchors.leftMargin: Style.spaceLg
         anchors.rightMargin: Style.spaceLg
         verticalAlignment: TextInput.AlignVCenter
-        color: Color.text
+        color: Theme.text
         font.family: Style.fontFamily
         font.pixelSize: Style.fontBody
         font.weight: Style.fontWeight
         renderType: Style.renderType
-        selectionColor: Color.accent
-        selectedTextColor: Color.base
+        selectionColor: Theme.accent
+        selectedTextColor: Theme.base
         clip: true
         onAccepted: root.accepted()
         Keys.onPressed: event => {
@@ -50,6 +50,6 @@ Rectangle {
         anchors.fill: input
         visible: input.text === "" && !input.preeditText
         text: root.placeholder
-        color: Color.overlay0
+        color: Theme.overlay0
     }
 }

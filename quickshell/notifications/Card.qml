@@ -22,9 +22,9 @@ Rectangle {
 
     implicitHeight: body.implicitHeight + Style.cardPadding * 2
     radius: Style.cardRadius
-    color: Color.cardBg
+    color: Theme.cardBg
     border.width: 1
-    border.color: critical ? Color.urgent : Color.cardBorder
+    border.color: critical ? Theme.urgent : Theme.cardBorder
 
     function defaultAction() {
         for (const a of notification.actions)
@@ -80,7 +80,7 @@ Rectangle {
                 anchors.centerIn: parent
                 visible: card.iconSource === ""
                 text: card.critical ? Icons.alert : Icons.bell
-                glyphColor: card.critical ? Color.urgent : Color.accent
+                glyphColor: card.critical ? Theme.urgent : Theme.accent
                 size: Style.fontTitle
             }
         }
@@ -95,7 +95,7 @@ Rectangle {
 
                 Text {
                     text: card.notification.summary
-                    color: Color.text
+                    color: Theme.text
                     font.family: Style.fontFamily
                     font.pixelSize: Style.fontBody
                     font.weight: Font.DemiBold
@@ -105,7 +105,7 @@ Rectangle {
                 Text {
                     id: app
                     text: card.notification.appName
-                    color: Color.muted
+                    color: Theme.muted
                     font.family: Style.fontFamily
                     font.pixelSize: Style.fontCaption
                     anchors.baseline: parent.children[0].baseline
@@ -117,7 +117,7 @@ Rectangle {
                 visible: card.notification.body !== ""
                 text: card.notification.body
                 textFormat: Text.StyledText
-                color: Color.subtext0
+                color: Theme.subtext0
                 font.family: Style.fontFamily
                 font.pixelSize: Style.fontSmall
                 wrapMode: Text.Wrap

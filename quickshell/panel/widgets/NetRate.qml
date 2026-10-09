@@ -31,14 +31,14 @@ Segment {
             width: Math.ceil(metrics.advanceWidth) + 2
             height: Style.segmentHeight
             text: Icons.arrowUp + " " + root.pad(Metrics.up)
-            color: Color.green
+            color: Theme.green
             font.pixelSize: Style.fontSmall
         }
         Label {
             width: Math.ceil(metrics.advanceWidth) + 2
             height: Style.segmentHeight
             text: Icons.arrowDown + " " + root.pad(Metrics.down)
-            color: Color.red
+            color: Theme.red
             font.pixelSize: Style.fontSmall
         }
     }

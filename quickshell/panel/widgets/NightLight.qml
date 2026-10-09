@@ -7,7 +7,7 @@ import qs.ui
 Segment {
     readonly property bool on: Toggles.has("nightlight")
     icon: Icons.nightlight
-    iconColor: on ? Color.peach : Color.overlay1
+    iconColor: on ? Theme.peach : Theme.overlay1
     tooltip: "right-click: auto " + (Sun.auto ? "off" : "on")
     onClicked: m => {
         if (m.button === Qt.RightButton)

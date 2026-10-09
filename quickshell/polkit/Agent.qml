@@ -88,7 +88,7 @@ Scope {
 
         Rectangle {
             anchors.fill: parent
-            color: Color.scrim
+            color: Theme.scrim
         }
 
         Rectangle {
@@ -97,9 +97,9 @@ Scope {
             width: 420
             height: column.implicitHeight + Style.cardPadding * 2 + 8
             radius: Style.cardRadius
-            color: Color.cardBg
+            color: Theme.cardBg
             border.width: 1
-            border.color: root.error ? Color.urgent : Color.cardBorder
+            border.color: root.error ? Theme.urgent : Theme.cardBorder
 
             Column {
                 id: column
@@ -117,7 +117,7 @@ Scope {
 
                     Glyph {
                         text: Icons.shield
-                        glyphColor: Color.accent
+                        glyphColor: Theme.accent
                         size: Style.fontTitle + 4
                         anchors.verticalCenter: parent.verticalCenter
                     }
@@ -127,7 +127,7 @@ Scope {
                         Text {
                             width: parent.width
                             text: "Authentication required"
-                            color: Color.text
+                            color: Theme.text
                             font.family: Style.fontFamily
                             font.pixelSize: Style.fontTitle
                             font.weight: Font.DemiBold
@@ -135,7 +135,7 @@ Scope {
                         Text {
                             width: parent.width
                             text: root.flow ? root.flow.message : ""
-                            color: Color.subtext0
+                            color: Theme.subtext0
                             font.family: Style.fontFamily
                             font.pixelSize: Style.fontSmall
                             wrapMode: Text.Wrap
@@ -147,7 +147,7 @@ Scope {
                     width: parent.width
                     visible: text !== ""
                     text: root.flow && root.flow.selectedIdentity ? "as " + root.flow.selectedIdentity : ""
-                    color: Color.muted
+                    color: Theme.muted
                     font.family: Style.fontFamily
                     font.pixelSize: Style.fontCaption
                 }
@@ -167,7 +167,7 @@ Scope {
                     width: parent.width
                     visible: text !== ""
                     text: root.error || (root.flow && root.flow.supplementaryMessage ? root.flow.supplementaryMessage : "")
-                    color: root.error || (root.flow && root.flow.supplementaryIsError) ? Color.urgent : Color.muted
+                    color: root.error || (root.flow && root.flow.supplementaryIsError) ? Theme.urgent : Theme.muted
                     font.family: Style.fontFamily
                     font.pixelSize: Style.fontCaption
                     wrapMode: Text.Wrap
@@ -177,7 +177,7 @@ Scope {
                     width: parent.width
                     horizontalAlignment: Text.AlignRight
                     text: (root.flow ? root.flow.actionId + "   " : "") + "Esc cancel · Enter submit"
-                    color: Color.overlay0
+                    color: Theme.overlay0
                     font.family: Style.fontFamily
                     font.pixelSize: Style.fontCaption
                     elide: Text.ElideLeft

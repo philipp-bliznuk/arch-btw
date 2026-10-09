@@ -23,7 +23,7 @@ Item {
 
         Glyph {
             text: root.glyph
-            glyphColor: Color.accent
+            glyphColor: Theme.accent
             size: Style.fontTitle
         }
 
@@ -41,12 +41,12 @@ Item {
                     visible: crumb.index > 0
                     height: parent.height
                     text: "›"
-                    color: Color.overlay0
+                    color: Theme.overlay0
                 }
                 Label {
                     height: parent.height
                     text: crumb.modelData
-                    color: crumb.index === root.crumbs.length - 1 ? Color.text : Color.muted
+                    color: crumb.index === root.crumbs.length - 1 ? Theme.text : Theme.muted
                 }
             }
         }
@@ -61,7 +61,7 @@ Item {
         Label {
             height: parent.height
             text: root.status
-            color: Color.muted
+            color: Theme.muted
             font.pixelSize: Style.fontCaption
         }
 
@@ -70,13 +70,13 @@ Item {
             width: modeLabel.implicitWidth + Style.spaceMd
             height: Style.segmentHeight - 6
             radius: Style.radius - 2
-            color: root.mode === "insert" ? Color.accent : Color.peach
+            color: root.mode === "insert" ? Theme.accent : Theme.peach
 
             Label {
                 id: modeLabel
                 anchors.centerIn: parent
                 text: root.mode.toUpperCase()
-                color: Color.base
+                color: Theme.base
                 font.pixelSize: Style.fontCaption
             }
         }

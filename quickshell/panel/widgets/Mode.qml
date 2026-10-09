@@ -15,7 +15,7 @@ Rectangle {
     implicitWidth: row.implicitWidth + Style.spaceMd * 2
     implicitHeight: Style.segmentHeight
     radius: Style.radius
-    color: Color.accent
+    color: Theme.accent
 
     Row {
         id: row
@@ -25,7 +25,7 @@ Rectangle {
         Label {
             anchors.verticalCenter: parent.verticalCenter
             text: root.mode.toUpperCase()
-            color: Color.crust
+            color: Theme.crust
             font.pixelSize: Style.fontCaption
             font.weight: Font.Bold
         }
@@ -33,7 +33,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             visible: text !== ""
             text: root.hints[root.mode] ?? "Esc to leave"
-            color: Color.crust
+            color: Theme.crust
             font.pixelSize: Style.fontCaption
         }
     }

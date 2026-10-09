@@ -7,7 +7,7 @@ Item {
     id: root
 
     property string text: ""
-    property color color: Color.text
+    property color color: Theme.text
     property int size: Style.fontSmall
     property int maxWidth: 200
     property int interval: 10000

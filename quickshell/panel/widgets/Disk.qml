@@ -5,7 +5,7 @@ import qs.ui
 // Free space on /.
 Segment {
     icon: Icons.disk
-    iconColor: Color.blue
+    iconColor: Theme.blue
     label: Metrics.disk
     hoverable: false
 }

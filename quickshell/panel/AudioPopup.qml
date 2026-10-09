@@ -123,7 +123,7 @@ PopupCard {
     }
 
     component Header: Label {
-        color: Color.muted
+        color: Theme.muted
         font.pixelSize: Style.fontCaption
     }
 
@@ -141,7 +141,7 @@ PopupCard {
         width: parent.width
         height: 38
         radius: Style.radius
-        color: root.cursor === slot ? Color.rowSelected : "transparent"
+        color: root.cursor === slot ? Theme.rowSelected : "transparent"
 
         Row {
             anchors.fill: parent
@@ -164,7 +164,7 @@ PopupCard {
                     anchors.centerIn: parent
                     visible: vr.iconPath === ""
                     text: vr.fallbackIcon
-                    glyphColor: vr.has && vr.node.audio.muted ? Color.muted : Color.text
+                    glyphColor: vr.has && vr.node.audio.muted ? Theme.muted : Theme.text
                 }
                 MouseArea {
                     anchors.fill: parent
@@ -180,7 +180,7 @@ PopupCard {
                 Label {
                     width: parent.width
                     text: vr.title
-                    color: Color.subtext0
+                    color: Theme.subtext0
                     font.pixelSize: Style.fontCaption
                 }
                 Slider {
@@ -218,10 +218,10 @@ PopupCard {
         readonly property bool current: kind === "device" ? modelData === root.sink : modelData === root.source
         readonly property int slot: root.slotOf(kind, modelData)
         glyph: root.deviceGlyph(modelData)
-        glyphColor: current ? Color.accent : Color.subtext0
+        glyphColor: current ? Theme.accent : Theme.subtext0
         title: modelData.description || modelData.name
         trailing: current ? "default" : ""
-        trailingColor: Color.accent
+        trailingColor: Theme.accent
         selected: root.cursor === slot
         onHoveredChanged: if (hovered) root.cursor = slot
         onClicked: {
@@ -245,7 +245,7 @@ PopupCard {
                 width: 32
                 height: 40
                 text: root.sink && root.sink.audio ? Icons.volumeFor(root.sink.audio.volume, root.sink.audio.muted) : Icons.volumeMute
-                glyphColor: root.allMuted ? Color.muted : Color.accent
+                glyphColor: root.allMuted ? Theme.muted : Theme.accent
                 size: Style.fontTitle + 8
             }
             Column {
@@ -261,7 +261,7 @@ PopupCard {
                 }
                 Label {
                     text: root.sink && root.sink.audio ? root.mood(root.sink.audio.volume, root.sink.audio.muted) : "No output"
-                    color: Color.muted
+                    color: Theme.muted
                     font.pixelSize: Style.fontCaption
                 }
             }
@@ -274,7 +274,7 @@ PopupCard {
                 Segment {
                     readonly property bool muted: !root.sink || !root.sink.audio || root.sink.audio.muted
                     icon: muted ? Icons.volumeMute : Icons.volumeHigh
-                    iconColor: muted ? Color.red : Color.text
+                    iconColor: muted ? Theme.red : Theme.text
                     label: "out"
                     labelSize: Style.fontCaption
                     active: root.cursor === 0
@@ -284,7 +284,7 @@ PopupCard {
                 Segment {
                     readonly property bool muted: !root.source || !root.source.audio || root.source.audio.muted
                     icon: muted ? Icons.micOff : Icons.mic
-                    iconColor: muted ? Color.red : Color.text
+                    iconColor: muted ? Theme.red : Theme.text
                     label: "mic"
                     labelSize: Style.fontCaption
                     active: root.cursor === 1
