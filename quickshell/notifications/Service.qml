@@ -40,13 +40,32 @@ Scope {
 
     function clearHistory() {
         history = [];
+        saveLater.stop();
         save();
     }
 
-    function record(n) {
+    // Coalesces the rewrites a progress-style sender causes with replaces_id.
+    Timer {
+        id: saveLater
+        interval: 300
+        onTriggered: root.save()
+    }
+
+    function record(n, time) {
         if (n.transient)
             return;
-        const rec = {
+        const rec = snapshot(n, time);
+        const i = history.findIndex(r => r.id === n.id && r.time === time);
+        history = i < 0 ? [rec].concat(history).slice(0, maxHistory) : history.map((r, k) => k === i ? rec : r);
+        saveLater.restart();
+    }
+
+    // History keeps the content last shown: a replaces_id update rewrites the
+    // live object, so the record written at arrival is re-snapshotted. The
+    // record's time is the arrival time and doubles as its key (the server
+    // reuses ids across generations).
+    function snapshot(n, time) {
+        return {
             id: n.id,
             appName: n.appName,
             appIcon: n.appIcon,
@@ -54,14 +73,47 @@ Scope {
             summary: n.summary,
             body: n.body,
             urgency: n.urgency,
-            time: Date.now()
+            time
         };
-        history = [rec].concat(history).slice(0, maxHistory);
-        save();
+    }
+
+    readonly property var updateSignals: ["summaryChanged", "bodyChanged", "appNameChanged", "appIconChanged", "imageChanged", "urgencyChanged"]
+
+    function watch(n, time) {
+        for (const s of updateSignals)
+            n[s].connect(() => root.record(n, time));
     }
 
     function save() {
         store.setText(JSON.stringify(history));
+    }
+
+    // Hints set by qs-notify: qs-glyph (Nerd glyph shown when there is no
+    // icon) and qs-exec-argv (JSON argv run on click when the sender has no
+    // default action; busctl callers cannot answer ActionInvoked).
+    function glyph(n) {
+        const g = n.hints["qs-glyph"];
+        return typeof g === "string" ? g : "";
+    }
+
+    function execArgv(n) {
+        try {
+            const argv = JSON.parse(n.hints["qs-exec-argv"]);
+            return Array.isArray(argv) && argv.length && argv.every(a => typeof a === "string") ? argv : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function activate(n) {
+        const a = n.actions.find(x => x.identifier === "default") ?? n.actions[0];
+        const argv = a ? null : execArgv(n);
+        if (a)
+            a.invoke();
+        else if (argv)
+            Commands.run({ argv });
+        if (!n.resident)
+            n.dismiss();
     }
 
     function toggleDnd() {
@@ -80,13 +132,8 @@ Scope {
 
     function actionLatest() {
         const n = latest();
-        if (!n)
-            return;
-        const a = n.actions.find(x => x.identifier === "default") ?? n.actions[0];
-        if (a)
-            a.invoke();
-        if (!n.resident)
-            n.dismiss();
+        if (n)
+            activate(n);
     }
 
     NotificationServer {
@@ -99,10 +146,12 @@ Scope {
         persistenceSupported: true
 
         onNotification: n => {
-            root.record(n);
+            const time = Date.now();
+            root.record(n, time);
             if (root.dnd && n.urgency !== NotificationUrgency.Critical)
                 return;
             n.tracked = true;
+            root.watch(n, time);
             n.closed.connect(() => root.remove(n));
             root.popups = root.popups.concat([n]);
         }

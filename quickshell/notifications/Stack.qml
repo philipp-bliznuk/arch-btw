@@ -41,6 +41,7 @@ PanelWindow {
             Card {
                 required property var modelData
                 width: column.width
+                service: win.service
                 notification: modelData
                 timeout: win.service.timeoutFor(modelData)
             }

@@ -5,9 +5,11 @@ import Quickshell.Widgets
 import Quickshell.Services.Notifications
 import qs.core
 import qs.ui
+import "Body.js" as Body
 
 Rectangle {
     id: card
+    required property var service
     required property var notification
     property int timeout: 5000
 
@@ -19,6 +21,7 @@ Rectangle {
             return Quickshell.iconPath(notification.appIcon, true);
         return "";
     }
+    readonly property bool iconShown: iconSource !== "" && icon.status !== Image.Error
 
     implicitHeight: body.implicitHeight + Style.cardPadding * 2
     radius: Style.cardRadius
@@ -26,17 +29,42 @@ Rectangle {
     border.width: 1
     border.color: critical ? Theme.urgent : Theme.cardBorder
 
-    function defaultAction() {
-        for (const a of notification.actions)
-            if (a.identifier === "default")
-                return a;
-        return null;
+    // Countdown pauses while hovered and resumes with what was left, instead
+    // of restarting. A replaces_id update rewrites the object under the card
+    // (no second onNotification), and new text deserves the full time again.
+    property real remaining: timeout
+    property double armedAt: 0
+
+    function arm() {
+        armedAt = Date.now();
+        expiry.interval = Math.max(1, remaining);
+        expiry.restart();
     }
 
+    function pause() {
+        expiry.stop();
+        remaining = Math.max(0, remaining - (Date.now() - armedAt));
+    }
+
+    function reset() {
+        remaining = timeout;
+        if (!hover.containsMouse)
+            arm();
+    }
+
+    Component.onCompleted: reset()
+    onTimeoutChanged: reset()
+
     Timer {
-        interval: card.timeout
-        running: !hover.containsMouse
+        id: expiry
         onTriggered: card.notification.expire()
+    }
+
+    Connections {
+        target: card.notification
+        function onSummaryChanged() { card.reset(); }
+        function onBodyChanged() { card.reset(); }
+        function onImageChanged() { card.reset(); }
     }
 
     MouseArea {
@@ -44,15 +72,12 @@ Rectangle {
         anchors.fill: parent
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
+        onContainsMouseChanged: containsMouse ? card.pause() : card.arm()
         onClicked: m => {
-            if (m.button !== Qt.LeftButton) {
+            if (m.button === Qt.LeftButton)
+                card.service.activate(card.notification);
+            else
                 card.notification.dismiss();
-                return;
-            }
-            const a = card.defaultAction();
-            if (a)
-                a.invoke();
-            card.notification.dismiss();
         }
     }
 
@@ -69,17 +94,17 @@ Rectangle {
         Item {
             width: 32
             height: 32
-            visible: true
 
             IconImage {
+                id: icon
                 anchors.fill: parent
-                visible: card.iconSource !== ""
+                visible: card.iconShown
                 source: card.iconSource
             }
             Glyph {
                 anchors.centerIn: parent
-                visible: card.iconSource === ""
-                text: card.critical ? Icons.alert : Icons.bell
+                visible: !card.iconShown
+                text: card.service.glyph(card.notification) || (card.critical ? Icons.alert : Icons.bell)
                 glyphColor: card.critical ? Theme.urgent : Theme.accent
                 size: Style.fontTitle
             }
@@ -95,6 +120,7 @@ Rectangle {
 
                 Text {
                     text: card.notification.summary
+                    textFormat: Text.PlainText
                     color: Theme.text
                     font.family: Style.fontFamily
                     font.pixelSize: Style.fontBody
@@ -105,6 +131,7 @@ Rectangle {
                 Text {
                     id: app
                     text: card.notification.appName
+                    textFormat: Text.PlainText
                     color: Theme.muted
                     font.family: Style.fontFamily
                     font.pixelSize: Style.fontCaption
@@ -114,8 +141,8 @@ Rectangle {
 
             Text {
                 width: parent.width
-                visible: card.notification.body !== ""
-                text: card.notification.body
+                visible: text !== ""
+                text: Body.styled(card.notification.body, card.notification.appName, card.notification.appIcon)
                 textFormat: Text.StyledText
                 color: Theme.subtext0
                 font.family: Style.fontFamily
