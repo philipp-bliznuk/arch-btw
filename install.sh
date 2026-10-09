@@ -41,6 +41,7 @@ PACKAGES=(
 	wlsunset power-profiles-daemon python-gobject # night light (qs-toggle), battery power profiles (Quickshell battery popup; powerprofilesctl needs gobject)
 	libqalculate systemd-ukify btrfs-assistant
 	pam-u2f libfido2 yubikey-manager ccid pcsc-tools
+	kguiaddons kwindowsystem # pinentry-qt links against these (gpg passphrase prompt)
 	librewolf
 	eza fzf fd ripgrep bat zoxide yazi ouch tmux fastfetch git-delta lazygit jujutsu podman
 	poppler ffmpeg 7zip jq go-yq btop tree # go-yq = mikefarah yq

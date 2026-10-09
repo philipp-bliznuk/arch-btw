@@ -349,7 +349,9 @@ step_yubikey_pam() {
 	pause "Now swap to YubiKey #2, then Enter"
 	pamu2fcfg -n -o pam://arch-yubikey -i pam://arch-yubikey >>"$tmp"
 
-	sudo install -o root -g root -m 600 "$tmp" /etc/u2f_mappings
+	# Public key handles only; world-readable so swaylock (runs as the user,
+	# not setuid) can verify the key too, not just sudo.
+	sudo install -o root -g root -m 644 "$tmp" /etc/u2f_mappings
 	rm -f "$tmp"
 
 	local pam=/etc/pam.d/system-auth
@@ -449,7 +451,7 @@ step_dotfiles() {
 step_keys() {
 	sudo systemctl enable --now pcscd.socket
 	GPG_TTY="$(tty)"
-	export GPG_TTY # pinentry-curses needs the tty while stdout is piped
+	export GPG_TTY # pinentry-qt falls back to curses here, needs the tty
 
 	mkdir -p "$HOME/.gnupg"
 	chmod 700 "$HOME/.gnupg"
@@ -458,7 +460,7 @@ disable-ccid
 pcsc-shared
 EOF
 	cat >"$HOME/.gnupg/gpg-agent.conf" <<'EOF'
-pinentry-program /usr/bin/pinentry-curses
+pinentry-program /usr/bin/pinentry-qt
 enable-ssh-support
 default-cache-ttl 604800
 max-cache-ttl 604800
