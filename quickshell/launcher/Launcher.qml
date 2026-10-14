@@ -553,7 +553,7 @@ Scope {
                     onAccepted: root.activate(root.current)
                     onEscaped: root.perform("escape")
                     onKeyPressed: e => {
-                        const a = KeyModel.insert(e, root.query !== "")
+                        const a = KeyModel.insert(e)
                         if (a && root.perform(a))
                             e.accepted = true
                     }

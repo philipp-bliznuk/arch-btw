@@ -50,11 +50,15 @@ PopupCard {
     }
 
     // Live input level for the INPUT row. Opens a capture stream on the
-    // source, so it only runs while the card is on screen.
+    // source, so it only runs while the card is on screen. `peak` is the cube
+    // root of the sample peak (quickshell's visual curve), which parks a quiet
+    // room's -24 dBFS noise floor near half scale; cubing it back gives the
+    // linear level: silence a few percent, speech mid-bar, clipping full.
     PwNodePeakMonitor {
         id: micPeak
         node: root.source
         enabled: root.open && root.source !== null
+        readonly property real level: Math.pow(peak, 3)
     }
 
     function mood(vol, muted) {
@@ -323,7 +327,7 @@ PopupCard {
 
         VolumeRow {
             node: root.source
-            peak: micPeak.enabled ? micPeak.peak : -1
+            peak: micPeak.enabled ? micPeak.level : -1
             fallbackIcon: root.source && root.source.audio && root.source.audio.muted ? Icons.micOff : Icons.mic
             title: root.source ? (root.source.description || root.source.name) : "No input"
         }

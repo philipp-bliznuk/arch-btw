@@ -12,19 +12,11 @@ Row {
     id: root
     property var screen
     readonly property var monitor: screen ? I3.monitorFor(screen) : null
-    property real wheelAcc: 0
     spacing: Style.spaceXs
 
     function occupied(ws) {
         const rep = ws.lastIpcObject ? ws.lastIpcObject.representation : null;
         return typeof rep === "string" && !rep.endsWith("[]");
-    }
-
-    function wheel(delta) {
-        const r = Util.wheelSteps(wheelAcc, delta);
-        wheelAcc = r.remainder;
-        for (let i = Math.abs(r.steps); i > 0; i--)
-            I3.dispatch(r.steps > 0 ? "workspace prev_on_output" : "workspace next_on_output");
     }
 
     Repeater {
@@ -68,7 +60,6 @@ Row {
             MouseArea {
                 anchors.fill: parent
                 onClicked: ws.modelData.activate()
-                onWheel: w => root.wheel(w.angleDelta.y)
             }
         }
     }

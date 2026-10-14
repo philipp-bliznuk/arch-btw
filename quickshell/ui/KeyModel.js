@@ -1,9 +1,10 @@
 // Vim key dispatch shared by the launcher and panel popups. Turns a Qt key
 // event into an action name; callers decide what the action means.
 //
-// insert(event, hasText)  - a text field owns typing and the caret (Left/Right
-//                           stay with it); only Ctrl combos and the remaining
-//                           navigation keys map. "" = let the field have it.
+// insert(event)           - a text field owns typing, Backspace and the caret
+//                           (Left/Right stay with it); only Ctrl combos and the
+//                           remaining navigation keys map. "" = let the field
+//                           have it.
 // normal(event)           - plain letters. Handles the `gg` prefix itself.
 //
 // Actions: up down halfUp halfDown top bottom activate left right back
@@ -33,9 +34,7 @@ SHARED[Qt.Key_Escape] = "escape"
 SHARED[Qt.Key_Delete] = "delete"
 
 var CTRL = {}
-CTRL[Qt.Key_N] = "down"
 CTRL[Qt.Key_J] = "down"
-CTRL[Qt.Key_P] = "up"
 CTRL[Qt.Key_K] = "up"
 CTRL[Qt.Key_D] = "halfDown"
 CTRL[Qt.Key_U] = "halfUp"
@@ -64,11 +63,9 @@ NORMAL[Qt.Key_Space] = "activate"
 var NORMAL_SHIFT = {}
 NORMAL_SHIFT[Qt.Key_G] = "bottom"
 
-function insert(e, hasText) {
+function insert(e) {
   if (e.key === Qt.Key_Left || e.key === Qt.Key_Right) return ""
   if (SHARED[e.key] !== undefined && plain(e)) return SHARED[e.key]
-  // Backspace (plain or Ctrl, which deletes a word natively) on an empty field
-  if (e.key === Qt.Key_Backspace && !hasText && !(e.modifiers & (Qt.AltModifier | Qt.MetaModifier))) return "back"
   if (!ctrl(e)) return ""
   return CTRL[e.key] || ""
 }
