@@ -34,6 +34,7 @@ readonly STEPS=(
 	"battery_limit:step_battery_limit"
 	"yubikey_pam:step_yubikey_pam"
 	"lock_pam:step_lock_pam"
+	"yubikey_power:step_yubikey_power"
 	"aur_helper:step_aur_helper"
 	"librewolf:step_librewolf"
 	"firecfg:step_firecfg"
@@ -396,6 +397,22 @@ step_lock_pam() {
 		sudo chmod 640 /etc/u2f_mappings
 	fi
 	success "PAM services qs-lock-password and qs-lock-u2f written."
+}
+
+# 92_pcscd_ccid.rules turns USB autosuspend on for every CCID device, the
+# YubiKey included. A suspended token freezes its ~29 s FIDO touch timeout, so
+# a pam_u2f child that died mid-assertion (unlock by password, shell restart)
+# leaves the token answering "busy" until it is replugged. Keep Yubico devices
+# awake; the rule sorts after 92_ and wins.
+step_yubikey_power() {
+	sudo install -o root -g root -m 644 /dev/stdin /etc/udev/rules.d/95-yubikey-no-autosuspend.rules <<-'EOF'
+		# Written by post-install.sh (yubikey_power). The FIDO touch timeout only runs
+		# while the USB device is awake; 92_pcscd_ccid.rules autosuspends CCID devices.
+		ACTION=="add|change", SUBSYSTEM=="usb", ATTR{idVendor}=="1050", TEST=="power/control", ATTR{power/control}="on"
+	EOF
+	sudo udevadm control --reload
+	sudo udevadm trigger --subsystem-match=usb --attr-match=idVendor=1050
+	success "USB autosuspend off for YubiKeys (95-yubikey-no-autosuspend.rules)."
 }
 
 # yay for AUR-only desktop apps (slack-desktop, zoom). yay-bin: no Go toolchain.

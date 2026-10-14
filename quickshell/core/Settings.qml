@@ -14,9 +14,9 @@ Singleton {
             weatherUnit: "metric",
             weatherRefreshMinutes: 15,
             nightLightAuto: true,
-            idleScreensaver: 300,
-            idleLock: 900,
-            idleSuspend: 1800,
+            idleScreensaver: 900,
+            idleLock: 1800,
+            idleSuspend: 3600,
             lockBlank: 10
         })
     property var data: ({})

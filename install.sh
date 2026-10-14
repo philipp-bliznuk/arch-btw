@@ -37,7 +37,7 @@ PACKAGES=(
 	wl-clipboard grim slurp kitty xorg-xwayland
 	xdg-desktop-portal-wlr xdg-desktop-portal-gtk
 	ttf-jetbrains-mono-nerd noto-fonts noto-fonts-cjk noto-fonts-emoji # cjk: fallback glyphs for app menus/titles (tray menus, window titles)
-	brightnessctl playerctl xdg-user-dirs man-db man-pages
+	brightnessctl xdg-user-dirs man-db man-pages
 	wlsunset power-profiles-daemon python-gobject # night light (qs-toggle), battery power profiles (Quickshell battery popup; powerprofilesctl needs gobject)
 	libqalculate systemd-ukify btrfs-assistant
 	pam-u2f libfido2 yubikey-manager ccid pcsc-tools
@@ -559,7 +559,8 @@ EOF
 [Login]
 HandleLidSwitch=suspend-then-hibernate
 HandleLidSwitchExternalPower=suspend-then-hibernate
-HandleLidSwitchDocked=ignore
+# external display attached: lock only (swayidle relays the Lock signal to qs-lock)
+HandleLidSwitchDocked=lock
 EOF
 
 	# Non-Mono variant on purpose - Mono clips icons.

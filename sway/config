@@ -28,9 +28,11 @@ output HDMI-A-2 mode 2560x1440@60Hz scale 1 position 1366 0
 exec qs-session start
 
 # Idle ladder (screensaver / lock / blank / suspend) and the lock screen live
-# in Quickshell (lock/). swayidle only bridges logind sleep: lock before
-# suspend (qs-lock falls back to swaylock), refresh clock-bound state after.
+# in Quickshell (lock/). swayidle only bridges logind: lock on its Lock signal
+# (lid closed while docked, loginctl lock-session), lock before suspend
+# (qs-lock falls back to swaylock), refresh clock-bound state after resume.
 exec swayidle -w \
+    lock 'qs-lock' \
     before-sleep 'qs-lock --wait' \
     after-resume 'qs-shell -q shell resume'
 

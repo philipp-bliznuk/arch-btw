@@ -44,6 +44,9 @@ reap() {
 
 supervise() {
 	export QS_DISABLE_CRASH_HANDLER=1
+	# QtWayland enables text input on a new lock surface before the compositor's
+	# enter arrives and warns about it on every lock; nothing to act on.
+	export QT_LOGGING_RULES="${QT_LOGGING_RULES:+$QT_LOGGING_RULES;}qt.qpa.wayland.textinput.warning=false"
 	echo $$ >"$pidfile"
 	local -a deaths=()
 	local rc now
