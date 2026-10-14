@@ -8,13 +8,23 @@ import Quickshell.Io
 import qs.ui
 
 // In-shell polkit authentication agent. Replaces polkit-gnome/-kde agents.
+// PAM runs its modules one after another, so while pam_u2f waits for a
+// YubiKey touch nothing can be typed: the field only exists while PAM asks
+// for text, a status row takes its place otherwise.
 Scope {
     id: root
 
     readonly property var flow: agent.flow
     readonly property bool active: agent.isActive
+    readonly property bool prompting: flow ? flow.isResponseRequired && !submitted : false
     property bool submitted: false
     property string error: ""
+    // PAM line shown under the field. quickshell never clears
+    // supplementaryMessage, so the pam_u2f cue would still sit there when the
+    // password prompt opens 29 s later; only a line that arrived with the
+    // prompt (faillock's lockout notice) or during it is kept.
+    property string note: ""
+    property double noteAt: 0
 
     function submit() {
         if (!flow || !flow.isResponseRequired || submitted)
@@ -32,6 +42,19 @@ Scope {
             flow.cancelAuthenticationRequest();
     }
 
+    // The field takes focus while it is shown; the scope around the card
+    // otherwise, so Esc still cancels during the touch wait.
+    function refocus() {
+        Qt.callLater(() => {
+            if (!win.visible)
+                return;
+            if (root.prompting)
+                field.input.forceActiveFocus();
+            else
+                scope.forceActiveFocus();
+        });
+    }
+
     // "Authentication is required to run `/usr/bin/x' as the super user" ->
     // "Run /usr/bin/x as the super user": the title already says the rest.
     function describe(message) {
@@ -40,14 +63,23 @@ Scope {
         return s.charAt(0).toUpperCase() + s.slice(1);
     }
 
+    function phase() {
+        if (submitted)
+            return "Checking";
+        if (flow && flow.supplementaryMessage)
+            return flow.supplementaryMessage;
+        return "Authenticating";
+    }
+
     PolkitAgent {
         id: agent
         path: "/org/qs/PolkitAgent"
         onAuthenticationRequestStarted: {
             root.submitted = false;
             root.error = "";
+            root.note = "";
             field.text = "";
-            Qt.callLater(() => field.input.forceActiveFocus());
+            root.refocus();
         }
     }
 
@@ -58,16 +90,24 @@ Scope {
         function onIsResponseRequiredChanged() {
             if (root.flow && root.flow.isResponseRequired) {
                 root.submitted = false;
-                Qt.callLater(() => field.input.forceActiveFocus());
+                root.note = Date.now() - root.noteAt < 1000 ? root.flow.supplementaryMessage : "";
             }
+            root.refocus();
+        }
+
+        function onSupplementaryMessageChanged() {
+            root.noteAt = Date.now();
+            if (root.prompting)
+                root.note = root.flow.supplementaryMessage;
         }
 
         function onAuthenticationFailed() {
             root.submitted = false;
             root.error = "Authentication failed";
+            root.note = "";
             field.text = "";
             shake.restart();
-            Qt.callLater(() => field.input.forceActiveFocus());
+            root.refocus();
         }
     }
 
@@ -95,6 +135,7 @@ Scope {
         WlrLayershell.namespace: "qs-polkit"
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: win.visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        onVisibleChanged: if (visible) root.refocus()
 
         Rectangle {
             anchors.fill: parent
@@ -120,88 +161,123 @@ Scope {
                 NumberAnimation { target: card; property: "shakeOffset"; to: 0; duration: 55; easing.type: Easing.OutQuad }
             }
 
-            Column {
-                id: column
-                anchors {
-                    left: parent.left
-                    right: parent.right
-                    top: parent.top
-                    margins: Style.cardPadding + 4
-                }
-                spacing: 10
+            // Holds keyboard focus whenever the field is hidden.
+            FocusScope {
+                id: scope
+                anchors.fill: parent
+                focus: true
+                Keys.onEscapePressed: root.cancel()
 
-                Row {
+                Column {
+                    id: column
+                    anchors {
+                        left: parent.left
+                        right: parent.right
+                        top: parent.top
+                        margins: Style.cardPadding + 4
+                    }
                     spacing: 10
-                    width: parent.width
 
-                    Glyph {
-                        text: Icons.shield
-                        glyphColor: Theme.accent
-                        size: Style.fontTitle + 4
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                    Column {
-                        width: parent.width - 30
-                        spacing: 2
-                        Text {
-                            width: parent.width
-                            text: "Authentication required"
-                            color: Theme.text
-                            font.family: Style.fontFamily
-                            font.pixelSize: Style.fontTitle
-                            font.weight: Font.DemiBold
+                    Row {
+                        spacing: 10
+                        width: parent.width
+
+                        Glyph {
+                            text: Icons.shield
+                            glyphColor: Theme.accent
+                            size: Style.fontTitle + 4
+                            anchors.verticalCenter: parent.verticalCenter
                         }
-                        Text {
-                            width: parent.width
-                            text: root.flow ? root.describe(root.flow.message) : ""
+                        Column {
+                            width: parent.width - 30
+                            spacing: 2
+                            Text {
+                                width: parent.width
+                                text: "Authentication required"
+                                color: Theme.text
+                                font.family: Style.fontFamily
+                                font.pixelSize: Style.fontTitle
+                                font.weight: Font.DemiBold
+                            }
+                            Text {
+                                width: parent.width
+                                text: root.flow ? root.describe(root.flow.message) : ""
+                                color: Theme.subtext0
+                                font.family: Style.fontFamily
+                                font.pixelSize: Style.fontSmall
+                                wrapMode: Text.Wrap
+                            }
+                        }
+                    }
+
+                    Text {
+                        width: parent.width
+                        visible: text !== ""
+                        text: root.flow && root.flow.selectedIdentity ? "as " + root.flow.selectedIdentity.displayName : ""
+                        color: Theme.muted
+                        font.family: Style.fontFamily
+                        font.pixelSize: Style.fontCaption
+                    }
+
+                    Field {
+                        id: field
+                        width: parent.width
+                        visible: root.prompting
+                        placeholder: root.flow && root.flow.inputPrompt ? root.flow.inputPrompt.replace(/:\s*$/, "") : "Password"
+                        echoMode: root.flow && root.flow.responseVisible ? TextInput.Normal : TextInput.Password
+                        onAccepted: root.submit()
+                        onEscaped: root.cancel()
+                    }
+
+                    // Same box as the field: PAM's own words while it waits
+                    // (the pam_u2f touch cue), "Checking" after a submit.
+                    Rectangle {
+                        id: status
+                        width: parent.width
+                        visible: !root.prompting
+                        height: Style.rowHeight
+                        radius: Style.radius
+                        color: Theme.surface0
+                        border.width: 1
+                        border.color: Theme.surface1
+
+                        Label {
+                            id: phaseLabel
+                            anchors.fill: parent
+                            anchors.leftMargin: Style.spaceLg
+                            anchors.rightMargin: Style.spaceLg
+                            text: root.phase()
                             color: Theme.subtext0
-                            font.family: Style.fontFamily
-                            font.pixelSize: Style.fontSmall
-                            wrapMode: Text.Wrap
+
+                            SequentialAnimation on opacity {
+                                running: status.visible && !root.submitted
+                                loops: Animation.Infinite
+                                onStopped: phaseLabel.opacity = 1
+                                NumberAnimation { to: 0.35; duration: 900; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: 1; duration: 900; easing.type: Easing.InOutSine }
+                            }
                         }
                     }
-                }
 
-                Text {
-                    width: parent.width
-                    visible: text !== ""
-                    text: root.flow && root.flow.selectedIdentity ? "as " + root.flow.selectedIdentity.displayName : ""
-                    color: Theme.muted
-                    font.family: Style.fontFamily
-                    font.pixelSize: Style.fontCaption
-                }
+                    Text {
+                        width: parent.width
+                        visible: text !== ""
+                        text: root.error || root.note
+                        color: root.error || (root.flow && root.flow.supplementaryIsError) ? Theme.urgent : Theme.muted
+                        font.family: Style.fontFamily
+                        font.pixelSize: Style.fontCaption
+                        wrapMode: Text.Wrap
+                    }
 
-                // Read-only, not disabled: a disabled item drops keyboard focus,
-                // and Esc must still cancel while PAM waits for a YubiKey touch.
-                Field {
-                    id: field
-                    width: parent.width
-                    placeholder: root.flow && root.flow.inputPrompt ? root.flow.inputPrompt.replace(/:\s*$/, "") : "Password"
-                    echoMode: root.flow && root.flow.responseVisible ? TextInput.Normal : TextInput.Password
-                    input.readOnly: root.flow ? !root.flow.isResponseRequired || root.submitted : true
-                    opacity: input.readOnly ? 0.5 : 1
-                    onAccepted: root.submit()
-                    onEscaped: root.cancel()
-                }
-
-                Text {
-                    width: parent.width
-                    visible: text !== ""
-                    text: root.error || (root.flow && root.flow.supplementaryMessage ? root.flow.supplementaryMessage : "")
-                    color: root.error || (root.flow && root.flow.supplementaryIsError) ? Theme.urgent : Theme.muted
-                    font.family: Style.fontFamily
-                    font.pixelSize: Style.fontCaption
-                    wrapMode: Text.Wrap
-                }
-
-                Text {
-                    width: parent.width
-                    horizontalAlignment: Text.AlignRight
-                    text: (root.flow ? root.flow.actionId + "   " : "") + "Esc cancel · Enter submit"
-                    color: Theme.overlay0
-                    font.family: Style.fontFamily
-                    font.pixelSize: Style.fontCaption
-                    elide: Text.ElideLeft
+                    Text {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignRight
+                        text: (root.flow ? root.flow.actionId + "   " : "") + (root.prompting ? "Esc cancel · Enter submit" : "Esc cancel")
+                        color: Theme.overlay0
+                        font.family: Style.fontFamily
+                        font.pixelSize: Style.fontCaption
+                        elide: Text.ElideLeft
+                    }
                 }
             }
         }
