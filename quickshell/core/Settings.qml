@@ -16,7 +16,8 @@ Singleton {
             nightLightAuto: true,
             idleScreensaver: 300,
             idleLock: 900,
-            idleSuspend: 1800
+            idleSuspend: 1800,
+            lockBlank: 10
         })
     property var data: ({})
 

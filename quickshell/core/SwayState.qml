@@ -11,7 +11,8 @@ import Quickshell.Io
 //
 // Quickshell.I3 only forwards workspace/output events, so one persistent
 // `swaymsg -m subscribe` here carries everything else the bar needs:
-// window (occupancy + fullscreen), mode (binding mode), input (xkb layout).
+// window (occupancy + fullscreen), mode (binding mode), input (xkb layout,
+// plus `added`, which sway emits for every device when the VT comes back).
 Singleton {
     id: root
 
@@ -25,8 +26,28 @@ Singleton {
     // Active binding mode ("default", "resize", "popup"…).
     property string mode: "default"
 
-    // Active xkb layout name as sway reports it ("English (US)").
+    // Active xkb layout name as sway reports it ("English (US)"), the
+    // configured list in sway's order, and the bar's short form of the active one.
     property string layoutName: ""
+    property var layoutNames: []
+    readonly property string layoutShort: shortName(layoutName)
+
+    // Fired once per device when sway (re)adds inputs: hotplug, or libinput
+    // resuming after a VT switch back to the compositor.
+    signal inputAdded
+
+    function shortName(name) {
+        if (!name)
+            return "";
+        const n = name.toLowerCase();
+        if (n.startsWith("english"))
+            return "US";
+        if (n.startsWith("ukrain"))
+            return "UA";
+        if (n.startsWith("russ"))
+            return "RU";
+        return name.split(" ")[0].slice(0, 2).toUpperCase();
+    }
 
     // Outputs showing a fullscreen window right now (fullscreen_mode 2 = all).
     // Read from sway's tree: foreign-toplevel screen lists flap during
@@ -62,10 +83,16 @@ Singleton {
                 try {
                     const kb = JSON.parse(text).find(i => i.type === "keyboard" && i.xkb_active_layout_name);
                     if (kb)
-                        root.layoutName = kb.xkb_active_layout_name;
+                        root.layout(kb);
                 } catch (e) {}
             }
         }
+    }
+
+    function layout(input) {
+        root.layoutName = input.xkb_active_layout_name;
+        if (Array.isArray(input.xkb_layout_names))
+            root.layoutNames = input.xkb_layout_names;
     }
 
     Connections {
@@ -99,10 +126,17 @@ Singleton {
             treeProbe.running = true;
     }
 
+    function onInput(ev) {
+        if (ev.change === "xkb_layout")
+            layout(ev.input);
+        else if (ev.change === "added")
+            inputAdded();
+    }
+
     function onEvent(line) {
         const ev = JSON.parse(line);
-        if (ev.input !== undefined && ev.change === "xkb_layout")
-            root.layoutName = ev.input.xkb_active_layout_name;
+        if (ev.input !== undefined)
+            onInput(ev);
         else if (ev.container !== undefined)
             onWindow(ev);
         else if (ev.pango_markup !== undefined)

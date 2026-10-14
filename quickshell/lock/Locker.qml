@@ -15,6 +15,12 @@ import qs.core
 // emptied after unlock, so a relaunched shell (crash, reload) locks again
 // and takes over the lock sway keeps on its own when the client dies.
 // Never bind on sessionLock.locked: unlock() does not emit its change signal.
+//
+// A pending pam_u2f child is never killed: the token keeps the assertion
+// it was asked for until its own ~29 s touch timeout and answers "busy"
+// meanwhile, so an unlock by password leaves the child waiting (a lock
+// within that window reuses it, a touch then unlocks at once) and failures
+// only slow the retries down, never stop them.
 Scope {
     id: root
 
@@ -32,13 +38,23 @@ Scope {
     property string status: ""
     property bool statusIsError: false
     property int u2fFastFails: 0
+    property int u2fAttempts: 0
     property double u2fStartedAt: 0
+    // Seconds of idle before the outputs go dark while locked; 0 keeps them on.
+    readonly property int blankAfter: Settings.get("lockBlank")
+    // The key press that lit the outputs again must not reach the field, nor
+    // its auto-repeats: a press in the dark outlasts sway's 200 ms repeat
+    // delay and would leave a trail of characters.
+    readonly property bool waking: wakeGrace.running
+    property int wakeKey: 0
 
     readonly property string hint: {
         if (authenticating)
             return "Checking";
-        if (u2fFastFails >= 3)
-            return "YubiKey not accepted, enter password";
+        if (u2fFastFails >= 6)
+            return "YubiKey not accepted, still retrying";
+        if (u2fFastFails > 0)
+            return "YubiKey busy, retrying";
         return fidoPresent ? "Touch YubiKey or enter password" : "Enter password";
     }
 
@@ -84,19 +100,23 @@ Scope {
         statusIsError = false;
         failures = 0;
         u2fFastFails = 0;
+        u2fAttempts = 0;
+        wakeKey = 0;
         requested = true;
         guard.restart();
         fidoScan.running = true;
+        console.info("lock: engaged");
     }
 
-    function unlock() {
-        abortAll();
+    function unlock(method: string) {
+        abortPassword();
         requested = false;
         authenticating = false;
         fidoPresent = false;
         typed = "";
         pending = "";
         flag.setText("");
+        console.info("lock: unlocked by " + method);
     }
 
     // The compositor never confirmed the lock. After `finished` (another
@@ -112,20 +132,47 @@ Scope {
             return;
         }
         console.warn("lock: another client holds the session lock");
-        abortAll();
+        abortPassword();
         requested = false;
         flag.setText("");
     }
 
-    function abortAll() {
+    // Only the password context is ever aborted: a killed pam_u2f child
+    // leaves the token busy with the assertion it was asked for.
+    function abortPassword() {
         if (password.active)
             password.abort();
-        if (u2f.active)
-            u2f.abort();
     }
 
     function outputs(on: bool) {
         Quickshell.execDetached(["swaymsg", "-q", "output * power " + (on ? "on" : "off")]);
+    }
+
+    // Dark outputs drop whatever was typed; the key press that lights them
+    // again is swallowed by the surfaces while `waking`.
+    function blank(off: bool) {
+        outputs(!off);
+        if (off)
+            typed = "";
+        else
+            wakeGrace.restart();
+    }
+
+    // Surfaces ask before handing a key to the field: the wake key is dropped,
+    // and so are its auto-repeats until it is released for real (Qt emits a
+    // synthetic release before every repeated press).
+    function swallows(event: var): bool {
+        if (event.isAutoRepeat)
+            return event.key === wakeKey;
+        if (!waking)
+            return false;
+        wakeKey = event.key;
+        return true;
+    }
+
+    function released(event: var) {
+        if (!event.isAutoRepeat && event.key === wakeKey)
+            wakeKey = 0;
     }
 
     function submit() {
@@ -146,6 +193,7 @@ Scope {
         failures += 1;
         status = text;
         statusIsError = true;
+        console.info("lock: password rejected");
     }
 
     function failureText(result: int): string {
@@ -159,15 +207,24 @@ Scope {
     function armU2f() {
         if (!requested || !sessionLock.secure || !fidoPresent || u2f.active)
             return;
-        if (u2fFastFails >= 3 || !u2fPam.loaded)
+        if (!u2fPam.loaded)
             return;
         u2fStartedAt = Date.now();
+        u2fAttempts += 1;
+        console.info("lock: u2f attempt " + u2fAttempts);
         if (!u2f.start())
-            u2fEnded();
+            u2fEnded(PamResult.Error);
     }
 
-    function u2fEnded() {
-        u2fFastFails = Date.now() - u2fStartedAt < 2000 ? u2fFastFails + 1 : 0;
+    // A fast failure means the token answered without waiting for a touch:
+    // busy with an earlier assertion, not yet readable (uaccess ACL), or a
+    // token that is not enrolled. Retries slow down to 5 s but never stop.
+    function u2fEnded(result: int) {
+        const elapsed = Date.now() - u2fStartedAt;
+        const fast = elapsed < 2000;
+        u2fFastFails = fast ? u2fFastFails + 1 : 0;
+        rearm.interval = Math.min(750 * 2 ** u2fFastFails, 5000);
+        console.info("lock: u2f " + (fast ? "failed fast" : "ended") + " (" + result + ") after " + elapsed + " ms, retry in " + rearm.interval + " ms");
         rearm.restart();
     }
 
@@ -178,6 +235,9 @@ Scope {
             fallback: swaylock.running,
             pam: passwordPam.loaded,
             u2f: u2fPam.loaded,
+            u2fActive: u2f.active,
+            u2fAttempts: u2fAttempts,
+            u2fFast: u2fFastFails,
             fido: fidoPresent,
             authenticating: authenticating,
             failures: failures
@@ -260,27 +320,32 @@ Scope {
         }
         onCompleted: result => {
             if (result === PamResult.Success) {
-                root.unlock();
+                root.unlock("password");
                 return;
             }
             root.fail(root.failureText(result));
         }
     }
 
-    // pam_u2f blocks until the key is touched or the token's own timeout
-    // passes, then fails; start it again while a token is plugged in. 750 ms
-    // between runs keeps a key that fails at once (ACL not yet applied,
-    // foreign token) from forking PAM in a loop; three fast failures in a row
-    // stop the retries until the token is replugged.
+    // pam_u2f blocks until the key is touched or the token's own ~29 s
+    // timeout passes, then fails; start it again while a token is plugged in.
+    // Failures double the pause between runs (750 ms, capped at 5 s) and never
+    // stop them: a token that answers "busy" (still holding an earlier
+    // assertion), one the uaccess ACL has not reached yet or a foreign one all
+    // fail within a second. The child is kept across a password unlock, so a
+    // completion must check that the lock is still wanted. The USB autosuspend
+    // rule from post-install keeps the token awake so its timeout runs.
     PamContext {
         id: u2f
         config: "qs-lock-u2f"
         onCompleted: result => {
+            if (!root.requested)
+                return;
             if (result === PamResult.Success) {
-                root.unlock();
+                root.unlock("yubikey");
                 return;
             }
-            root.u2fEnded();
+            root.u2fEnded(result);
         }
     }
 
@@ -290,15 +355,38 @@ Scope {
         onTriggered: root.armU2f()
     }
 
-    // Outputs off 5 s into idle while locked, on again on activity; the awake
-    // toggle and playing media do not keep a locked screen lit. Unlock
-    // disables the monitor, which reads as not idle: outputs come back on
-    // even after a key touch, which is not compositor activity.
+    Timer {
+        id: wakeGrace
+        interval: 100
+    }
+
+    // Outputs off `lockBlank` seconds into idle while locked, on again on
+    // activity; the awake toggle and playing media do not keep a locked screen
+    // lit. Unlock disables the monitor, which reads as not idle: outputs come
+    // back on even after a key touch, which is not compositor activity.
     IdleMonitor {
-        enabled: sessionLock.secure || swaylock.running
+        enabled: root.blankAfter > 0 && (sessionLock.secure || swaylock.running)
         respectInhibitors: false
-        timeout: 5
-        onIsIdleChanged: root.outputs(!isIdle)
+        timeout: root.blankAfter
+        onIsIdleChanged: root.blank(isIdle)
+    }
+
+    // A VT switch destroys every output; the blank monitor's `power off` is
+    // stored by sway and applied to the outputs recreated on the way back, so
+    // they come back dark. Sway emits `input added` for each device when
+    // libinput resumes there; one relight covers the whole burst.
+    Connections {
+        target: SwayState
+        function onInputAdded() {
+            if (root.requested || swaylock.running)
+                relight.restart();
+        }
+    }
+
+    Timer {
+        id: relight
+        interval: 300
+        onTriggered: root.outputs(true)
     }
 
     Process {

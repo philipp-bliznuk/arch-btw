@@ -8,7 +8,9 @@ import qs.ui
 
 // One lock surface per output: blurred wallpaper, clock, password field.
 // Typed text lives in the service so every output shows the same dots;
-// whichever surface holds the keyboard edits it.
+// whichever surface holds the keyboard edits it. The key press that wakes
+// dark outputs is swallowed (service.swallows, with its auto-repeats), and a
+// badge names the xkb layout whenever it is not the first one.
 WlSessionLockSurface {
     id: surface
 
@@ -95,7 +97,7 @@ WlSessionLockSurface {
             TextInput {
                 id: input
                 anchors.left: icon.right
-                anchors.right: parent.right
+                anchors.right: badge.visible ? badge.left : parent.right
                 anchors.leftMargin: Style.spaceLg
                 anchors.rightMargin: Style.spaceLg
                 anchors.verticalCenter: parent.verticalCenter
@@ -106,18 +108,22 @@ WlSessionLockSurface {
                 font.pixelSize: Style.fontTitle
                 font.weight: Style.fontWeight
                 renderType: Style.renderType
-                readOnly: surface.service.authenticating
                 focus: true
                 clip: true
                 onTextEdited: surface.service.typed = text
                 onAccepted: surface.service.submit()
                 Keys.onPressed: event => {
+                    if (surface.service.swallows(event)) {
+                        event.accepted = true;
+                        return;
+                    }
                     const clear = event.key === Qt.Key_Escape || (event.key === Qt.Key_U && event.modifiers & Qt.ControlModifier);
                     if (!clear)
                         return;
                     event.accepted = true;
                     surface.service.typed = "";
                 }
+                Keys.onReleased: event => surface.service.released(event)
 
                 Connections {
                     target: surface.service
@@ -127,6 +133,19 @@ WlSessionLockSurface {
                             input.text = surface.service.typed;
                     }
                 }
+            }
+
+            // Active layout when it is not the first one: a password typed in
+            // the wrong layout is the usual reason the lock refuses it.
+            Label {
+                id: badge
+                anchors.right: parent.right
+                anchors.rightMargin: Style.spaceLg
+                anchors.verticalCenter: parent.verticalCenter
+                text: SwayState.layoutShort
+                font.pixelSize: Style.fontSmall
+                color: Theme.peach
+                visible: SwayState.layoutNames.length > 1 && SwayState.layoutName !== SwayState.layoutNames[0]
             }
         }
 
