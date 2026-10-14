@@ -48,12 +48,15 @@ Rectangle {
 
     function reset() {
         remaining = timeout;
-        if (!hover.containsMouse)
+        if (!hover.containsMouse && visible)
             arm();
     }
 
     Component.onCompleted: reset()
     onTimeoutChanged: reset()
+    // Cards past the visible limit wait hidden and start a full countdown
+    // when they surface.
+    onVisibleChanged: visible ? reset() : expiry.stop()
 
     Timer {
         id: expiry

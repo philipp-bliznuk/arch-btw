@@ -14,11 +14,12 @@ Scope {
     readonly property int maxHistory: 50
     readonly property bool dnd: Toggles.has("dnd")
 
-    // live Notification objects awaiting display
-    property var popups: []
+    // live Notification objects awaiting display; a model, so the stack adds
+    // and removes single cards instead of rebuilding all of them (a rebuild
+    // restarted every countdown)
+    readonly property ListModel popups: ListModel {}
     // plain records, newest first
     property var history: []
-    readonly property var visible: popups.slice(0, maxVisible)
 
     function timeoutFor(n) {
         if (n.urgency === NotificationUrgency.Critical)
@@ -28,14 +29,23 @@ Scope {
         return 5000;
     }
 
+    function all() {
+        const out = [];
+        for (let i = 0; i < popups.count; i++)
+            out.push(popups.get(i).notification);
+        return out;
+    }
+
     function remove(n) {
-        popups = popups.filter(p => p !== n);
+        const i = all().indexOf(n);
+        if (i >= 0)
+            popups.remove(i);
     }
 
     function dismissAll() {
-        for (const n of popups.slice())
+        for (const n of all())
             n.dismiss();
-        popups = [];
+        popups.clear();
     }
 
     function clearHistory() {
@@ -121,7 +131,7 @@ Scope {
     }
 
     function latest() {
-        return popups.length ? popups[popups.length - 1] : null;
+        return popups.count ? popups.get(popups.count - 1).notification : null;
     }
 
     function dismissLatest() {
@@ -153,7 +163,7 @@ Scope {
             n.tracked = true;
             root.watch(n, time);
             n.closed.connect(() => root.remove(n));
-            root.popups = root.popups.concat([n]);
+            root.popups.append({ notification: n });
         }
     }
 
@@ -192,7 +202,7 @@ Scope {
         }
 
         function count(): int {
-            return root.popups.length;
+            return root.popups.count;
         }
 
         function dismissLatest(): void {
