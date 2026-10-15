@@ -35,6 +35,7 @@ readonly STEPS=(
 	"yubikey_pam:step_yubikey_pam"
 	"lock_pam:step_lock_pam"
 	"yubikey_power:step_yubikey_power"
+	"lid:step_lid"
 	"aur_helper:step_aur_helper"
 	"librewolf:step_librewolf"
 	"firecfg:step_firecfg"
@@ -374,6 +375,9 @@ step_yubikey_pam() {
 # Password: system-auth's unix stack without pam_systemd_home (no homed here)
 # and without nullok. YubiKey: pam_u2f alone, presence only (no PIN), on a
 # second PAM context that waits for a touch while the password field is live.
+# pam_faillock keeps its tally in /run/faillock/$USER inside a root-only dir;
+# the lock screen runs PAM as the user and cannot create that file, so a
+# tmpfiles rule creates it at boot (same owner and mode pam_faillock uses).
 step_lock_pam() {
 	sudo install -o root -g root -m 644 /dev/stdin /etc/pam.d/qs-lock-password <<-'EOF'
 		#%PAM-1.0
@@ -384,19 +388,26 @@ step_lock_pam() {
 		auth       optional                    pam_permit.so
 		auth       required                    pam_env.so
 		auth       required                    pam_faillock.so  authsucc
+		# inert: quickshell's PamContext only calls pam_authenticate
 		account    include                     system-auth
 	EOF
 	sudo install -o root -g root -m 644 /dev/stdin /etc/pam.d/qs-lock-u2f <<-'EOF'
 		#%PAM-1.0
 		# Quickshell lock screen, YubiKey touch. Written by post-install.sh (lock_pam).
 		auth       required   pam_u2f.so  authfile=/etc/u2f_mappings cue origin=pam://arch-yubikey appid=pam://arch-yubikey
+		# inert: quickshell's PamContext only calls pam_authenticate
 		account    include    system-auth
 	EOF
 	if [[ -f /etc/u2f_mappings ]]; then
 		sudo chgrp "$(id -gn)" /etc/u2f_mappings
 		sudo chmod 640 /etc/u2f_mappings
 	fi
-	success "PAM services qs-lock-password and qs-lock-u2f written."
+	sudo install -o root -g root -m 644 /dev/stdin /etc/tmpfiles.d/qs-faillock.conf <<-EOF
+		# Written by post-install.sh (lock_pam): faillock tally the user-run lock screen can update.
+		f /run/faillock/$(id -un) 0660 $(id -un) root -
+	EOF
+	sudo systemd-tmpfiles --create /etc/tmpfiles.d/qs-faillock.conf
+	success "PAM services qs-lock-password and qs-lock-u2f written, faillock tally file created."
 }
 
 # 92_pcscd_ccid.rules turns USB autosuspend on for every CCID device, the
@@ -413,6 +424,22 @@ step_yubikey_power() {
 	sudo udevadm control --reload
 	sudo udevadm trigger --subsystem-match=usb --attr-match=idVendor=1050
 	success "USB autosuspend off for YubiKeys (95-yubikey-no-autosuspend.rules)."
+}
+
+# Lid policy. Closing the lid suspends, then hibernates, on battery and on AC
+# alike. With an external display attached logind counts the laptop as docked,
+# and then the lid only locks: swayidle relays logind's Lock signal to qs-lock.
+step_lid() {
+	sudo install -o root -g root -m 644 /dev/stdin /etc/systemd/logind.conf.d/00-lid.conf <<-'EOF'
+		# Written by post-install.sh (lid).
+		[Login]
+		HandleLidSwitch=suspend-then-hibernate
+		HandleLidSwitchExternalPower=suspend-then-hibernate
+		# external display attached: lock only (swayidle relays the Lock signal to qs-lock)
+		HandleLidSwitchDocked=lock
+	EOF
+	sudo systemctl reload systemd-logind
+	success "Lid policy written (00-lid.conf), logind reloaded."
 }
 
 # yay for AUR-only desktop apps (slack-desktop, zoom). yay-bin: no Go toolchain.

@@ -37,6 +37,10 @@ Scope {
     property string pending: ""
     property string status: ""
     property bool statusIsError: false
+    // PAM info lines collected during one password attempt (faillock notice)
+    property var notes: []
+    // a swaylock this shell did not start holds the session lock
+    property bool foreignLock: false
     property int u2fFastFails: 0
     property int u2fAttempts: 0
     property double u2fStartedAt: 0
@@ -61,6 +65,8 @@ Scope {
     function lock(): string {
         if (requested)
             return "already";
+        if (swaylock.running || foreignLock)
+            return "fallback";
         if (!pamReady())
             return fallback();
         // FileView skips a write whose text equals the last one, so the flag
@@ -135,6 +141,7 @@ Scope {
         abortPassword();
         requested = false;
         flag.setText("");
+        foreignWatch.running = true;
     }
 
     // Only the password context is ever aborted: a killed pam_u2f child
@@ -183,17 +190,21 @@ Scope {
         authenticating = true;
         status = "";
         statusIsError = false;
+        notes = [];
         if (!password.start())
             fail("Could not start authentication");
     }
 
+    // PAM's own words win over the generic text: faillock announces a
+    // lockout ("account is locked", "N minutes left") through them, and a
+    // correct password rejected without that notice reads as a shell bug.
     function fail(text: string) {
         authenticating = false;
         pending = "";
         failures += 1;
-        status = text;
+        status = notes.length ? notes.join(" ") : text;
         statusIsError = true;
-        console.info("lock: password rejected");
+        console.info("lock: password rejected" + (notes.length ? " (" + notes.join(" ") + ")" : ""));
     }
 
     function failureText(result: int): string {
@@ -233,6 +244,7 @@ Scope {
             locked: requested,
             secure: sessionLock.secure,
             fallback: swaylock.running,
+            foreign: foreignLock,
             pam: passwordPam.loaded,
             u2f: u2fPam.loaded,
             u2fActive: u2f.active,
@@ -254,6 +266,7 @@ Scope {
     // Also the path taken on every config reload while locked.
     Component.onCompleted: {
         mkdir.running = true;
+        foreignWatch.running = true;
         if (flag.text().trim() === "")
             return;
         if (pamReady())
@@ -265,7 +278,7 @@ Scope {
     Binding {
         target: Lock
         property: "locked"
-        value: root.requested || swaylock.running
+        value: root.requested || swaylock.running || root.foreignLock
     }
 
     Binding {
@@ -317,6 +330,11 @@ Scope {
                 return;
             respond(root.pending);
             root.pending = "";
+        }
+        onPamMessage: {
+            if (responseRequired || message.trim() === "")
+                return;
+            root.notes = root.notes.concat([message.trim()]);
         }
         onCompleted: result => {
             if (result === PamResult.Success) {
@@ -392,6 +410,19 @@ Scope {
     Process {
         id: swaylock
         command: ["swaylock"]
+    }
+
+    // A swaylock started outside the shell (qs-lock when the shell did not
+    // answer, the recovery recipe) holds the session lock without the shell
+    // knowing; Lock.locked must cover it so no exclusive-focus window maps
+    // over it. Exits at once when none runs, otherwise when it is gone.
+    Process {
+        id: foreignWatch
+        command: ["bash", "-c", "pgrep -u \"$(id -u)\" -x swaylock >/dev/null || exit 0; echo locked; while pgrep -u \"$(id -u)\" -x swaylock >/dev/null; do sleep 1; done"]
+        stdout: SplitParser {
+            onRead: root.foreignLock = !swaylock.running
+        }
+        onExited: root.foreignLock = false
     }
 
     Process {

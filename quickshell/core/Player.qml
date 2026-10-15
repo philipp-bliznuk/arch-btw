@@ -69,12 +69,17 @@ Singleton {
         return String(s).toLowerCase().replace(/^pipewire alsa \[/, "").replace(/^alsa playback \[/, "").replace(/\]$/, "").replace(/[^a-z0-9]+/g, "");
     }
 
-    // Identity and desktop entry against the stream's binary, app name and
-    // node name, both sides reduced to alphanumerics. Not the D-Bus name:
-    // LibreWolf registers as "firefox" and would claim Firefox's streams.
+    // Identity and desktop entry against the stream's binary, both sides
+    // reduced to alphanumerics; app name and node name only when the stream
+    // carries no binary (Electron apps all report "Chromium" as their name,
+    // so a Chromium player would otherwise claim every Electron stream).
+    // Not the D-Bus name: LibreWolf registers as "firefox" and would claim
+    // Firefox's streams.
     function owns(node, p) {
         const props = node.properties || {};
-        const tags = [props["application.process.binary"], props["application.name"], node.name].filter(x => x).map(key).filter(x => x);
+        const binary = props["application.process.binary"];
+        const raw = binary ? [binary] : [props["application.name"], node.name];
+        const tags = raw.filter(x => x).map(key).filter(x => x);
         const ids = [p.desktopEntry, p.identity].filter(x => x).map(key).filter(x => x);
         return tags.some(t => ids.some(i => t.includes(i) || i.includes(t)));
     }

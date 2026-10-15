@@ -153,7 +153,10 @@ Rectangle {
                 wrapMode: Text.Wrap
                 maximumLineCount: 4
                 elide: Text.ElideRight
-                onLinkActivated: link => Commands.run({ argv: ["xdg-open", link] })
+                onLinkActivated: link => {
+                    if (/^https?:\/\//.test(link))
+                        Commands.run({ argv: ["xdg-open", link] });
+                }
             }
 
             Flow {

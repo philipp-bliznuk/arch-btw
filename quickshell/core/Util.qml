@@ -13,6 +13,8 @@ QtObject {
     // on `steps` only. A direction change drops what was accumulated.
     function wheelSteps(remainder, delta) {
         const d = clamp(delta, -120, 120);
+        if (!d)
+            return { steps: 0, remainder };
         const acc = remainder && Math.sign(remainder) !== Math.sign(d) ? 0 : remainder;
         const total = acc + d;
         const steps = Math.trunc(total / 120);

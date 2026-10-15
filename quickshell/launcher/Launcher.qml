@@ -168,6 +168,7 @@ Scope {
     // the list ends mid-row: a clipped row is what tells the eye there is
     // more below the fold, so it never comes out even on a row boundary.
     function foldedHeight(heights, available, peek) {
+        available = Math.max(0, available)
         let total = 0
         const totals = heights.map(h => total += h)
         if (total <= available)
@@ -175,7 +176,7 @@ Scope {
         let full = totals.filter(t => t <= available).length
         while (full > 1 && totals[full - 1] + peek > available)
             full--
-        return full > 0 ? totals[full - 1] + peek : available
+        return full > 0 ? Math.min(available, totals[full - 1] + peek) : available
     }
 
     // Contain alone parks the cursor row flush with the viewport edge and

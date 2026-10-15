@@ -554,15 +554,6 @@ EOF
 HibernateDelaySec=1h
 EOF
 
-	mkdir -p /etc/systemd/logind.conf.d
-	cat >/etc/systemd/logind.conf.d/00-lid.conf <<'EOF'
-[Login]
-HandleLidSwitch=suspend-then-hibernate
-HandleLidSwitchExternalPower=suspend-then-hibernate
-# external display attached: lock only (swayidle relays the Lock signal to qs-lock)
-HandleLidSwitchDocked=lock
-EOF
-
 	# Non-Mono variant on purpose - Mono clips icons.
 	cat >/etc/fonts/local.conf <<'EOF'
 <?xml version="1.0"?>

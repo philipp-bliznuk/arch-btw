@@ -21,7 +21,7 @@ import_env() {
 }
 
 start_qs() {
-	pgrep -x quickshell >/dev/null && return 0
+	pgrep -u "$UID" -x quickshell >/dev/null && return 0
 	[[ -n "$(kill_targets)" ]] && return 0 # supervisor alive, mid-relaunch
 	setsid -f "$here"/qs-session supervise >/dev/null 2>&1
 }
@@ -65,6 +65,9 @@ supervise() {
 		fi
 		logger -t qs-session "quickshell exited with $rc, relaunching" || true
 		sleep 1
+		# compositor gone (sway exited): stop here, or autologin's fresh sway finds a
+		# shell bound to the dead SWAYSOCK and its own `qs-session start` skips
+		swaymsg -q -t get_version >/dev/null 2>&1 || break
 	done
 	rm -f "$pidfile"
 }
@@ -83,7 +86,7 @@ kill_targets() {
 			echo "-$p"
 		fi
 	fi
-	for p in $(pgrep -x quickshell || true); do
+	for p in $(pgrep -u "$UID" -x quickshell || true); do
 		pgid="$(ps -o pgid= -p "$p" 2>/dev/null | tr -d ' ')"
 		case "$(ps -o args= -p "${pgid:-0}" 2>/dev/null)" in
 		quickshell* | *qs-session*) echo "-$pgid" ;;
@@ -124,8 +127,8 @@ reapply_toggles() {
 case "${1:-start}" in
 start)
 	# fresh sway session: a lock flag left by a session that died must not
-	# lock the new one
-	rm -f "$runtime/locked"
+	# lock the new one; with a shell running the flag is its crash-relock cover
+	pgrep -u "$UID" -x quickshell >/dev/null || rm -f "$runtime/locked"
 	import_env
 	start_qs
 	wait_ready

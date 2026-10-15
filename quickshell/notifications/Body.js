@@ -1,7 +1,8 @@
 // Notification body text as the card renders it. The body is StyledText so
 // the markup advertised by bodyMarkupSupported works, but StyledText honours
 // <img src> and a remote src makes the shell issue an unauthenticated GET
-// with no user action. Image tags go before the renderer sees them.
+// with no user action. Only tags on an allowlist reach the renderer; every
+// other `<` is escaped before Qt sees it.
 .pragma library
 
 function isChromiumDerived(app, appIcon) {
@@ -9,25 +10,36 @@ function isChromiumDerived(app, appIcon) {
   return ["chrom", "brave", "vivaldi", "microsoft-edge", "opera"].some(k => source.indexOf(k) >= 0)
 }
 
-// Tag name read the way Qt's parser reads it: after `<`, skip everything up
-// to the first run of letters and digits. QQuickStyledText skips
-// QChar::isSpace(), which is not `\s` (Qt counts U+0085 NEL, `\s` does not),
-// so no separator class is matched; over-skipping only ever classifies more
-// runs as images, and dropping a run cannot manufacture a tag.
-function isImageTag(tag) {
-  var name = /^<[^A-Za-z0-9]*([A-Za-z0-9]+)/.exec(tag)
-  return !!name && name[1].toLowerCase() === "img"
+// Chromium prefixes the body with the page origin (as a link or plain text).
+// The bare form must carry a scheme or `www.`, or a leading `name.ext` word
+// ("Node.js is ready") would go with it.
+function sanitize(body, app, appIcon) {
+  var text = String(body || "")
+  if (!isChromiumDerived(app, appIcon)) return text
+  return text
+    .replace(/^\s*<a\b[^>]*>\s*(?:https?:\/\/|www\.)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:\/[^<\s]*)?\s*<\/a>\s*/i, "")
+    .replace(/^\s*(?:https?:\/\/|www\.)(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:\/\S*)?\s+/i, "")
 }
 
-// Whole tags only, never substrings of one. A `<` opens a tag that runs to
-// the next `>`, nested `<` and all, and only a tag named `img` is dropped.
-// A naive /<img[^>]*>/g is unsafe: removing the inner match from
-// `<im<img src=a>g src=b>` closes the halves into a live `<img src=b>` the
-// input never contained. Qt lets `>` inside a quoted attribute pass; taking
-// the shorter run here only ever splits one Qt tag into several, which can
-// expose an `<img` to drop, never hide one. Since every `<` opens a tag, text
-// between tags holds none, so one pass is enough.
-function stripImageTags(text) {
+// Tags that pass through verbatim, spelled the one way Qt recognises them.
+// Each is a fixed string or an href whose value holds no quote, whitespace or
+// angle bracket, so Qt reads exactly the characters matched here.
+var allowed = [
+  /^<\/?(?:b|i|u|s|em|strong|del|p)>$/,
+  /^<br\s*\/?>$/,
+  /^<a href=(["'])https?:\/\/[^"'<>\s]+\1>$/,
+  /^<\/a>$/
+]
+
+// Re-serialise rather than mirror Qt's grammar. QQuickStyledText gives up on
+// a tag before its `>` (an `=` with no name, an empty or mismatched quote)
+// and resumes reading text one character later, so `<a ="x<img src=u>` is an
+// image to Qt and one harmless tag to any scanner that runs to the `>`. Here
+// a `<` either opens a tag on the allowlist, taken up to the next `>`, or
+// becomes `&lt;` and the scan goes on from the next character, so a `<`
+// nested in a rejected tag is judged on its own. Qt turns `&lt;` into text
+// and never parses that text again.
+function escapeTags(text) {
   var out = ""
   var i = 0
   while (i < text.length) {
@@ -38,26 +50,21 @@ function stripImageTags(text) {
     }
     out += text.slice(i, open)
     var close = text.indexOf(">", open)
-    var tag = close === -1 ? text.slice(open) : text.slice(open, close + 1)
-    if (!isImageTag(tag)) out += tag
-    i = close === -1 ? text.length : close + 1
+    var tag = close === -1 ? "" : text.slice(open, close + 1)
+    if (allowed.some(re => re.test(tag))) {
+      out += tag
+      i = close + 1
+    } else {
+      out += "&lt;"
+      i = open + 1
+    }
   }
   return out
 }
 
-// Chromium prefixes the body with the page origin (as a link or plain text).
-function sanitize(body, app, appIcon) {
-  var text = stripImageTags(String(body || ""))
-  if (!isChromiumDerived(app, appIcon)) return text
-  return text
-    .replace(/^\s*<a\b[^>]*>\s*(?:https?:\/\/|www\.)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:\/[^<\s]*)?\s*<\/a>\s*/i, "")
-    .replace(/^\s*(?:https?:\/\/|www\.)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:\/\S*)?\s+/i, "")
-}
-
-// Last thing to touch the string before Qt parses it. The newline rewrite
-// inserts `<br/>` into text stripImageTags chose to keep, and a kept tag may
-// hold a `<` of its own (`<x`, newline, `<img src=...>` is one tag named `x`
-// until the rewrite splits it), so strip again after.
+// Last thing to touch the string before Qt parses it. Allowed tags hold no
+// `<`, so the `<br/>` the newline rewrite inserts cannot combine with
+// anything into a tag the input never had.
 function styled(body, app, appIcon) {
-  return stripImageTags(sanitize(body, app, appIcon).replace(/\r\n|\r|\n/g, "<br/>"))
+  return escapeTags(sanitize(body, app, appIcon).replace(/\r\n|\r|\n/g, "<br/>"))
 }

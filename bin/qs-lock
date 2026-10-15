@@ -20,20 +20,20 @@ budget() { # budget MS CMD...: poll CMD until it succeeds or MS elapse
 	done
 }
 
-secure() {
+secure() { # one hung probe must not eat the whole budget
 	local status
-	status="$("$here"/qs-shell lock status 2>/dev/null)" || return 1
+	status="$(timeout 1 "$here"/qs-shell lock status 2>/dev/null)" || return 1
 	[[ $status == *'"secure":true'* ]]
 }
 
 swaylock_up() {
-	pgrep -x swaylock >/dev/null
+	pgrep -u "$UID" -x swaylock >/dev/null
 }
 
 result="$("$here"/qs-shell lock lock 2>/dev/null)" || result=error
 case "$result" in
 ok | already) shell=1 ;;
-fallback) shell=0 ;; # the shell already spawned swaylock -f
+fallback) shell=0 ;; # swaylock is up: the shell's own child, or a foreign one
 *)
 	shell=0
 	swaylock_up || setsid -f swaylock >/dev/null 2>&1

@@ -202,6 +202,7 @@ Scope {
                             Text {
                                 width: parent.width
                                 text: root.flow ? root.describe(root.flow.message) : ""
+                                textFormat: Text.PlainText
                                 color: Theme.subtext0
                                 font.family: Style.fontFamily
                                 font.pixelSize: Style.fontSmall
@@ -214,6 +215,7 @@ Scope {
                         width: parent.width
                         visible: text !== ""
                         text: root.flow && root.flow.selectedIdentity ? "as " + root.flow.selectedIdentity.displayName : ""
+                        textFormat: Text.PlainText
                         color: Theme.muted
                         font.family: Style.fontFamily
                         font.pixelSize: Style.fontCaption
@@ -273,6 +275,7 @@ Scope {
                         width: parent.width
                         horizontalAlignment: Text.AlignRight
                         text: (root.flow ? root.flow.actionId + "   " : "") + (root.prompting ? "Esc cancel · Enter submit" : "Esc cancel")
+                        textFormat: Text.PlainText
                         color: Theme.overlay0
                         font.family: Style.fontFamily
                         font.pixelSize: Style.fontCaption
