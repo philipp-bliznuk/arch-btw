@@ -2,8 +2,6 @@
 
 Purpose-built IDE for Python and web development on Neovim 0.12+.
 
-![Overview](../assets/nvim/all.png)
-
 ## Philosophy
 
 This config is built from the ground up with a clear priority order:
@@ -30,24 +28,6 @@ Core principles:
 - **Session** - auto-save on quit, auto-restore on bare `nvim`
 - **8 colorschemes** - catppuccin, tokyonight, kanagawa, gruvbox, rose-pine, everforest, dracula, nord. Defaults to catppuccin-mocha; `$THEME` overrides on startup
 - **File explorer** - yazi.nvim with LSP-aware rename/move (auto-updates imports)
-
-## Screenshots
-
-### Code Actions via Fuzzy Picker
-
-![Code Actions](../assets/nvim/picker-code-actions.png)
-
-### Document Symbols
-
-![Document Symbols](../assets/nvim/picker-doc-symbols.png)
-
-### Autocompletion
-
-![Autocompletion](../assets/nvim/autocompletion.png)
-
-### File Explorer (Yazi)
-
-![Yazi Explorer](../assets/nvim/yazi-explorer.png)
 
 ## Key Decisions
 

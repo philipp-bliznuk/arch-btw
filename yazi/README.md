@@ -7,8 +7,8 @@ defaults and consistent theming that matches the rest of the dotfiles ecosystem.
 
 1. **Minimal customization** - only override what the defaults get wrong.
    No bloated plugin stacks or excessive keybind remapping.
-2. **Unified theming** - yazi flavors match the global `THEME` variable,
-   keeping visual consistency with zsh, fzf, bat, and other tools.
+2. **Catppuccin Mocha** - the flavor the rest of the setup uses (kitty, nvim,
+   bat, Quickshell).
 3. **Built-in previewer** - uses yazi's native syntect-based code previewer
    with proper true-color support via `tmux-256color` terminal.
 4. **ouch for archives** - single tool for preview, extraction, and compression.
@@ -41,10 +41,6 @@ defaults and consistent theming that matches the rest of the dotfiles ecosystem.
 The built-in syntect previewer works cleanly with `tmux-256color` terminal
 type - no background highlight artifacts.
 
-![Syntax-highlighted preview](../assets/yazi/yazi-preview-syntax.png)
-
-![Archive tree preview](../assets/yazi/yazi-preview-archive.png)
-
 ## Custom Keybindings
 
 | Key   | Action                                        |
@@ -56,7 +52,7 @@ type - no background highlight artifacts.
 
 ## Manager Settings
 
-- **Ratio**: `1:2:5` - small parent, medium current, large preview
+- **Ratio**: `1:3:4` - small parent, medium current, large preview
 - **Sort**: natural ordering with transliteration fallback
 - **Hidden files**: shown by default
 - **Line mode**: file size

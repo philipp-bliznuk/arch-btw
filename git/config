@@ -4,8 +4,6 @@
 [core]
 	editor = nvim
 	pager = delta
-	precomposeUnicode = true
-	ignoreCase = true
 
 [includeIf "hasconfig:remote.*.url:git@pb:**/**"]
     path = ~/.config/git/pb
@@ -41,7 +39,7 @@
 	enabled = true
 
 [merge]
-	tool = vimdiff
+	tool = nvimdiff
 	conflictstyle = zdiff3
 
 [mergetool]
@@ -49,7 +47,7 @@
 
 [diff]
 	colorMoved = zebra
-	tool = vimdiff
+	tool = nvimdiff
 
 [difftool]
 	prompt = false

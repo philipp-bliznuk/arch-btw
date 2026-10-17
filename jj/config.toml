@@ -8,9 +8,12 @@ email = "philipp.bliznuk@gmail.com"
 default-command = "log"
 editor = "nvim"
 diff-editor = ":builtin"
-merge-editor = "vimdiff"
+merge-editor = "vimdiff"  # builtin preset, program swapped below
 pager = "delta"
 diff-formatter = ":git"
+
+[merge-tools.vimdiff]
+program = "nvim"
 
 [signing]
 behavior = "own"
