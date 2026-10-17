@@ -342,8 +342,13 @@ step_yubikey_pam() {
 	local rule='auth sufficient pam_u2f.so authfile=/etc/u2f_mappings cue origin=pam://arch-yubikey appid=pam://arch-yubikey'
 	# older revisions put the rule in system-auth (every login); no-op on a fresh install
 	sudo sed -i '/pam_u2f\.so/d' /etc/pam.d/system-auth
-	# sudo: the package's own file, rule above its first auth line (pacnew on upgrade, pacdiff keeps it)
-	sudo sed -i -e '/pam_u2f\.so/d' -e "0,/^auth/s|^auth|${rule}\n&|" /etc/pam.d/sudo
+	# sudo and login: the packages' own files, rule above their `auth include`
+	# line (login: after pam_nologin; pacnew on upgrade, pacdiff keeps it)
+	local f
+	for f in sudo login; do
+		sudo sed -i -e '/pam_u2f\.so/d' \
+			-e "0,/^auth[[:space:]]\+include/s|^auth[[:space:]]\+include|${rule}\n&|" "/etc/pam.d/$f"
+	done
 	# polkit-1: vendor file in /usr/lib/pam.d, an /etc copy takes precedence
 	[[ -r /usr/lib/pam.d/polkit-1 ]] || {
 		err "missing /usr/lib/pam.d/polkit-1 (polkit moved its PAM file; adjust this step)"
@@ -635,7 +640,7 @@ step_finish() {
 	banner "Done"
 	cat <<'EOF'
 
-  Reboot → unlock LUKS (FIDO2 PIN + touch) → log in on TTY1 → Sway.
+  Reboot → unlock LUKS (FIDO2 PIN + touch) → TTY1: touch the key, or the password → Sway.
   Re-run a step:  post-install.sh --redo <step>
 
 EOF

@@ -287,7 +287,7 @@ echo test | gpg --clearsign
 - FIDO2 PIN blocked (3 wrong in a row): replug, the remaining retries continue.
 - FIDO2 applet wiped (8 wrong) or a key lost: boot with the LUKS passphrase (keyslot 0, prompted 30 s after boot with no key). On the key: `ykman fido reset` (ykman says when to replug and touch), `ykman fido access change-pin` (same PIN as the other key). LUKS: `sudo systemd-cryptenroll --wipe-slot=fido2 --fido2-device=auto --fido2-with-client-pin=yes /dev/<luks-partition>` with the first key plugged (drops every FIDO2 slot, enrolls this key), then the same without `--wipe-slot` for the second key. sudo / polkit / lock screen: `post-install.sh --redo yubikey_pam` re-enrolls both keys into `/etc/u2f_mappings`. WebAuthn registrations of a reset key are gone: Part C again for that key.
 - OpenPGP User PIN blocked: `ykman openpgp access unblock-pin` (Admin PIN). Admin PIN blocked: applet wiped; A4 + A5 again from the offline primary (the other card keeps working meanwhile).
-- `/etc/u2f_mappings` or PAM broken: `sudo` falls through to the password (`sufficient`), `su` never had `pam_u2f`.
+- `/etc/u2f_mappings` or PAM broken: `login` and `sudo` fall through to the password (`sufficient`), `su` never had `pam_u2f`.
 
 ---
 

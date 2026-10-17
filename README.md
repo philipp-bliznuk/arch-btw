@@ -4,8 +4,8 @@
 LUKS2 (FIDO2 PIN + touch) → Btrfs subvolumes → UKI → systemd-boot → snapper + snap-pac + snap-restore → Sway (Wayland) + Quickshell → AppArmor + Firejail + ufw + hardened sysctl → YubiKey (FIDO2 + OpenPGP)
 ```
 
-- `install.sh` - live ISO. Partition, encrypt, pacstrap, base config, FIDO2 LUKS enrollment, clone this repo, reboot. Prompts: disk, timezone, username, three passwords.
-- `post-install.sh` - installed system, first boot. Bootloader cleanup, snapper limits, pacman reboot-required hook, Intel GPU PMU helper, YubiKey PAM (sudo, polkit, lock screen), yay (AUR helper for `slack-desktop`, `zoom`; built with `bin/yay-git`, which falls back to the GitHub AUR mirror when aur.archlinux.org is down - `yay-git slack-desktop zoom` works without yay too), LibreWolf (firejail XDG whitelist + overrides), dotfiles symlinks, GTK/Qt theme (adw-gtk3 + qt6ct), key import, GPG/SSH. Resumable via done-markers.
+- `install.sh` - live ISO. Partition, encrypt, pacstrap, base config (tty1 runs `login` for your user, so a boot is LUKS, then a YubiKey touch or the password), FIDO2 LUKS enrollment, clone this repo, reboot. Prompts: disk, timezone, username, three passwords.
+- `post-install.sh` - installed system, first boot. Bootloader cleanup, snapper limits, pacman reboot-required hook, Intel GPU PMU helper, YubiKey PAM (login, sudo, polkit, lock screen), yay (AUR helper for `slack-desktop`, `zoom`; built with `bin/yay-git`, which falls back to the GitHub AUR mirror when aur.archlinux.org is down - `yay-git slack-desktop zoom` works without yay too), LibreWolf (firejail XDG whitelist + overrides), dotfiles symlinks, GTK/Qt theme (adw-gtk3 + qt6ct), key import, GPG/SSH. Resumable via done-markers.
 
 Prerequisite: both YubiKeys provisioned per [YUBIKEY.md](./YUBIKEY.md) (GPG identity on card, the same FIDO2 PIN set on both).
 
@@ -97,7 +97,7 @@ Runs as user, `sudo` where needed. Markers: `~/.local/state/arch-btw/done/`. Log
 | 6   | pacman_hooks    | - |
 | 7   | gpu_helper      | - |
 | 8   | battery_limit   | - |
-| 9   | yubikey_pam     | Insert key #1, then key #2 (`pamu2fcfg`, FIDO2 PIN asked once per key). `pam_u2f` goes `sufficient` ahead of the password into `/etc/pam.d/sudo` and `/etc/pam.d/polkit-1` only - never `system-auth`, which also serves `login` and `sshd`. Tests `sudo` at the end. `/etc/u2f_mappings` is `0640 root:$USER` so the lock screen can run `pam_u2f` as the user. |
+| 9   | yubikey_pam     | Insert key #1, then key #2 (`pamu2fcfg`, FIDO2 PIN asked once per key). `pam_u2f` goes `sufficient` ahead of the password into `/etc/pam.d/login` (after `pam_nologin`), `/etc/pam.d/sudo` and `/etc/pam.d/polkit-1` only - never `system-auth`, which also serves `su` and `sshd`. Tests `sudo` at the end. `/etc/u2f_mappings` is `0640 root:$USER` so the lock screen can run `pam_u2f` as the user. |
 | 10  | lock_pam        | Writes `/etc/pam.d/qs-lock-password` (`pam_unix`, no `nullok`; 2 s delay per wrong attempt, and faillock counts them: three wrong passwords close the password path for 10 min, the YubiKey path stays open) and `qs-lock-u2f` (`pam_u2f` touch only) for the Quickshell lock screen, plus a tmpfiles rule that creates `/run/faillock/$USER` at boot (the user-run stack cannot create it itself). |
 | 11  | yubikey_power   | Installs `/etc/udev/rules.d/95-yubikey-no-autosuspend.rules` and triggers it: `92_pcscd_ccid.rules` autosuspends every CCID device, on `add` and again on `bind`, and a suspended token stops its ~29 s touch timeout, so a `pam_u2f` child waiting on it hangs for hours and the lock screen's retry loop with it. |
 | 12  | lid             | Writes `/etc/systemd/logind.conf.d/00-lid.conf`: lid close → suspend-then-hibernate, lock only with an external display attached (`HandleLidSwitchDocked=lock`, relayed by `swayidle lock`); reloads logind. |
@@ -125,7 +125,7 @@ keys/ssh/id_ed25519_gx   keys/ssh/id_ed25519_gx.pub
 
 ## Step 3 - Reboot
 
-Power on → LUKS (YubiKey: FIDO2 PIN + touch; no key: passphrase after 30 s) → `login:` on TTY1 (password; no autologin, a plugged key alone must not open the session) → `zsh/.zprofile` execs Sway. TTY2 stays a shell.
+Power on → LUKS (YubiKey: FIDO2 PIN + touch; no key: passphrase after 30 s) → TTY1 runs `login` for your user (`getty@tty1` drop-in from `install.sh`; `LOGIN_TIMEOUT 0`, so an unattended prompt does not restart `login` every minute): touch the key while it blinks, or type the password; no autologin, `login` authenticates every time → `zsh/.zprofile` execs Sway. TTY2 keeps the `login:` prompt and stays a shell.
 
 ---
 
@@ -135,8 +135,8 @@ Power on → LUKS (YubiKey: FIDO2 PIN + touch; no key: passphrase after 30 s) �
 | --- | --- | --- |
 | Off, hibernated | YubiKey + FIDO2 PIN + touch, or the LUKS passphrase | Device and key together are not enough. Eight wrong PINs wipe the key's FIDO2 applet, the passphrase remains ([YUBIKEY.md](./YUBIKEY.md#recovery)). |
 | Locked session (suspend included) | touch of a plugged YubiKey, or password | Touch without PIN is the walk-away trade-off; `idleSuspend` 3600 s → `suspend-then-hibernate`, `HibernateDelaySec=1h`, so an hour later the next wake is a LUKS unlock. faillock: three wrong passwords close the password path for 10 min. |
-| `sudo`, polkit | touch, or password | `pam_u2f` `sufficient` in `/etc/pam.d/sudo` and `/etc/pam.d/polkit-1` only. |
-| `login`, `su`, ssh | password | `system-auth` carries no `pam_u2f`. `sshd` ships with `openssh` but is never enabled; ufw drops inbound anyway. |
+| `login` (any VT), `sudo`, polkit | touch, or password | `pam_u2f` `sufficient` in `/etc/pam.d/login`, `/etc/pam.d/sudo` and `/etc/pam.d/polkit-1` only. A machine left at the prompt with the key plugged in is the same walk-away trade-off as the locked session. |
+| `su`, ssh | password | `system-auth` carries no `pam_u2f`. `sshd` ships with `openssh` but is never enabled; ufw drops inbound anyway. |
 
 Not covered: Secure Boot stays off, so the ESP (systemd-boot, UKIs) is unsigned and the boot menu's editor stays on for recovery - someone with the device can alter the ESP, but reads nothing from the LUKS volume. Clipboard history is plaintext on disk (LUKS covers it). Firejail/AppArmor confine the browser and a few tools, nothing else.
 

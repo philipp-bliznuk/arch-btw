@@ -514,6 +514,18 @@ EOF
 	useradd -m -G wheel -s /bin/zsh "$USERNAME"
 	grep -q "^${USERNAME}:" /etc/subuid || # rootless podman
 		usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$USERNAME"
+	# tty1 is $USERNAME's console: login runs for that name without asking it, so
+	# a boot is LUKS, then one touch (pam_u2f in login, post-install) or the
+	# password. Not autologin: login still authenticates. Other VTs keep the prompt.
+	mkdir -p /etc/systemd/system/getty@tty1.service.d
+	cat >/etc/systemd/system/getty@tty1.service.d/skip-login.conf <<EOF
+[Service]
+ExecStart=
+ExecStart=-/usr/bin/agetty -o '-- $USERNAME' --skip-login --noreset --noclear - \${TERM}
+EOF
+	# nothing to type before login starts, so its 60 s timer would restart it
+	# every minute at an unattended tty1 (key blinking 29 s of each)
+	sed -i 's/^LOGIN_TIMEOUT.*/LOGIN_TIMEOUT\t\t0/' /etc/login.defs
 	mkdir -p /etc/sudoers.d
 	echo '%wheel ALL=(ALL:ALL) ALL' >/etc/sudoers.d/wheel
 	chmod 440 /etc/sudoers.d/wheel
