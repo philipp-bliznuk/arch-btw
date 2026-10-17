@@ -81,9 +81,3 @@ function y() {
   [[ "$cwd" != "$PWD" ]] && [[ -d "$cwd" ]] && builtin cd -- "$cwd"
   command rm -f -- "$tmp"
 }
-
-# Auto-attach to tmux session
-if (( ${+commands[tmux]} )) && [[ -z "$TMUX" ]]; then
-  tmux attach -t default 2>/dev/null || tmux new -s default
-  exit
-fi

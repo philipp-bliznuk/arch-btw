@@ -12,7 +12,6 @@ path=(
   $HOME/.local/{,s}bin(N)
   $HOME/.cargo/bin
   /usr/local/{,s}bin(N)
-  /usr/local/go/bin
   $HOME/go/bin
   $path
 )
@@ -48,11 +47,11 @@ export EDITOR="nvim"
 export VISUAL="nvim"
 export PAGER="less -FX"
 
-# Dotfiles helper scripts (dotfiles/bin -> ~/.local/bin)
-export PATH="$HOME/.local/bin:$PATH"
-
 # Go
 export GOPATH=$HOME/go
+
+# SSH through the GPG agent (systemd user unit gpg-agent-ssh.socket, static path)
+export SSH_AUTH_SOCK="${XDG_RUNTIME_DIR:-/run/user/$UID}/gnupg/S.gpg-agent.ssh"
 
 # Git (XDG-native config)
 export GIT_CONFIG_GLOBAL="$XDG_CONFIG_HOME/git/config"

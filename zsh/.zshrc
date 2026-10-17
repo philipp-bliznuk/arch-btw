@@ -1,7 +1,11 @@
-# GPG tty (zsh builtin, no fork)
+# One tmux session for every terminal (ssh included); the outer shell is
+# replaced, so nothing below runs twice. NO_TMUX=1 opts out (sway: qs-float).
+if [[ -z $TMUX && -z $NO_TMUX && -t 0 && -t 1 ]] && (( ${+commands[tmux]} )); then
+  exec tmux new-session -A -s default
+fi
+
+# GPG tty (zsh builtin, no fork). SSH_AUTH_SOCK: .zshenv; agent: systemd user socket
 export GPG_TTY=$TTY
-export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
-gpgconf --launch gpg-agent
 
 # History
 HISTFILE="$XDG_DATA_HOME/zsh/zsh_history"

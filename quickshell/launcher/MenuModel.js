@@ -216,7 +216,7 @@ function keyRows(I) {
 // functions work like String.replace. `<dir>` / `<n>` mark merged h/j/k/l
 // and digit groups. Unmatched commands show raw.
 var SWAY_LABELS = [
-  [/^kitty.* --class qs-float/, "Floating terminal"],
+  [/^(\w+=\S* )*kitty.* --class qs-float/, "Floating terminal"],
   [/^kitty/, "Terminal"],
   [/^qs-shell launcher toggle/, "Launcher"],
   [/^qs-shell launcher open (\w+)/, "Open $1"],
