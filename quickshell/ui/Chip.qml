@@ -1,7 +1,7 @@
 import QtQuick
 import qs.core
 
-// Small filter chip (launcher categories). Active = accent fill.
+// Small pill button (notification actions). Active = accent fill.
 Rectangle {
     id: root
 

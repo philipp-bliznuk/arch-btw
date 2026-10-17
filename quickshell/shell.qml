@@ -50,7 +50,7 @@ ShellRoot {
         clipboard: clipboard
     }
 
-    // sway: set $menu qs ipc call launcher toggle
+    // sway: set $menu qs-shell launcher toggle
     IpcHandler {
         target: "launcher"
 

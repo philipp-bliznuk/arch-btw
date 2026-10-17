@@ -5,7 +5,7 @@ import qs.core
 
 // Clipboard history owner. Two wl-paste watchers feed bin/qs-clipboard-capture,
 // which maintains ~/.local/state/qs/clipboard.json and pings `clipboard refresh`.
-// Watchers die with Quickshell (Process children are killed on exit).
+// Watchers outlive a crashed shell; qs-session kills them before relaunching.
 Scope {
     id: root
 

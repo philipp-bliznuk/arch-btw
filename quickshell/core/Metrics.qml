@@ -32,6 +32,7 @@ Singleton {
     // days-long average.
     function resetRates() {
         prevRx = -1;
+        prevTx = -1;
         prevRc6 = -1;
     }
 
