@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# snap-restore [--device DEV] [list | last | N | undo]
+# Roll the root subvolume (@) back to a snapper snapshot and rebuild the UKIs
+# from inside the restored root, so the kernel on the ESP matches its
+# /usr/lib/modules. One reboot, nothing to run afterwards.
+#   list    snapshots: number, date, type, description (default)
+#   last    newest snap-pac "pre" snapshot = root as it was before the last pacman run
+#   N       snapshot number from list
+#   undo    swap back the root replaced by the previous restore
+# The replaced root stays as @_replaced until the next restore (undo window).
+# Live ISO: cryptsetup open /dev/<luks-part> cryptroot, then
+#   snap-restore --device /dev/mapper/cryptroot N
+set -Eeuo pipefail
+shopt -s nullglob
+
+usage() {
+	sed -n '2,/^set /{/^set /!s/^# \{0,1\}//p}' "${BASH_SOURCE[0]}"
+}
+
+die() {
+	printf 'snap-restore: %s\n' "$*" >&2
+	exit 1
+}
+
+confirm() { # no = exit 130, the "user said no" code qs-task closes on silently
+	local ans
+	read -rp "$1 [y/N] " ans </dev/tty
+	[[ $ans == [yY] ]] || {
+		echo "aborted" >&2
+		exit 130
+	}
+}
+
+args=("$@")
+dev="" action=list
+while (($#)); do
+	case "$1" in
+	--device)
+		[[ -n ${2:-} ]] || die "--device needs a path"
+		dev="$2"
+		shift 2
+		;;
+	-h | --help)
+		usage
+		exit 0
+		;;
+	list | last | undo)
+		action="$1"
+		shift
+		;;
+	*)
+		[[ $1 =~ ^[0-9]+$ ]] || die "unknown argument: $1 (see --help)"
+		action="$1"
+		shift
+		;;
+	esac
+done
+
+((EUID == 0)) || exec sudo -- "${BASH_SOURCE[0]}" "${args[@]}"
+
+# booted=1: / is a subvolume of $dev, so the running root must not be deleted
+rootsrc="$(findmnt -no SOURCE /)"
+rootsrc="${rootsrc%%\[*}"
+if [[ -z $dev ]]; then
+	[[ "$(findmnt -no FSTYPE /)" == btrfs ]] || die "/ is not btrfs - from the live ISO pass --device"
+	dev="$rootsrc"
+fi
+[[ -b $dev ]] || die "not a block device: $dev"
+booted=0
+[[ "$(realpath "$dev")" == "$(realpath -m "$rootsrc")" ]] && booted=1
+
+work="$(mktemp -d)"
+top="$work/top" root="$work/root"
+mkdir "$top" "$root"
+cleanup() {
+	umount -R "$root" 2>/dev/null || true
+	umount "$top" 2>/dev/null || true
+	rmdir "$root" "$top" "$work" 2>/dev/null || true
+}
+trap cleanup EXIT
+mount -o subvolid=5 "$dev" "$top"
+[[ -d $top/@ && -d $top/@snapshots ]] || die "$dev has no @ and @snapshots subvolumes"
+
+field() { sed -n "s:.*<$1>\(.*\)</$1>.*:\1:p" "$2" | head -n1; } # snapper info.xml
+when() { date -d "$1 UTC" '+%Y-%m-%d %H:%M'; }                # snapper stores UTC
+
+list_snapshots() {
+	local info
+	printf '%5s  %-16s  %-6s  %s\n' '#' date type description
+	for info in "$top"/@snapshots/[0-9]*/info.xml; do
+		printf '%5s  %-16s  %-6s  %s\n' "$(field num "$info")" "$(when "$(field date "$info")")" \
+			"$(field type "$info")" "$(field description "$info")"
+	done | sort -n
+}
+
+newest_pre() {
+	local info n best=""
+	for info in "$top"/@snapshots/[0-9]*/info.xml; do
+		[[ "$(field type "$info")" == pre ]] || continue
+		n="$(field num "$info")"
+		if [[ -z $best ]] || ((n > best)); then best=$n; fi
+	done
+	[[ -n $best ]] || die "no pre snapshot in @snapshots"
+	printf '%s' "$best"
+}
+
+running_is() { # running_is PATH: is the booted root this subvolume?
+	((booted)) || return 1
+	[[ "$(btrfs inspect-internal rootid /)" == "$(btrfs inspect-internal rootid "$1")" ]]
+}
+
+# mkinitcpio -P inside the (restored) @: presets, vmlinuz and modules all come
+# from the same tree; only the ESP is the real one.
+rebuild_ukis() {
+	local esp
+	mount -o subvol=@ "$dev" "$root"
+	esp="$(findmnt --fstab --tab-file "$root/etc/fstab" -no SOURCE /boot/efi)" || die "no /boot/efi in the restored fstab"
+	mount "$esp" "$root/boot/efi"
+	arch-chroot "$root" mkinitcpio -P ||
+		die "root swapped but the UKIs were NOT rebuilt (they still match the other root): snap-restore undo swaps back"
+	umount -R "$root"
+}
+
+reboot_prompt() {
+	local ans
+	read -rp "Reboot now? [Y/n] " ans </dev/tty
+	[[ $ans == [nN] ]] || systemctl reboot
+}
+
+restore() {
+	local n="$1" # own statement: the next line's $n expands before local assigns
+	local snap="$top/@snapshots/$n/snapshot" info="$top/@snapshots/$n/info.xml"
+	[[ -d $snap && -f $info ]] || die "no snapshot #$n in @snapshots"
+	printf 'Snapshot #%s: %s, %s, %s\n' "$n" "$(field type "$info")" "$(when "$(field date "$info")")" "$(field description "$info")"
+	if [[ -e $top/@_replaced ]]; then
+		running_is "$top/@_replaced" && die "the running root is @_replaced (restore pending): reboot first, or undo"
+		echo "Also deletes the existing @_replaced (the previous restore's undo, or a copy left by an interrupted one)."
+	fi
+	confirm "Replace root (@) with snapshot #$n? The current root is kept as @_replaced."
+	if [[ -e $top/@_replaced ]]; then
+		btrfs subvolume delete --recursive "$top/@_replaced"
+	fi
+	# Writable copy under the final name first, then one exchange: a @ exists at
+	# every instant, and an interrupted run leaves only an unused copy behind.
+	btrfs subvolume snapshot "$snap" "$top/@_replaced"
+	mv -T --exchange "$top/@" "$top/@_replaced"
+	rebuild_ukis
+	printf 'Root is now snapshot #%s, UKIs rebuilt. snap-restore undo swaps back.\n' "$n"
+	reboot_prompt
+}
+
+undo() {
+	[[ -e $top/@_replaced ]] || die "nothing to undo: no @_replaced"
+	confirm "Swap @ and @_replaced (back to the root from before the last restore)?"
+	mv -T --exchange "$top/@" "$top/@_replaced"
+	rebuild_ukis
+	echo "Undone, UKIs rebuilt."
+	reboot_prompt
+}
+
+case "$action" in
+list) list_snapshots ;;
+last)
+	n="$(newest_pre)" # assignment: a failing substitution stops the script
+	restore "$n"
+	;;
+undo) undo ;;
+*) restore "$action" ;;
+esac

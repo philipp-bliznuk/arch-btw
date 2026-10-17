@@ -29,18 +29,18 @@ PACKAGES=(
 	mkinitcpio dbus-broker-units crun pipewire-jack          # explicit providers: initramfs, dbus-units, oci-runtime, jack
 	git openssh btrfs-progs dosfstools neovim networkmanager # openssh = client only, no sshd
 	pipewire pipewire-pulse wireplumber
-	sudo zsh efibootmgr snapper snap-pac
+	sudo zsh efibootmgr snapper snap-pac arch-install-scripts # arch-chroot: bin/snap-restore rebuilds the UKIs inside the restored root
 	apparmor chrony firejail bubblewrap earlyoom ufw
 	pacman-contrib
 	polkit mesa sway swaylock swayidle quickshell upower cmatrix
-	"<vaapi>" libva-utils # hardware video decode (browser video otherwise burns a CPU core + GPU uploads); vainfo to verify
+	"<vaapi>" # hardware video decode (browser video otherwise burns a CPU core + GPU uploads)
 	wl-clipboard grim slurp kitty xorg-xwayland
 	xdg-desktop-portal-wlr xdg-desktop-portal-gtk
 	ttf-jetbrains-mono-nerd noto-fonts noto-fonts-cjk noto-fonts-emoji # cjk: fallback glyphs for app menus/titles (tray menus, window titles)
 	brightnessctl xdg-user-dirs man-db man-pages
 	wlsunset power-profiles-daemon python-gobject # night light (qs-toggle), battery power profiles (Quickshell battery popup; powerprofilesctl needs gobject)
-	libqalculate systemd-ukify btrfs-assistant
-	pam-u2f libfido2 yubikey-manager ccid pcsc-tools
+	libqalculate systemd-ukify
+	pam-u2f libfido2 yubikey-manager ccid
 	kguiaddons kwindowsystem # pinentry-qt links against these (gpg passphrase prompt)
 	qt6ct adw-gtk-theme      # Catppuccin for Qt (qt6ct palette) and GTK 3/4 (adw-gtk3 + gtk/gtk.css named colours)
 	librewolf
@@ -179,10 +179,10 @@ _read_confirmed() {
 	local label="$1" a b
 	while :; do
 		printf 'Enter %s: ' "$label" >/dev/tty
-		read -rs a </dev/tty
+		IFS= read -rs a </dev/tty
 		printf '\n' >/dev/tty
 		printf 'Confirm %s: ' "$label" >/dev/tty
-		read -rs b </dev/tty
+		IFS= read -rs b </dev/tty
 		printf '\n' >/dev/tty
 		[[ -n "$a" && "$a" == "$b" ]] && {
 			printf '%s' "$a"
@@ -298,8 +298,7 @@ step_fido2() {
 	local k
 	for k in 1 2; do
 		pause "Insert YubiKey #$k ONLY (remove the other), then Enter"
-		# Asks FIDO2 PIN + touch on the tty despite --fido2-with-client-pin=no (CTAP2 credential creation).
-		until _enroll_fido2; do
+		until _fido2_pin_notice && _enroll_fido2; do
 			warn "Enrollment of key #$k failed."
 			pause "Check the key is inserted (and the other removed), then Enter to retry"
 		done
@@ -313,11 +312,21 @@ step_fido2() {
 	fi
 }
 
+# The FIDO2 PIN (ykman fido access change-pin) is asked here and at every boot.
+# It is not the OpenPGP PIN. Three wrong in a row lock the applet until the key
+# is replugged, eight wrong in total wipe it (ykman fido reset).
+_fido2_pin_notice() {
+	local dev retries
+	dev="$(fido2-token -L 2>/dev/null | head -1 | cut -d: -f1)"
+	retries="$(fido2-token -I "$dev" 2>/dev/null | awk -F': ' '/^pin retries/ {print $2}')"
+	warn "Next prompt: FIDO2 PIN (not the OpenPGP PIN), then touch. PIN retries left: ${retries:-unknown}."
+}
+
 _enroll_fido2() {
 	local rc
 	quiet_x
 	PASSWORD="$LUKS_PASS" systemd-cryptenroll \
-		--fido2-device=auto --fido2-with-client-pin=no "$PART_LUKS" && rc=0 || rc=$?
+		--fido2-device=auto --fido2-with-client-pin=yes "$PART_LUKS" && rc=0 || rc=$?
 	restore_x
 	return "$rc"
 }
@@ -429,7 +438,7 @@ step_finish() {
 	echo
 	echo "  Next:"
 	echo "    1. reboot (remove the USB)"
-	echo "    2. unlock LUKS (passphrase, or insert+touch a YubiKey)"
+	echo "    2. unlock LUKS (YubiKey: FIDO2 PIN + touch; no key: passphrase)"
 	echo "    3. log in on TTY2 (Ctrl-Alt-F2) as $USERNAME"
 	echo "    4. run: ~/projects/dotfiles/post-install.sh"
 	echo
@@ -484,11 +493,20 @@ EOF
 
 	rm -f /boot/initramfs-*.img # pacstrap built classic images with the stock preset
 	bootctl install
+	cat >/boot/efi/loader/loader.conf <<'EOF'
+default arch-linux.efi
+timeout 0
+EOF
 	mkdir -p /boot/efi/EFI/Linux
 	mkinitcpio -p linux
 	mkinitcpio -p linux-lts
 
-	systemctl enable NetworkManager apparmor earlyoom chronyd systemd-resolved upower power-profiles-daemon
+	sed -i 's/^ENABLED=no/ENABLED=yes/' /etc/ufw/ufw.conf # policies: /etc/default/ufw (INPUT DROP, OUTPUT ACCEPT)
+	grep -q '^ENABLED=yes' /etc/ufw/ufw.conf || {
+		err "ufw.conf: ENABLED=yes not set."
+		exit 1
+	}
+	systemctl enable NetworkManager apparmor earlyoom chronyd systemd-resolved upower power-profiles-daemon ufw
 	systemctl enable systemd-boot-update.service # no pacman hook for systemd-boot on Arch
 	systemctl enable snapper-timeline.timer snapper-cleanup.timer
 	systemctl enable fstrim.timer paccache.timer
@@ -508,12 +526,9 @@ _write_presets() {
 ALL_config="/etc/mkinitcpio.conf"
 ALL_kver="/boot/vmlinuz-${k}"
 
-PRESETS=('default' 'fallback')
+PRESETS=('default')
 
 default_uki="/boot/efi/EFI/Linux/arch-${k}.efi"
-
-fallback_uki="/boot/efi/EFI/Linux/arch-${k}-fallback.efi"
-fallback_options="-S autodetect"
 EOF
 	done
 }

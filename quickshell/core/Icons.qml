@@ -48,6 +48,7 @@ QtObject {
     readonly property string lock: g(0xF033E)
     readonly property string sleep: g(0xF0904)
     readonly property string restart: g(0xF0709)
+    readonly property string history: g(0xF02DA)
     readonly property string logout: g(0xF0343)
 
     // Network

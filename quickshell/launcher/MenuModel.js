@@ -48,7 +48,7 @@ function fromSection(rows, section, title) {
 function rootRows(I, reboot) {
   return [
     row("apps", "Apps", "Launch an application", I.apps, { section: "apps", keywords: ["launch", "run"] }),
-    row("system", "System", "Lock, sleep, reboot, shutdown", I.power, { section: "system", keywords: ["power"] }),
+    row("system", "System", "Lock, sleep, reboot, shutdown, roll back", I.power, { section: "system", keywords: ["power"] }),
     row("keys", "Keybindings", "Sway, tmux, launcher, popups", I.keyboard, { section: "keys", keywords: ["shortcuts", "hotkeys", "keybinds"] }),
     row("capture", "Capture", "Screenshots", I.camera, { section: "capture", keywords: ["screenshot", "grim"] }),
     row("toggle", "Toggle", "Stay awake, night light, DND, bar", I.toggle, { section: "toggle" }),
@@ -87,6 +87,8 @@ function systemRows(I, caps, reboot) {
     row("shutdown", "Shutdown", "systemctl poweroff", I.power, { confirm: { argv: ["systemctl", "poweroff"] } }),
     row("logout", "Logout", "swaymsg exit", I.logout, { confirm: { sway: "exit" } }),
     row("restart-qs", "Restart Quickshell", "qs-session restart", I.restart, { argv: [BIN + "qs-session", "restart"] }),
+    row("rollback", "Roll back last update", "snap-restore last · root as before the last pacman run, asks first", I.history,
+      { task: [BIN + "snap-restore", "last"], keywords: ["snapshot", "restore", "undo", "snapper", "rollback", "btrfs"] }),
   ]
 }
 

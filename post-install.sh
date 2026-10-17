@@ -8,7 +8,6 @@
 #
 # Flags:  --list          step status
 #         --redo <step>   re-run one step
-#         --autologin     getty@tty1 autologin drop-in (only after Sway boots cleanly)
 # Debug:  DEBUG=1 post-install.sh
 
 set -Eeuo pipefail
@@ -27,8 +26,6 @@ readonly STEPS=(
 	"nm_connectivity:step_nm_connectivity"
 	"snapper:step_snapper"
 	"luks_header:step_luks_header"
-	"sdboot_snaps:step_sdboot_snaps"
-	"firewall:step_firewall"
 	"pacman_hooks:step_pacman_hooks"
 	"gpu_helper:step_gpu_helper"
 	"battery_limit:step_battery_limit"
@@ -176,9 +173,6 @@ step_bootloader() {
 	else
 		warn "Could not read the ESP partuuid - inspect \`efibootmgr\` manually."
 	fi
-
-	sudo ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
-	resolvectl status | grep -i 'DNS Server' || true
 }
 
 step_network() {
@@ -218,6 +212,12 @@ step_snapper() {
 		sudo mount -a
 		sudo chmod 750 /.snapshots
 	fi
+	# snap-pac pre/post pairs use the number cleanup (snap-restore picks the
+	# newest pre); the Arch defaults also keep 10 yearly timeline snapshots of root
+	sudo snapper -c root set-config \
+		TIMELINE_LIMIT_HOURLY=5 TIMELINE_LIMIT_DAILY=7 \
+		TIMELINE_LIMIT_WEEKLY=0 TIMELINE_LIMIT_MONTHLY=0 TIMELINE_LIMIT_YEARLY=0 \
+		NUMBER_LIMIT=20 NUMBER_LIMIT_IMPORTANT=10
 
 	if sudo snapper list-configs | grep -qE '^home\s'; then
 		success "snapper home config exists."
@@ -251,23 +251,6 @@ step_luks_header() {
 	umount_usb
 }
 
-step_sdboot_snaps() {
-	if ! command -v sdboot-snaps >/dev/null && ! pacman -Q sdboot-snaps >/dev/null 2>&1; then
-		rm -rf /tmp/sdboot-snaps
-		git clone https://github.com/bkmo/sdboot-snaps /tmp/sdboot-snaps
-		(cd /tmp/sdboot-snaps && makepkg -srci --noconfirm)
-		rm -rf /tmp/sdboot-snaps
-	fi
-	sudo sed -i 's|^#\?ESP=.*|ESP=/boot/efi|' /etc/sdboot-snaps.conf # default is /efi
-	sudo systemctl enable --now sdboot-snaps-watch.path
-}
-
-step_firewall() {
-	sudo ufw default deny incoming
-	sudo ufw default allow outgoing
-	sudo ufw --force enable
-}
-
 # Flag /run/reboot-required (tmpfs → cleared by the reboot itself) after
 # packages that need one. The shell watches the file; kernels are also checked
 # once at startup (/usr/lib/modules/$(uname -r) vanishes on upgrade).
@@ -282,8 +265,6 @@ Operation = Install
 Type = Package
 Target = linux
 Target = linux-lts
-Target = linux-zen
-Target = linux-hardened
 Target = systemd
 Target = glibc
 Target = dbus
@@ -343,9 +324,10 @@ step_battery_limit() {
 	"$DOTFILES/bin/qs-battery" limit on
 }
 
+# pam_u2f ahead of the password for sudo and polkit only. Not in system-auth:
+# that stack also serves login and sshd, where "sufficient" would log in anyone
+# holding a plugged key. The lock screen has its own services (lock_pam).
 step_yubikey_pam() {
-	sudo systemctl enable --now pcscd.socket
-
 	local tmp
 	tmp="$(mktemp)"
 	pause "Insert YubiKey #1, then Enter (asks FIDO2 PIN once + touch)"
@@ -357,18 +339,24 @@ step_yubikey_pam() {
 	sudo install -o root -g "$(id -gn)" -m 640 "$tmp" /etc/u2f_mappings
 	rm -f "$tmp"
 
-	local pam=/etc/pam.d/system-auth
 	local rule='auth sufficient pam_u2f.so authfile=/etc/u2f_mappings cue origin=pam://arch-yubikey appid=pam://arch-yubikey'
-	if ! grep -qF 'pam_u2f.so' "$pam"; then
-		sudo sed -i "0,/^auth/s|^auth|${rule}\n&|" "$pam" # first auth line
-		success "pam_u2f added to $pam."
-	else
-		success "pam_u2f already configured."
-	fi
+	# older revisions put the rule in system-auth (every login); no-op on a fresh install
+	sudo sed -i '/pam_u2f\.so/d' /etc/pam.d/system-auth
+	# sudo: the package's own file, rule above its first auth line (pacnew on upgrade, pacdiff keeps it)
+	sudo sed -i -e '/pam_u2f\.so/d' -e "0,/^auth/s|^auth|${rule}\n&|" /etc/pam.d/sudo
+	# polkit-1: vendor file in /usr/lib/pam.d, an /etc copy takes precedence
+	[[ -r /usr/lib/pam.d/polkit-1 ]] || {
+		err "missing /usr/lib/pam.d/polkit-1 (polkit moved its PAM file; adjust this step)"
+		return 1
+	}
+	{
+		printf '#%%PAM-1.0\n# Written by post-install.sh (yubikey_pam): /usr/lib/pam.d/polkit-1 plus pam_u2f.\n%s\n' "$rule"
+		grep -vE '^\s*(#|$)' /usr/lib/pam.d/polkit-1
+	} | sudo install -o root -g root -m 644 /dev/stdin /etc/pam.d/polkit-1
 
 	info "Testing (touch a key):"
 	sudo -k
-	sudo true && success "sudo works." || warn "Test failed - password still works; verify $pam before logging out."
+	sudo true && success "sudo works." || warn "Test failed - password still works; verify /etc/pam.d/sudo before logging out."
 }
 
 # PAM services for the Quickshell lock screen (quickshell/lock/Locker.qml).
@@ -398,10 +386,6 @@ step_lock_pam() {
 		# inert: quickshell's PamContext only calls pam_authenticate
 		account    include    system-auth
 	EOF
-	if [[ -f /etc/u2f_mappings ]]; then
-		sudo chgrp "$(id -gn)" /etc/u2f_mappings
-		sudo chmod 640 /etc/u2f_mappings
-	fi
 	sudo install -o root -g root -m 644 /dev/stdin /etc/tmpfiles.d/qs-faillock.conf <<-EOF
 		# Written by post-install.sh (lock_pam): faillock tally the user-run lock screen can update.
 		f /run/faillock/$(id -un) 0660 $(id -un) root -
@@ -410,16 +394,18 @@ step_lock_pam() {
 	success "PAM services qs-lock-password and qs-lock-u2f written, faillock tally file created."
 }
 
-# 92_pcscd_ccid.rules turns USB autosuspend on for every CCID device, the
-# YubiKey included. A suspended token freezes its ~29 s FIDO touch timeout, so
-# a pam_u2f child that died mid-assertion (unlock by password, shell restart)
-# leaves the token answering "busy" until it is replugged. Keep Yubico devices
-# awake; the rule sorts after 92_ and wins.
+# 92_pcscd_ccid.rules sets power/control=auto (USB autosuspend) on every CCID
+# device, the YubiKey included, and runs on every event but remove: add, then
+# bind when the usb driver attaches. A rule matching add|change loses on bind,
+# so this one matches the same events and sorts later. A suspended token stops
+# its ~29 s touch timeout: a pam_u2f child waiting on it hangs for hours and
+# the lock screen's retry loop with it (qs log: "u2f ended after 15745904 ms").
 step_yubikey_power() {
 	sudo install -o root -g root -m 644 /dev/stdin /etc/udev/rules.d/95-yubikey-no-autosuspend.rules <<-'EOF'
-		# Written by post-install.sh (yubikey_power). The FIDO touch timeout only runs
-		# while the USB device is awake; 92_pcscd_ccid.rules autosuspends CCID devices.
-		ACTION=="add|change", SUBSYSTEM=="usb", ATTR{idVendor}=="1050", TEST=="power/control", ATTR{power/control}="on"
+		# Written by post-install.sh (yubikey_power). 92_pcscd_ccid.rules autosuspends CCID
+		# devices on add and on bind; same events here, later file wins. Asleep, the
+		# token's FIDO touch timeout stops and a waiting pam_u2f never returns.
+		ACTION!="remove", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="1050", TEST=="power/control", ATTR{power/control}="on"
 	EOF
 	sudo udevadm control --reload
 	sudo udevadm trigger --subsystem-match=usb --attr-match=idVendor=1050
@@ -478,11 +464,11 @@ defaultPref("librewolf.webgl.prompt.hide", false);
 defaultPref("media.ffmpeg.vaapi.enabled", true);
 defaultPref("media.hardware-video-decoding.force-enabled", true);
 defaultPref("media.av1.enabled", false);
-// Extension CSP firewall - blocks uBlock Origin filter-list updates.
+// Extension base CSP: no remote script or plugin in extension pages (Firefox's
+// MV3 default, applied to MV2 extensions too). default-src 'none' on top would
+// also block connect-src, i.e. uBlock Origin's filter-list updates.
 defaultPref("extensions.webextensions.base-content-security-policy",
-            "default-src 'none'; script-src 'none'; object-src 'none';");
-defaultPref("extensions.webextensions.base-content-security-policy.v3",
-            "default-src 'none'; script-src 'none'; object-src 'none';");
+            "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';");
 EOF
 	ln -sfn "$cfg/librewolf.overrides.cfg" "$HOME/.librewolf/librewolf.overrides.cfg"
 	success "librewolf.overrides.cfg written to $cfg (legacy ~/.librewolf symlinked)."
@@ -506,7 +492,7 @@ link() {
 
 step_dotfiles() {
 	local pkg
-	for pkg in bat fastfetch ghostty git kitty nvim qt6ct quickshell ruff sway tmux wallpapers yazi zsh; do
+	for pkg in bat fastfetch git kitty nvim qt6ct quickshell ruff sway tmux wallpapers yazi zsh; do
 		link "$DOTFILES/$pkg" "$XDG_CONFIG_HOME/$pkg"
 	done
 	link "$DOTFILES/gtk" "$XDG_CONFIG_HOME/gtk-3.0" # same gtk.css + settings.ini for GTK 3 and 4
@@ -539,6 +525,9 @@ step_theme() {
 	success "GTK theme set (adw-gtk3-dark, prefer-dark); Qt follows via QT_QPA_PLATFORMTHEME=qt6ct from .zprofile."
 }
 
+# gpg-agent runs from gnupg's static user sockets (gpg-agent.socket,
+# gpg-agent-ssh.socket: wanted by sockets.target, nothing to enable), under the
+# systemd user environment qs-session imports (WAYLAND_DISPLAY, qt6ct → pinentry-qt).
 step_keys() {
 	sudo systemctl enable --now pcscd.socket
 	GPG_TTY="$(tty)"
@@ -646,23 +635,10 @@ step_finish() {
 	banner "Done"
 	cat <<'EOF'
 
-  Reboot → unlock LUKS → log in on TTY1 → Sway.
-  Passwordless TTY1 (after Sway boots clean):  post-install.sh --autologin
-  Re-run a step:                               post-install.sh --redo <step>
+  Reboot → unlock LUKS (FIDO2 PIN + touch) → log in on TTY1 → Sway.
+  Re-run a step:  post-install.sh --redo <step>
 
 EOF
-}
-
-do_autologin() {
-	sudo_keepalive
-	sudo mkdir -p /etc/systemd/system/getty@tty1.service.d
-	sudo tee /etc/systemd/system/getty@tty1.service.d/autologin.conf >/dev/null <<EOF
-[Service]
-ExecStart=
-ExecStart=-/usr/bin/agetty --autologin $USER --noclear %I \$TERM
-EOF
-	sudo systemctl daemon-reload
-	success "Autologin enabled for $USER on TTY1."
 }
 
 do_list() {
@@ -714,7 +690,6 @@ redo_one() {
 
 case "${1:-}" in
 --list) do_list ;;
---autologin) do_autologin ;;
 --redo)
 	[[ -n "${2:-}" ]] || {
 		err "--redo needs a step name"

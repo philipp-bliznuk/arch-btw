@@ -65,7 +65,7 @@ supervise() {
 		fi
 		logger -t qs-session "quickshell exited with $rc, relaunching" || true
 		sleep 1
-		# compositor gone (sway exited): stop here, or autologin's fresh sway finds a
+		# compositor gone (sway exited): stop here, or the next login's sway finds a
 		# shell bound to the dead SWAYSOCK and its own `qs-session start` skips
 		swaymsg -q -t get_version >/dev/null 2>&1 || break
 	done
@@ -127,7 +127,8 @@ reapply_toggles() {
 case "${1:-start}" in
 start)
 	# fresh sway session: a lock flag left by a session that died must not
-	# lock the new one; with a shell running the flag is its crash-relock cover
+	# lock the new one; getting here took a tty login (no autologin), so the
+	# flag is spent. With a shell running the flag is its crash-relock cover
 	pgrep -u "$UID" -x quickshell >/dev/null || rm -f "$runtime/locked"
 	import_env
 	start_qs

@@ -22,12 +22,23 @@ Five secrets, all into 1Password:
 | #   | Secret                 | Default             | Notes                                                            |
 | --- | ---------------------- | ------------------- | ---------------------------------------------------------------- |
 | 1   | GPG certify passphrase | -                   | Protects offline primary. Only for certifying new subkeys.       |
-| 2   | OpenPGP User PIN       | `123456`            | Sign / decrypt / SSH.                                            |
+| 2   | OpenPGP User PIN       | `123456`            | Sign / decrypt / SSH. Blocked → Admin PIN unblocks it.           |
 | 3   | OpenPGP Admin PIN      | `12345678`          | `keytocard`, touch policy. **Exhausted = applet wiped, no PUK.** |
-| 4   | FIDO2 PIN              | none                | WebAuthn + LUKS/login. 8 tries → `ykman fido reset`.             |
+| 4   | FIDO2 PIN              | none                | WebAuthn, LUKS at every boot, `pamu2fcfg`. **Same PIN on both keys.** 3 wrong in a row → replug; 8 in total → applet wiped. |
 | 5   | PIV                    | `123456`/`12345678` | Left at reset.                                                   |
 
 Applets are independent - resetting one doesn't touch the others.
+
+## PINs
+
+Linux asks for two unrelated PINs. Typing one at the other's prompt burns a retry, and the counters are small.
+
+| Prompt                                                            | PIN                       | Retries                                                          | Exhausted                                                             |
+| ----------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Boot (LUKS), `install.sh` enrollment, `pamu2fcfg`, WebAuthn       | FIDO2 PIN (#4)            | 8 in total; 3 wrong in a row block the applet until replug       | FIDO2 applet wiped → `ykman fido reset`, [Recovery](#recovery)        |
+| `gpg`, `ssh` (pinentry), `keytocard`, `gpg --card-edit` admin     | OpenPGP User / Admin (#2, #3) | 8 each after A4 (`set-retries 8 8 8`; factory 3)             | User: `ykman openpgp access unblock-pin` (Admin PIN). Admin: applet wiped |
+
+Counters: `fido2-token -I $(fido2-token -L | head -1 | cut -d: -f1)` → `pin retries`; `ykman openpgp info` → `PIN tries remaining`. A correct entry resets its counter.
 
 ---
 
@@ -68,7 +79,7 @@ ykman config set-lock-code        # into 1Password
 ## A3 - FIDO2 PIN
 
 ```zsh
-ykman fido access change-pin      # 8+ chars; set-min-length needs fw 5.7+, firmware is not upgradable
+ykman fido access change-pin      # 8+ chars; set-min-length needs fw 5.7+, firmware is not upgradable. Asked at every boot (LUKS)
 ```
 
 ## A4 - Harden OpenPGP
@@ -219,7 +230,7 @@ ykman info
 ykman openpgp reset && ykman fido reset && ykman oath reset && ykman piv reset
 ykman config usb --disable otp && ykman config nfc --disable otp
 ykman config set-lock-code
-ykman fido access change-pin
+ykman fido access change-pin      # the SAME PIN as key #1 - one PIN at the boot prompt whichever key is in
 ```
 
 ## B2 - Harden OpenPGP
@@ -268,6 +279,15 @@ echo test | gpg --clearsign
 - **C3 App TOTP**: everything else → authenticator app. Not the password manager.
 - **C4 Recovery codes**: fresh set per account, printed, offline.
 - Remove the temporary 2FA from Part 0.
+
+---
+
+# Recovery
+
+- FIDO2 PIN blocked (3 wrong in a row): replug, the remaining retries continue.
+- FIDO2 applet wiped (8 wrong) or a key lost: boot with the LUKS passphrase (keyslot 0, prompted 30 s after boot with no key). On the key: `ykman fido reset` (ykman says when to replug and touch), `ykman fido access change-pin` (same PIN as the other key). LUKS: `sudo systemd-cryptenroll --wipe-slot=fido2 --fido2-device=auto --fido2-with-client-pin=yes /dev/<luks-partition>` with the first key plugged (drops every FIDO2 slot, enrolls this key), then the same without `--wipe-slot` for the second key. sudo / polkit / lock screen: `post-install.sh --redo yubikey_pam` re-enrolls both keys into `/etc/u2f_mappings`. WebAuthn registrations of a reset key are gone: Part C again for that key.
+- OpenPGP User PIN blocked: `ykman openpgp access unblock-pin` (Admin PIN). Admin PIN blocked: applet wiped; A4 + A5 again from the offline primary (the other card keeps working meanwhile).
+- `/etc/u2f_mappings` or PAM broken: `sudo` falls through to the password (`sufficient`), `su` never had `pam_u2f`.
 
 ---
 
