@@ -18,6 +18,7 @@ pack.add("https://github.com/mikavilpas/yazi.nvim", function()
   })
 end)
 
--- Keymaps
-map("n", "<leader>ec", "<cmd>Yazi<CR>", { desc = "Explore current dir" })
-map("n", "<leader>ep", "<cmd>Yazi cwd<CR>", { desc = "Explore project" })
+-- Keymaps: `-` opens the listing around the current file (vinegar/oil
+-- convention); the e prefix would hold back <leader>e for timeoutlen.
+map("n", "-", "<cmd>Yazi<CR>", { desc = "Yazi at this file" })
+map("n", "_", "<cmd>Yazi cwd<CR>", { desc = "Yazi at the working directory" })

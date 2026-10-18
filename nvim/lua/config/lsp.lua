@@ -9,6 +9,12 @@ vim.diagnostic.config({
   float = {
     source = true,
   },
+  -- shown after every jump ([d ]d [D ]D); jump({ float = true }) goes in 0.14
+  jump = {
+    on_jump = function(_, bufnr)
+      vim.diagnostic.open_float({ bufnr = bufnr, scope = "cursor", focus = false })
+    end,
+  },
   signs = {
     text = {
       [vim.diagnostic.severity.ERROR] = "󱎘 ",

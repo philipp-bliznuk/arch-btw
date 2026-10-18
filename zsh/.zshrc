@@ -14,9 +14,6 @@ SAVEHIST=50000
 setopt share_history hist_ignore_dups hist_ignore_space hist_verify
 setopt hist_expire_dups_first hist_find_no_dups extended_history
 
-# System completions
-fpath=(/usr/share/zsh/site-functions $fpath)
-
 # Load styles (must be before plugins for antidote/fzf-tab zstyles)
 [[ -f ${ZDOTDIR}/.zstyles ]] && source ${ZDOTDIR}/.zstyles
 
@@ -55,22 +52,15 @@ export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS \
 # Prompt (pure zsh, no external deps)
 [[ -f ${ZDOTDIR}/.zprompt ]] && source ${ZDOTDIR}/.zprompt
 
-# Shell completions (cached via evalcache) - eager: affects keybinds/cd
+# Shell integrations (eager: keybinds, cd) and completions, cached by
+# evalcache. Each _evalcache call forks md5sum, about 14 ms here, so the
+# completions load after the first prompt (zsh-defer comes with the plugins).
 _evalcache fzf --zsh
 _evalcache zoxide init --cmd=cd zsh
-
-# Deferred completions - load on first keypress via zle-line-init hook
-function _deferred_completions() {
-  _evalcache uv generate-shell-completion zsh
-  _evalcache uvx --generate-shell-completion zsh
-  _evalcache jj util completion zsh
-  _evalcache podman completion zsh
-  unfunction _deferred_completions _deferred_completions_hook
-  add-zle-hook-widget -d zle-line-init _deferred_completions_hook
-}
-function _deferred_completions_hook() { _deferred_completions; }
-autoload -Uz add-zle-hook-widget
-add-zle-hook-widget zle-line-init _deferred_completions_hook
+zsh-defer _evalcache uv generate-shell-completion zsh
+zsh-defer _evalcache uvx --generate-shell-completion zsh
+zsh-defer _evalcache jj util completion zsh
+zsh-defer _evalcache podman completion zsh
 
 # Load customizations
 [[ -f ${ZDOTDIR}/.zcustom ]] && source ${ZDOTDIR}/.zcustom

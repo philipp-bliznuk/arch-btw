@@ -17,9 +17,6 @@
 [commit]
     gpgsign = true
 
-[gpg]
-    format = openpgp
-
 [pull]
 	rebase = true
 
@@ -32,7 +29,6 @@
 	all = true
 
 [rebase]
-	backend = merge
 	autoSquash = true
 
 [rerere]
@@ -64,9 +60,6 @@
 [blame]
 	coloring = repeatedLines
 
-[color]
-	ui = auto
-
 [color "branch"]
 	current = yellow bold
 	local = green bold
@@ -83,9 +76,6 @@
 	added = green bold
 	changed = magenta bold
 	untracked = red bold
-
-[web]
-	browser = librewolf
 
 [delta]
 	features = line-numbers decorations

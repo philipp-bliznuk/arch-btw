@@ -206,8 +206,7 @@ Leader key: `Space`
 | `[b` / `]b`              | Previous/next buffer             |
 | `[d` / `]d`              | Previous/next diagnostic         |
 | `[q` / `]q`              | Previous/next quickfix           |
-| `<leader>ec`             | Explore current directory (yazi) |
-| `<leader>ep`             | Explore project root (yazi)      |
+| `-` / `_`                | Yazi at this file / at the cwd   |
 | `z=`                     | Spell suggestions (picker)       |
 
 ## Colorschemes

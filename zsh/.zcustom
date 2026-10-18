@@ -7,9 +7,6 @@ function zvm_after_init() {
   # FZF widgets (zvm stomps these on init)
   bindkey '^R' fzf-history-widget
   bindkey '^T' fzf-file-widget
-
-  # Shift+Enter arrives as CSI-u from kitty; at the prompt it is plain Enter
-  bindkey '^[[13;2u' accept-line
 }
 
 # Normal/visual-mode keybindings (load lazily on first ESC)
@@ -68,7 +65,7 @@ _fzf_comprun() {
 
   case "$command" in
     cd)           fzf --preview 'eza --tree --all --color=always {} | head -200' "$@" ;;
-    export|unset) fzf --preview "eval 'echo ${}'"         "$@" ;;
+    export|unset) fzf --preview "eval 'echo \$'{}"        "$@" ;;
     *)            fzf --preview "$show_file_or_dir_preview" "$@" ;;
   esac
 }

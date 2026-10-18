@@ -20,7 +20,7 @@ input type:keyboard {
 ### Output
 # No `output * bg` - swaybg not installed; Quickshell paints the wallpaper.
 # Laptop panel is primary (workspace 1, tray); externals sit to its right.
-output eDP-1 mode 1366x768@60Hz scale 1 position 0 0
+output eDP-1 position 0 0
 output HDMI-A-2 mode 2560x1440@60Hz scale 1 position 1366 0
 
 ### Autostart
@@ -55,7 +55,7 @@ bindsym $mod+Shift+t exec qs-toggle nightlight
 bindsym $mod+Shift+w exec qs-wallpaper random
 # own process, not `-1`: kitty's single instance would keep NO_TMUX for every later window
 bindsym $mod+Shift+Return exec NO_TMUX=1 kitty --class qs-float
-floating_modifier $mod normal
+floating_modifier $mod
 
 ### Focus / move
 bindsym $mod+$left focus left
@@ -167,7 +167,6 @@ bindsym $mod+Ctrl+p exec qs-capture color
 ### Behaviour
 smart_borders on
 mouse_warping container
-focus_on_window_activation urgent
 
 ### Window rules
 # `border pixel`: kitty negotiates CSD, which sway honours for floating windows (no border)
@@ -180,7 +179,6 @@ for_window [app_id="^qs-screensaver$"] fullscreen enable, inhibit_idle none
 ### Appearance
 default_border pixel 1
 default_floating_border pixel 1
-gaps inner 0
 client.focused          #89b4fa #89b4fa #1e1e2e #b4befe #89b4fa
 client.focused_inactive #45475a #45475a #cdd6f4 #45475a #45475a
 client.unfocused        #313244 #313244 #6c7086 #313244 #313244

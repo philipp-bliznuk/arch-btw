@@ -84,13 +84,7 @@ map("v", ">", ">gv", { desc = "Indent right" })
 -- Save
 map("n", "<leader>w", "<cmd>w<CR>", { desc = "Save file" })
 
--- Diagnostic navigation
-map("n", "[d", function()
-  vim.diagnostic.jump({ count = -1, float = true })
-end, { desc = "Previous diagnostic" })
-map("n", "]d", function()
-  vim.diagnostic.jump({ count = 1, float = true })
-end, { desc = "Next diagnostic" })
+-- Diagnostics: [d ]d [D ]D are default maps, they float through config.jump
 map("n", "<leader>e", vim.diagnostic.open_float, { desc = "Diagnostic float" })
 map("n", "<leader>q", vim.diagnostic.setloclist, { desc = "Diagnostics to loclist" })
 

@@ -1,4 +1,4 @@
 *.zwc
 zsh/.zplugins.zsh
 keys/
-.ruff_cache/
+gtk/bookmarks
