@@ -66,7 +66,7 @@ set)
 		echo "usage: qs-weather set NAME" >&2
 		exit 2
 	}
-	loc="$(geocode "$2")"
+	loc="$(geocode "$2" || true)" # offline counts as no match
 	[[ -n "$loc" ]] || {
 		"$here"/qs-notify -u low "Weather" "No match for '$2'"
 		exit 1

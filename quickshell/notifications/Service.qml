@@ -98,44 +98,16 @@ Scope {
         store.setText(JSON.stringify(history));
     }
 
-    // Hints set by qs-notify: qs-glyph (Nerd glyph shown when there is no
-    // icon) and qs-exec-argv (JSON argv run on click when the sender has no
-    // default action; busctl callers cannot answer ActionInvoked). Any bus
-    // client can send hints, so qs-exec-argv counts only with qs-token, the
-    // random per-boot secret this process writes 0600 under $XDG_RUNTIME_DIR.
-    property string token: ""
-
+    // Hint set by qs-notify: qs-glyph, a Nerd glyph shown when there is no icon.
     function glyph(n) {
         const g = n.hints["qs-glyph"];
         return typeof g === "string" ? g : "";
     }
 
-    function execArgv(n) {
-        if (token === "" || n.hints["qs-token"] !== token)
-            return null;
-        try {
-            const argv = JSON.parse(n.hints["qs-exec-argv"]);
-            return Array.isArray(argv) && argv.length && argv.every(a => typeof a === "string") ? argv : null;
-        } catch (e) {
-            return null;
-        }
-    }
-
-    Process {
-        running: true
-        command: ["bash", "-c", "umask 077; f=\"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/qs/notify-token\"; mkdir -p \"${f%/*}\"; [ -s \"$f\" ] || od -An -N16 -tx1 /dev/urandom | tr -d ' \\n' >\"$f\"; cat \"$f\""]
-        stdout: StdioCollector {
-            onStreamFinished: root.token = text.trim()
-        }
-    }
-
     function activate(n) {
         const a = n.actions.find(x => x.identifier === "default") ?? n.actions[0];
-        const argv = a ? null : execArgv(n);
         if (a)
             a.invoke();
-        else if (argv)
-            Commands.run({ argv });
         if (!n.resident)
             n.dismiss();
     }

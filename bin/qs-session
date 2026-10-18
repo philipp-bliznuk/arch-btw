@@ -87,7 +87,7 @@ kill_targets() {
 		fi
 	fi
 	for p in $(pgrep -u "$UID" -x quickshell || true); do
-		pgid="$(ps -o pgid= -p "$p" 2>/dev/null | tr -d ' ')"
+		pgid="$(ps -o pgid= -p "$p" 2>/dev/null | tr -d ' ' || true)" # gone since pgrep: skip, not abort
 		case "$(ps -o args= -p "${pgid:-0}" 2>/dev/null)" in
 		quickshell* | *qs-session*) echo "-$pgid" ;;
 		*) echo "$p" ;;

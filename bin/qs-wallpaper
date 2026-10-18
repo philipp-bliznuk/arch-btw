@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# qs-wallpaper <set PATH | next | random | current | list>
+# qs-wallpaper <set PATH | random | current | list>
 # Points ~/.local/state/qs/background at a file in ~/.config/wallpapers; Quickshell watches the link.
 set -Eeuo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,8 +9,8 @@ link="$state/background"
 dir="$HOME/.config/wallpapers"
 mkdir -p "$state"
 
-list() {
-	find -L "$dir" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) | sort
+list() { # resolved paths, comparable with current
+	find -L "$dir" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) -exec realpath -- {} + | sort
 }
 
 current() {
@@ -30,16 +30,6 @@ set_wp() {
 
 case "${1:-current}" in
 set) set_wp "${2:?usage: qs-wallpaper set PATH}" ;;
-next)
-	mapfile -t all < <(list)
-	((${#all[@]})) || exit 1
-	cur="$(current)"
-	idx=0
-	for i in "${!all[@]}"; do
-		[[ "${all[$i]}" == "$cur" ]] && idx=$(((i + 1) % ${#all[@]}))
-	done
-	set_wp "${all[$idx]}"
-	;;
 random)
 	mapfile -t all < <(list)
 	((${#all[@]})) || exit 1

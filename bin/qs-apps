@@ -2,8 +2,8 @@
 # qs-apps list        -> JSON array of .desktop ids the launcher may show
 # qs-apps hide <id>   -> append <id> to the blacklist, then print the list
 #
-# Allowed = explicitly installed pacman packages (pacman -Qe), user-local
-# ~/.local/share/applications, flatpak exports; minus ids listed in
+# Allowed = explicitly installed pacman packages (pacman -Qe) and user-local
+# ~/.local/share/applications; minus ids listed in
 # ~/.config/quickshell/apps-hide (one per line, # comments). Dependencies
 # like avahi or hwloc ship .desktop files nobody asked for; this keeps them out.
 set -Eeuo pipefail
@@ -18,9 +18,7 @@ ids_from_files() {
 allowed() {
 	{
 		pacman -Qql $(pacman -Qqe) 2>/dev/null | ids_from_files
-		for d in "$data_home/applications" "$data_home/flatpak/exports/share/applications" /var/lib/flatpak/exports/share/applications; do
-			[[ -d "$d" ]] && find "$d" -maxdepth 1 -name '*.desktop' 2>/dev/null | ids_from_files
-		done
+		[[ -d "$data_home/applications" ]] && find "$data_home/applications" -maxdepth 1 -name '*.desktop' | ids_from_files
 	} | sort -u
 }
 

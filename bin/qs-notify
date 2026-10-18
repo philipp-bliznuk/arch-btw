@@ -1,17 +1,12 @@
 #!/usr/bin/env bash
-# qs-notify [-u low|normal|critical] [-i icon] [-g glyph] [-t ms] [-a app] [-r id] [-p] <summary> [body] [-- cmd args...]
+# qs-notify [-u low|normal|critical] [-i icon] [-g glyph] [-t ms] [-a app] [-r id] [-p] <summary> [body]
 # notify-send replacement via busctl (no libnotify dependency).
 #   -g  Nerd glyph shown by the shell when there is no icon (hint qs-glyph)
 #   -r  replace notification <id> in place
 #   -p  print the notification id (feed it back to -r)
-#   --  argv the shell runs when the popup is clicked (hint qs-exec-argv);
-#       busctl callers cannot receive ActionInvoked, so this stands in for
-#       a default action. Required before the command: a stray word after
-#       the body is an error, never a command. The shell honours the hint
-#       only together with qs-token, read from $XDG_RUNTIME_DIR/qs/notify-token.
 set -Eeuo pipefail
 
-usage="usage: qs-notify [-u urgency] [-i icon] [-g glyph] [-t ms] [-a app] [-r id] [-p] <summary> [body] [-- cmd args...]"
+usage="usage: qs-notify [-u urgency] [-i icon] [-g glyph] [-t ms] [-a app] [-r id] [-p] <summary> [body]"
 urgency=1 icon="" glyph="" timeout=-1 app="qs" replaces=0 print=0
 while getopts 'u:i:g:t:a:r:p' opt; do
 	case "$opt" in
@@ -38,34 +33,14 @@ if [[ $# -eq 0 ]]; then
 	exit 2
 fi
 summary="$1"
-shift
-body=""
-if [[ $# -gt 0 && "$1" != "--" ]]; then
-	body="$1"
-	shift
-fi
-# anything past the body is a click command and must be introduced by --
-if [[ $# -gt 0 ]]; then
-	if [[ "$1" != "--" ]]; then
-		echo "qs-notify: unexpected argument '$1' (click command needs --)" >&2
-		exit 2
-	fi
-	shift
+body="${2:-}"
+if [[ $# -gt 2 ]]; then
+	echo "qs-notify: unexpected argument '$3'" >&2
+	exit 2
 fi
 
 hints=(urgency y "$urgency")
 [[ -n "$glyph" ]] && hints+=(qs-glyph s "$glyph")
-if [[ $# -gt 0 ]]; then
-	# the shell runs qs-exec-argv only with the per-boot token it wrote itself,
-	# so a sandboxed bus client cannot turn a click into host exec
-	token_file="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/qs/notify-token"
-	if [[ ! -s "$token_file" ]]; then
-		echo "qs-notify: $token_file missing, is the shell running?" >&2
-		exit 1
-	fi
-	hints+=(qs-exec-argv s "$(jq -cn '$ARGS.positional' --args -- "$@")")
-	hints+=(qs-token s "$(<"$token_file")")
-fi
 
 # -- right after busctl's own options: positionals may start with '-'
 out="$(busctl --user -- call org.freedesktop.Notifications /org/freedesktop/Notifications \

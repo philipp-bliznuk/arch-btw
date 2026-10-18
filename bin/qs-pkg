@@ -61,7 +61,7 @@ pkgbuild() {
 	f="$cache/$pkg.PKGBUILD"
 	if [[ ! -s "$f" || -n "$(find "$f" -mmin +60)" ]]; then
 		if ! fetch_pkgbuild "$pkg" "$f.tmp"; then
-			base="$(pkgbase_of "$pkg")"
+			base="$(pkgbase_of "$pkg" || true)" # offline: no base, not an abort
 			[[ -n "$base" && "$base" != "$pkg" ]] && fetch_pkgbuild "$base" "$f.tmp" || true
 		fi
 		if [[ -s "$f.tmp" ]]; then
