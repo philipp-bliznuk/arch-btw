@@ -61,7 +61,7 @@ bash install.sh                         # not curl | bash - needs a tty for prom
 
 Prompts, in order: disk (wiped), timezone (`Europe/Berlin`), username, LUKS passphrase, user password, root password (each twice). Summary → type `YES`.
 
-FIDO2 enrollment pauses twice, right after `YES` (disk wiped and LUKS formatted, before pacstrap): `Insert YubiKey #1 ONLY, then press Enter`, then key #2.
+FIDO2 enrollment pauses twice, right after `YES` (disk wiped and LUKS formatted, before pacstrap): `Insert YubiKey #1 ONLY (remove the other), then Enter`, then key #2.
 
 - Exactly one key inserted per pause (`--fido2-device=auto`).
 - Each key asks **FIDO2 PIN + touch**. That is the PIN from `ykman fido access change-pin`, not the OpenPGP PIN; the prompt prints the retries left. Three wrong in a row block the applet until replug, eight in total wipe it ([YUBIKEY.md](./YUBIKEY.md#pins)).
@@ -101,8 +101,8 @@ Runs as user, `sudo` where needed. Markers: `~/.local/state/arch-btw/done/`. Log
 | 10  | lock_pam        | Writes `/etc/pam.d/qs-lock-password` (`pam_unix`, no `nullok`; 2 s delay per wrong attempt, and faillock counts them: three wrong passwords close the password path for 10 min, the YubiKey path stays open) and `qs-lock-u2f` (`pam_u2f` touch only) for the Quickshell lock screen, plus a tmpfiles rule that creates `/run/faillock/$USER` at boot (the user-run stack cannot create it itself). |
 | 11  | lid             | Writes `/etc/systemd/logind.conf.d/00-lid.conf`: lid close → suspend-then-hibernate, lock only with an external display attached (`HandleLidSwitchDocked=lock`, relayed by `swayidle lock`); reloads logind. |
 | 12  | aur_helper      | Writes `/etc/makepkg.conf.d/nodebug.conf` (`OPTIONS+=(!debug)`: no `-debug` split package from local builds), then `yay-git yay-bin`. |
-| 13  | librewolf       | Firejail XDG whitelist + overrides, among them the extension base CSP `script-src 'self' 'wasm-unsafe-eval'; object-src 'self'` (no remote code in extension pages; uBlock Origin's filter-list updates still pass). |
-| 14  | firecfg         | Symlinks into `/usr/local/bin` for every installed program firejail has a profile for (`librewolf`, `ssh`, `man`, `ping`, `ffplay`, `pdftotext`, ...; `firecfg --list`). The stock ssh profile whitelists the gpg-agent socket. |
+| 13  | librewolf       | Firejail XDG whitelist, `apparmor` back on (the stock profile ignores it), session-bus access for MPRIS and the desktop portal, + overrides, among them the extension base CSP `script-src 'self' 'wasm-unsafe-eval'; object-src 'self'` (no remote code in extension pages; uBlock Origin's filter-list updates still pass). |
+| 14  | firecfg         | Symlinks into `/usr/local/bin` for every installed program firejail has a profile for (`librewolf`, `ssh`, `man`, `ping`, `ffplay`, `pdftotext`, ...; `firecfg --list`), plus a pacman hook that re-runs `firecfg` after every transaction touching `/usr/bin` (AUR installs like slack and zoom get their symlink and fixed `.desktop`). The stock ssh profile whitelists the gpg-agent socket. |
 | 15  | dotfiles        | - |
 | 16  | theme           | - |
 | 17  | keys            | Insert USB with key material (layout below). Imports GPG public keys + `pb`/`gx` secrets + on-disk SSH keys. Then insert a YubiKey → `gpg --card-status`. Writes fresh `~/.ssh/config`, `~/.gnupg/gpg-agent.conf` and `scdaemon.conf` (a `--redo keys` overwrites local edits), flips repo remote to SSH. Enables `pcscd.socket`. gpg-agent runs from gnupg's static user sockets; `SSH_AUTH_SOCK` is that socket's fixed path, set in `zsh/.zshenv`. |
@@ -137,13 +137,13 @@ Power on → LUKS (YubiKey: FIDO2 PIN + touch; no key: passphrase after 30 s) �
 | `login` (any VT), `sudo`, polkit | touch, or password | `pam_u2f` `sufficient` in `/etc/pam.d/login`, `/etc/pam.d/sudo` and `/etc/pam.d/polkit-1` only. A machine left at the prompt with the key plugged in is the same walk-away trade-off as the locked session. faillock does not count the touch path, so a locked-out password still leaves the key. |
 | `su`, ssh | password | Neither stack carries `pam_u2f` (`su` has its own, `sshd` uses `system-auth`). `sshd` ships with `openssh` but is never enabled; ufw drops inbound anyway. |
 
-Not covered: Secure Boot stays off, so the ESP (systemd-boot, UKIs) is unsigned and the boot menu's editor stays on for recovery - someone with the device can alter the ESP, but reads nothing from the LUKS volume. Clipboard history is plaintext on disk (LUKS covers it). Firejail/AppArmor confine the browser and a few tools, nothing else.
+Not covered: Secure Boot stays off, so the ESP (systemd-boot, UKIs) is unsigned and the boot menu's editor stays on for recovery - someone with the device can alter the ESP, but reads nothing from the LUKS volume. Clipboard history is plaintext on disk (LUKS covers it). Firejail confines the browser and a few tools (`firecfg --list`), nothing else; the browser also carries AppArmor's `firejail-default` profile through `/etc/firejail/librewolf.local`, and `xdg-dbus-proxy` is what makes the profiles' session-bus filters real (without it firejail allows the whole bus, with only a warning on stderr).
 
 ---
 
 ## Desktop shell (Sway + Quickshell)
 
-One Quickshell process owns everything, including the lock screen and the idle ladder (`swaylock` stays installed as the fallback, `swayidle` only bridges logind's Lock and sleep signals). `sway/config` and `tmux/tmux.conf` stay the single source of truth for keybindings - the launcher parses them live into the Keybindings menu (Sway · Tmux · Launcher · Popups), grouping `h/j/k/l` and `1-0` runs into one row and labelling commands from a table in `MenuModel.js`. Helper scripts live in `bin/` (→ `~/.local/bin`, prefix `qs-`, plus `yay-git`); launcher rows and panel buttons are data, `core/Commands.qml` turns them into processes (`argv`, `term` = kitty window, `task` = `qs-task` floating window that waits for Enter when done). Every interactive zsh execs into the tmux session `default` (`zsh/.zshrc`; a TTY2 login lands in the same session), except the floating terminal (`$mod+Shift+Return`, started with `NO_TMUX=1`).
+One Quickshell process owns everything, including the lock screen and the idle ladder (`swaylock` stays installed as the fallback, `swayidle` only bridges logind's Lock and sleep signals). `sway/config` and `tmux/tmux.conf` stay the single source of truth for keybindings - the launcher parses them live into the Keybindings menu (Sway · Tmux · Launcher · Popups), grouping `h/j/k/l` and `1-0` runs into one row and labelling commands from a table in `MenuModel.js`. Helper scripts live in `bin/` (→ `~/.local/bin`, prefix `qs-`, plus `yay-git` and `snap-restore`); launcher rows and panel buttons are data, `core/Commands.qml` turns them into processes (`argv`, `term` = kitty window, `task` = `qs-task` floating window that waits for Enter when done). Every interactive zsh execs into the tmux session `default` (`zsh/.zshrc`; a TTY2 login lands in the same session), except the floating terminal (`$mod+Shift+Return`, started with `NO_TMUX=1`).
 
 ```
 quickshell/

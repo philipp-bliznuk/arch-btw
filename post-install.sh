@@ -448,6 +448,16 @@ step_librewolf() {
 noblacklist \${HOME}/.config/librewolf
 mkdir \${HOME}/.config/librewolf
 whitelist \${HOME}/.config/librewolf
+# Upstream turned AppArmor off for the browser (ignore apparmor further down in
+# librewolf.profile); this file is included before that line, so the
+# firejail-default profile applies again.
+apparmor
+# Session bus, filtered by xdg-dbus-proxy (the stock profile talks to the
+# portal Documents service only): the MPRIS name for the bar's media widget,
+# and the desktop portal, Firefox's route to the colour scheme and to screen
+# capture on Wayland.
+dbus-user.own org.mpris.MediaPlayer2.firefox.*
+dbus-user.talk org.freedesktop.portal.Desktop
 EOF
 	mkdir -p "$cfg" "$HOME/.librewolf"
 	cat >"$cfg/librewolf.overrides.cfg" <<'EOF'
@@ -476,6 +486,21 @@ step_firecfg() {
 	# symlinks in /usr/local/bin for every installed program firejail has a
 	# profile for (librewolf, ssh, man, ping, ffplay, pdftotext, ...; see
 	# `firecfg --list`). Blacklist misbehaving tools in /etc/firejail/firecfg.config.
+	# The hook re-runs it after every transaction that touches /usr/bin, so AUR
+	# packages installed later (slack, zoom) get their symlink and fixed .desktop.
+	sudo tee /etc/pacman.d/hooks/firecfg.hook >/dev/null <<'EOF'
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Path
+Target = usr/bin/*
+
+[Action]
+Description = Refreshing firejail symlinks (firecfg)...
+When = PostTransaction
+Exec = /usr/bin/firecfg
+EOF
 	sudo firecfg
 }
 

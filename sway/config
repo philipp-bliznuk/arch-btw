@@ -4,8 +4,7 @@ set $left h
 set $down j
 set $up k
 set $right l
-# kitty -1: single instance, one process shares GPU context across windows
-set $term kitty -1
+set $term kitty
 set $menu qs-shell launcher toggle
 
 ### Input
@@ -53,7 +52,6 @@ bindsym $mod+n exec qs-shell launcher open notifications
 bindsym $mod+c exec qs-shell launcher open clipboard
 bindsym $mod+Shift+t exec qs-toggle nightlight
 bindsym $mod+Shift+w exec qs-wallpaper random
-# own process, not `-1`: kitty's single instance would keep NO_TMUX for every later window
 bindsym $mod+Shift+Return exec NO_TMUX=1 kitty --class qs-float
 floating_modifier $mod
 

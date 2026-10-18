@@ -30,7 +30,7 @@ PACKAGES=(
 	git openssh btrfs-progs dosfstools neovim networkmanager # openssh = client only, no sshd
 	pipewire pipewire-pulse wireplumber
 	sudo zsh efibootmgr snapper snap-pac arch-install-scripts # arch-chroot: bin/snap-restore rebuilds the UKIs inside the restored root
-	apparmor chrony firejail earlyoom ufw
+	apparmor chrony firejail xdg-dbus-proxy earlyoom ufw # xdg-dbus-proxy: without it firejail downgrades every dbus-user filter to allow
 	pacman-contrib
 	polkit mesa sway swaylock swayidle quickshell upower cmatrix
 	"<vaapi>" # hardware video decode (browser video otherwise burns a CPU core + GPU uploads)
@@ -427,7 +427,7 @@ step_finish() {
 	_harvest_wifi
 	ln -sf ../run/systemd/resolve/stub-resolv.conf /mnt/etc/resolv.conf # impossible inside arch-chroot (bind mount)
 
-	cp "$LOG_FILE" /mnt/var/log/arch-install.log 2>/dev/null || true
+	install -m 600 "$LOG_FILE" /mnt/var/log/arch-install.log 2>/dev/null || true
 	rm -f /mnt/root/install.sh
 
 	arch-chroot /mnt swapoff -a 2>/dev/null || true # kernel records chroot-relative swap path
@@ -564,6 +564,8 @@ EOF
 DNS=9.9.9.9#dns.quad9.net
 DNSOverTLS=yes
 Domains=~.
+LLMNR=no
+MulticastDNS=no
 EOF
 
 	sed -i -E 's/^(pool|server) /#&/' /etc/chrony.conf # Arch ships either form

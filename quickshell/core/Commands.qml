@@ -49,6 +49,6 @@ QtObject {
 
     // The only place besides sway/config and bin/qs-task that names the terminal.
     function term(argv) {
-        return ["kitty", "-1", "--class", "qs-float", "--"].concat(argv);
+        return ["kitty", "--class", "qs-float", "--"].concat(argv);
     }
 }

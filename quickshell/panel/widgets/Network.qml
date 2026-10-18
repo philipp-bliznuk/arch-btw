@@ -206,7 +206,9 @@ Segment {
         onTriggered: recheck.running = true
     }
 
-    // WPA-EAP (PEAP/MSCHAPv2) profile via nmcli; password over stdin.
+    // WPA-EAP (PEAP/MSCHAPv2) profile via nmcli. The password reaches sh over
+    // stdin, but nmcli only takes it as an argument, so it sits in nmcli's
+    // argv for the duration of the add call (same uid can read it there).
     Process {
         id: eapAdd
         property string ssid: ""
