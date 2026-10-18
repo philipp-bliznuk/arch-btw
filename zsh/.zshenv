@@ -7,10 +7,13 @@ export XDG_STATE_HOME=${XDG_STATE_HOME:-$HOME/.local/state}
 # Relocate zsh config
 export ZDOTDIR=${ZDOTDIR:-$XDG_CONFIG_HOME/zsh}
 
-# Set the list of directories that zsh searches for commands.
+# Set the list of directories that zsh searches for commands. cargo install
+# and go install (install.sh ships rustup and go) put binaries in the last two.
 path=(
   $HOME/.local/{,s}bin(N)
   /usr/local/{,s}bin(N)
+  $HOME/.cargo/bin(N)
+  $HOME/go/bin(N)
   $path
 )
 

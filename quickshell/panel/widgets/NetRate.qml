@@ -2,7 +2,7 @@ import QtQuick
 import qs.core
 import qs.ui
 
-// ⇡ up · ⇣ down. Both labels share one fixed width (widest sample) and the
+// ↑ up · ↓ down. Both labels share one fixed width (widest sample) and the
 // number is padded to three characters, so the left row does not shift and
 // the unit stays in place as the digits change.
 Segment {

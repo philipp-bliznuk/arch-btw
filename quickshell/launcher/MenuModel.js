@@ -274,11 +274,9 @@ var SWAY_LABELS = [
 var TMUX_LABELS = [
   [/^send-prefix/, "Send prefix to nested tmux"],
   [/^send-keys -X begin-selection/, "Begin selection"],
-  [/^send-keys -X rectangle-toggle/, "Toggle rectangle selection"],
   [/^send-keys -X copy-pipe-and-cancel/, "Copy selection to clipboard"],
   [/^send-keys -X cancel/, "Leave copy mode"],
   [/^send-keys -X start-of-line/, "Start of line"],
-  [/^send-keys -X end-of-line/, "End of line"],
   [/^paste-buffer/, "Paste buffer"],
   [/^select-pane <dir>/, "Focus pane"],
   [/^resize-pane <dir>/, "Resize pane"],
