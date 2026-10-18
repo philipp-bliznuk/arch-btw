@@ -351,8 +351,8 @@ Scope {
     // stop them: a token that answers "busy" (still holding an earlier
     // assertion), one the uaccess ACL has not reached yet or a foreign one all
     // fail within a second. The child is kept across a password unlock, so a
-    // completion must check that the lock is still wanted. The USB autosuspend
-    // rule from post-install keeps the token awake so its timeout runs.
+    // completion must check that the lock is still wanted. Run times are wall
+    // clock: a sleep in between logs as a run of hours, nothing hung.
     PamContext {
         id: u2f
         config: "qs-lock-u2f"

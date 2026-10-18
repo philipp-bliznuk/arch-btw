@@ -30,7 +30,7 @@ PACKAGES=(
 	git openssh btrfs-progs dosfstools neovim networkmanager # openssh = client only, no sshd
 	pipewire pipewire-pulse wireplumber
 	sudo zsh efibootmgr snapper snap-pac arch-install-scripts # arch-chroot: bin/snap-restore rebuilds the UKIs inside the restored root
-	apparmor chrony firejail bubblewrap earlyoom ufw
+	apparmor chrony firejail earlyoom ufw
 	pacman-contrib
 	polkit mesa sway swaylock swayidle quickshell upower cmatrix
 	"<vaapi>" # hardware video decode (browser video otherwise burns a CPU core + GPU uploads)
@@ -38,7 +38,7 @@ PACKAGES=(
 	xdg-desktop-portal-wlr xdg-desktop-portal-gtk
 	ttf-jetbrains-mono-nerd noto-fonts noto-fonts-cjk noto-fonts-emoji # cjk: fallback glyphs for app menus/titles (tray menus, window titles)
 	brightnessctl xdg-user-dirs man-db man-pages
-	wlsunset power-profiles-daemon python-gobject # night light (qs-toggle), battery power profiles (Quickshell battery popup; powerprofilesctl needs gobject)
+	wlsunset power-profiles-daemon # night light (qs-toggle), battery power profiles (Quickshell battery popup talks D-Bus, no powerprofilesctl)
 	libqalculate systemd-ukify
 	pam-u2f libfido2 yubikey-manager ccid
 	kguiaddons kwindowsystem # pinentry-qt links against these (gpg passphrase prompt)
@@ -335,7 +335,8 @@ step_pacstrap() {
 	pacman -Sy --noconfirm archlinux-keyring # stale ISO keyring → signature failures
 	local pkgs=("${PACKAGES[@]/<ucode>/$UCODE}")
 	pkgs=("${pkgs[@]/<vaapi>/$VAAPI}")
-	# Pre-create vconsole.conf: silences mkinitcpio "not found" warning during pacstrap's stock image build
+	# vconsole.conf before pacstrap: sd-vconsole needs it, and the stock image
+	# build during pacstrap warns "not found" without it
 	mkdir -p /mnt/etc
 	echo "KEYMAP=${KEYMAP}" >/mnt/etc/vconsole.conf
 	# SNAP_PAC_SKIP: snap-pac hook calls `ps` → "fatal library error, lookup self" in chroot (harmless)
@@ -350,8 +351,7 @@ step_pacstrap() {
 step_chroot() {
 	cp "${BASH_SOURCE[0]}" /mnt/root/install.sh
 	arch-chroot -S /mnt env \
-		TIMEZONE="$TIMEZONE" HOSTNAME="$HOSTNAME" LOCALE="$LOCALE" KEYMAP="$KEYMAP" \
-		USERNAME="$USERNAME" SWAP_GB="$SWAP_GB" LUKS_UUID="$LUKS_UUID" \
+		TIMEZONE="$TIMEZONE" USERNAME="$USERNAME" SWAP_GB="$SWAP_GB" LUKS_UUID="$LUKS_UUID" \
 		DEBUG="${DEBUG:-0}" \
 		bash /root/install.sh --phase chroot
 
@@ -460,7 +460,6 @@ chroot_phase() {
 	echo "$LOCALE UTF-8" >>/etc/locale.gen
 	locale-gen
 	echo "LANG=$LOCALE" >/etc/locale.conf
-	echo "KEYMAP=$KEYMAP" >/etc/vconsole.conf # required by sd-vconsole
 
 	echo "$HOSTNAME" >/etc/hostname
 	cat >/etc/hosts <<EOF
@@ -526,6 +525,10 @@ EOF
 	# nothing to type before login starts, so its 60 s timer would restart it
 	# every minute at an unattended tty1 (key blinking 29 s of each)
 	sed -i 's/^LOGIN_TIMEOUT.*/LOGIN_TIMEOUT\t\t0/' /etc/login.defs
+	grep -q '^LOGIN_TIMEOUT[[:space:]]*0$' /etc/login.defs || {
+		err "login.defs: LOGIN_TIMEOUT 0 not set."
+		exit 1
+	}
 	mkdir -p /etc/sudoers.d
 	echo '%wheel ALL=(ALL:ALL) ALL' >/etc/sudoers.d/wheel
 	chmod 440 /etc/sudoers.d/wheel

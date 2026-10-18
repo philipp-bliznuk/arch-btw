@@ -31,7 +31,6 @@ readonly STEPS=(
 	"battery_limit:step_battery_limit"
 	"yubikey_pam:step_yubikey_pam"
 	"lock_pam:step_lock_pam"
-	"yubikey_power:step_yubikey_power"
 	"lid:step_lid"
 	"aur_helper:step_aur_helper"
 	"librewolf:step_librewolf"
@@ -324,9 +323,11 @@ step_battery_limit() {
 	"$DOTFILES/bin/qs-battery" limit on
 }
 
-# pam_u2f ahead of the password for sudo and polkit only. Not in system-auth:
-# that stack also serves login and sshd, where "sufficient" would log in anyone
-# holding a plugged key. The lock screen has its own services (lock_pam).
+# pam_u2f ahead of the password for login, sudo and polkit. Not in system-auth:
+# that stack also serves sshd (and su has its own), where "sufficient" would
+# log in anyone holding a plugged key. The lock screen has its own services
+# (lock_pam). The cue names the way out: while the token waits for a touch the
+# tty still echoes, so a password typed then shows in clear and is discarded.
 step_yubikey_pam() {
 	local tmp
 	tmp="$(mktemp)"
@@ -339,7 +340,7 @@ step_yubikey_pam() {
 	sudo install -o root -g "$(id -gn)" -m 640 "$tmp" /etc/u2f_mappings
 	rm -f "$tmp"
 
-	local rule='auth sufficient pam_u2f.so authfile=/etc/u2f_mappings cue origin=pam://arch-yubikey appid=pam://arch-yubikey'
+	local rule='auth sufficient pam_u2f.so authfile=/etc/u2f_mappings cue [cue_prompt=Touch the YubiKey, or unplug it and type the password] origin=pam://arch-yubikey appid=pam://arch-yubikey'
 	# older revisions put the rule in system-auth (every login); no-op on a fresh install
 	sudo sed -i '/pam_u2f\.so/d' /etc/pam.d/system-auth
 	# sudo and login: the packages' own files, rule above their `auth include`
@@ -348,6 +349,10 @@ step_yubikey_pam() {
 	for f in sudo login; do
 		sudo sed -i -e '/pam_u2f\.so/d' \
 			-e "0,/^auth[[:space:]]\+include/s|^auth[[:space:]]\+include|${rule}\n&|" "/etc/pam.d/$f"
+		grep -q '^auth sufficient pam_u2f\.so' "/etc/pam.d/$f" || {
+			err "/etc/pam.d/$f: no auth include line to put pam_u2f above; file layout changed."
+			return 1
+		}
 	done
 	# polkit-1: vendor file in /usr/lib/pam.d, an /etc copy takes precedence
 	[[ -r /usr/lib/pam.d/polkit-1 ]] || {
@@ -399,29 +404,11 @@ step_lock_pam() {
 	success "PAM services qs-lock-password and qs-lock-u2f written, faillock tally file created."
 }
 
-# 92_pcscd_ccid.rules sets power/control=auto (USB autosuspend) on every CCID
-# device, the YubiKey included, and runs on every event but remove: add, then
-# bind when the usb driver attaches. A rule matching add|change loses on bind,
-# so this one matches the same events and sorts later. A suspended token stops
-# its ~29 s touch timeout: a pam_u2f child waiting on it hangs for hours and
-# the lock screen's retry loop with it (qs log: "u2f ended after 15745904 ms").
-step_yubikey_power() {
-	sudo install -o root -g root -m 644 /dev/stdin /etc/udev/rules.d/95-yubikey-no-autosuspend.rules <<-'EOF'
-		# Written by post-install.sh (yubikey_power). 92_pcscd_ccid.rules autosuspends CCID
-		# devices on add and on bind; same events here, later file wins. Asleep, the
-		# token's FIDO touch timeout stops and a waiting pam_u2f never returns.
-		ACTION!="remove", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="1050", TEST=="power/control", ATTR{power/control}="on"
-	EOF
-	sudo udevadm control --reload
-	sudo udevadm trigger --subsystem-match=usb --attr-match=idVendor=1050
-	success "USB autosuspend off for YubiKeys (95-yubikey-no-autosuspend.rules)."
-}
-
 # Lid policy. Closing the lid suspends, then hibernates, on battery and on AC
 # alike. With an external display attached logind counts the laptop as docked,
 # and then the lid only locks: swayidle relays logind's Lock signal to qs-lock.
 step_lid() {
-	sudo install -o root -g root -m 644 /dev/stdin /etc/systemd/logind.conf.d/00-lid.conf <<-'EOF'
+	sudo install -D -o root -g root -m 644 /dev/stdin /etc/systemd/logind.conf.d/00-lid.conf <<-'EOF'
 		# Written by post-install.sh (lid).
 		[Login]
 		HandleLidSwitch=suspend-then-hibernate
@@ -434,8 +421,14 @@ step_lid() {
 }
 
 # yay for AUR-only desktop apps (slack-desktop, zoom). yay-bin: no Go toolchain.
-# Built via bin/yay-git so the GitHub mirror covers AUR outages.
+# Built via bin/yay-git so the GitHub mirror covers AUR outages. makepkg's
+# default OPTIONS has debug on, which splits a -debug package out of every
+# build and makepkg -si installs it; off system-wide before the first build.
 step_aur_helper() {
+	sudo install -D -o root -g root -m 644 /dev/stdin /etc/makepkg.conf.d/nodebug.conf <<-'EOF'
+		# Written by post-install.sh (aur_helper): no -debug split packages from local builds.
+		OPTIONS+=(!debug)
+	EOF
 	if pacman -Q yay >/dev/null 2>&1; then
 		echo "yay already installed"
 		return 0
@@ -480,7 +473,10 @@ EOF
 }
 
 step_firecfg() {
-	sudo firecfg # jails: ssh man wget librewolf ffplay. Blacklist misbehaving tools in /etc/firejail/firecfg.config.
+	# symlinks in /usr/local/bin for every installed program firejail has a
+	# profile for (librewolf, ssh, man, ping, ffplay, pdftotext, ...; see
+	# `firecfg --list`). Blacklist misbehaving tools in /etc/firejail/firecfg.config.
+	sudo firecfg
 }
 
 link() {
@@ -640,7 +636,7 @@ step_finish() {
 	banner "Done"
 	cat <<'EOF'
 
-  Reboot → unlock LUKS (FIDO2 PIN + touch) → TTY1: touch the key, or the password → Sway.
+  Reboot → unlock LUKS (FIDO2 PIN + touch) → TTY1: touch the key, or unplug it and type the password → Sway.
   Re-run a step:  post-install.sh --redo <step>
 
 EOF

@@ -229,7 +229,7 @@ All LSP servers and formatters are managed by Mason - no manual installation nee
 
 ## Installation
 
-Part of the [dotfiles](../) repo. `install.sh` symlinks it into place:
+Part of the [dotfiles](../) repo. `post-install.sh` step `dotfiles` symlinks it into place:
 
 ```bash
 ln -sf ~/projects/dotfiles/nvim ~/.config/nvim

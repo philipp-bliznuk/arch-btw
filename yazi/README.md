@@ -78,7 +78,7 @@ status bar for unix systems.
 ## Plugin Management
 
 Plugins and flavors are tracked in `package.toml` and physically committed to
-the repo (symlinked to `~/.config/yazi/` by install script). To update:
+the repo (symlinked to `~/.config/yazi/` by `post-install.sh` step `dotfiles`). To update:
 
 ```bash
 cd ~/.config/yazi
@@ -90,4 +90,4 @@ ya pkg upgrade
 - `ouch` - archive list/extract/compress
 - `yazi` - the file manager itself
 
-Installed via pacman (see the main install guide's Step 3 pacstrap).
+Both in `install.sh`'s package list.

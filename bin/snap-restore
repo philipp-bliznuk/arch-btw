@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# snap-restore [--device DEV] [list | last | N | undo]
+# snap-restore [--device DEV] [list | last | N | undo | rebuild]
 # Roll the root subvolume (@) back to a snapper snapshot and rebuild the UKIs
 # from inside the restored root, so the kernel on the ESP matches its
 # /usr/lib/modules. One reboot, nothing to run afterwards.
-#   list    snapshots: number, date, type, description (default)
-#   last    newest snap-pac "pre" snapshot = root as it was before the last pacman run
-#   N       snapshot number from list
-#   undo    swap back the root replaced by the previous restore
+#   list     snapshots: number, date, type, description (default)
+#   last     newest snap-pac "pre" snapshot = root as it was before the last pacman run
+#   N        snapshot number from list
+#   undo     swap back the root replaced by the previous restore
+#   rebuild  only rebuild the UKIs from @ (after a failed restore or undo, or a broken initramfs)
 # The replaced root stays as @_replaced until the next restore (undo window).
 # Live ISO: cryptsetup open /dev/<luks-part> cryptroot, then
 #   snap-restore --device /dev/mapper/cryptroot N
@@ -44,7 +45,7 @@ while (($#)); do
 		usage
 		exit 0
 		;;
-	list | last | undo)
+	list | last | undo | rebuild)
 		action="$1"
 		shift
 		;;
@@ -109,17 +110,18 @@ running_is() { # running_is PATH: is the booted root this subvolume?
 	[[ "$(btrfs inspect-internal rootid /)" == "$(btrfs inspect-internal rootid "$1")" ]]
 }
 
-# mkinitcpio -P inside the (restored) @: presets, vmlinuz and modules all come
-# from the same tree; only the ESP is the real one.
+# mkinitcpio -P inside @: presets, vmlinuz and modules all come from the same
+# tree; only the ESP is the real one. $1 names the state a failure leaves.
 rebuild_ukis() {
 	local esp
-	mount -o subvol=@ "$dev" "$root"
-	esp="$(findmnt --fstab --tab-file "$root/etc/fstab" -no SOURCE /boot/efi)" || die "no /boot/efi in the restored fstab"
-	mount "$esp" "$root/boot/efi"
-	arch-chroot "$root" mkinitcpio -P ||
-		die "root swapped but the UKIs were NOT rebuilt (they still match the other root): snap-restore undo swaps back"
+	mount -o subvol=@ "$dev" "$root" || die "cannot mount @. $1"
+	esp="$(findmnt --fstab --tab-file "$root/etc/fstab" -no SOURCE /boot/efi)" || die "no /boot/efi in @'s fstab. $1"
+	mount "$esp" "$root/boot/efi" || die "cannot mount the ESP $esp. $1"
+	arch-chroot "$root" mkinitcpio -P || die "mkinitcpio failed. $1"
 	umount -R "$root"
 }
+# after the exchange in restore and undo alike: the ESP matches the other root
+readonly SWAPPED="Root swapped, the UKIs still match @_replaced: fix the cause, then snap-restore rebuild (undo swaps back)."
 
 reboot_prompt() {
 	local ans
@@ -144,16 +146,17 @@ restore() {
 	# every instant, and an interrupted run leaves only an unused copy behind.
 	btrfs subvolume snapshot "$snap" "$top/@_replaced"
 	mv -T --exchange "$top/@" "$top/@_replaced"
-	rebuild_ukis
+	rebuild_ukis "$SWAPPED"
 	printf 'Root is now snapshot #%s, UKIs rebuilt. snap-restore undo swaps back.\n' "$n"
 	reboot_prompt
 }
 
 undo() {
 	[[ -e $top/@_replaced ]] || die "nothing to undo: no @_replaced"
-	confirm "Swap @ and @_replaced (back to the root from before the last restore)?"
+	echo "@_replaced is the root from before the last restore, or the unused copy of an interrupted one."
+	confirm "Swap @ and @_replaced?"
 	mv -T --exchange "$top/@" "$top/@_replaced"
-	rebuild_ukis
+	rebuild_ukis "$SWAPPED"
 	echo "Undone, UKIs rebuilt."
 	reboot_prompt
 }
@@ -165,5 +168,9 @@ last)
 	restore "$n"
 	;;
 undo) undo ;;
+rebuild)
+	rebuild_ukis "UKIs unchanged."
+	echo "UKIs rebuilt from @."
+	;;
 *) restore "$action" ;;
 esac

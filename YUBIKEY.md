@@ -1,6 +1,6 @@
 # YubiKey Provisioning
 
-Two YubiKey 5-series, wiped and rebuilt so **either works everywhere**. Done on macOS; `ykman`/`gpg` commands identical on Linux. Prerequisite to [README.md](./README.md).
+Two YubiKey 5-series, wiped and rebuilt so **either works everywhere**. Done on any Linux with `yubikey-manager` and `gnupg` (the installed system has them). Prerequisite to [README.md](./README.md).
 
 - FIDO2 is non-cloneable → register **both** keys on **every** account.
 - GPG/SSH is cloned → **same** subkeys on both cards → zero reconfiguration on swap. Can't revoke one without the other.
@@ -11,11 +11,12 @@ Order: Part 0 extract → Part A key #1 → Part B key #2 → Part C register. N
 ## Prerequisites
 
 ```zsh
-brew install gnupg ykman pinentry-mac   # ykman GUI is EOL; CLI only
+sudo pacman -S --needed yubikey-manager gnupg ccid pinentry   # ykman GUI is EOL; CLI only
+sudo systemctl enable --now pcscd.socket                      # ykman and scdaemon talk PC/SC
 ykman list && ykman info
 ```
 
-Yubico Authenticator (App Store) - only tool for OATH; supplies the clock. macOS has PC/SC built in - no `pcscd`.
+OATH-TOTP from the CLI: `ykman oath accounts uri 'otpauth://...'` (or `add NAME SECRET`), codes with `ykman oath accounts code`.
 
 Five secrets, all into 1Password:
 
@@ -139,27 +140,22 @@ ykman openpgp keys set-touch dec cached
 ykman openpgp keys set-touch aut cached
 ```
 
-## A6 - SSH via gpg-agent (macOS)
+## A6 - SSH via gpg-agent
 
-`~/.gnupg/gpg-agent.conf`:
+On the installed system `post-install.sh` step `keys` writes all of this (`~/.gnupg/gpg-agent.conf`, `scdaemon.conf`, `~/.ssh/config`, the exported card key). Elsewhere, by hand. `~/.gnupg/gpg-agent.conf`:
 
 ```conf
-pinentry-program /opt/homebrew/opt/pinentry-touchid/bin/pinentry-touchid   # or /opt/homebrew/bin/pinentry-mac
+pinentry-program /usr/bin/pinentry-qt
 enable-ssh-support
-default-cache-ttl 60      # idle timeout; raise in dotfiles (86400)
-max-cache-ttl 120         # absolute; raise in dotfiles (604800)
+default-cache-ttl 604800   # idle timeout, seconds
+max-cache-ttl 604800       # absolute
 ```
 
-- `pinentry-touchid` (`brew install jorgelbg/tap/pinentry-touchid`) only gates **on-disk** key passphrases; card enforces its own PIN + touch. Needs `pinentry-mac` as fallback. Single global setting.
+`~/.gnupg/scdaemon.conf`: `disable-ccid` and `pcsc-shared` (scdaemon goes through pcscd and leaves the reader to ykman).
+
+- pinentry only gates **on-disk** key passphrases; the card enforces its own PIN + touch.
 - PIN cache lives in gpg-agent RAM, cleared on reboot / logout / `gpgconf --kill gpg-agent` / unplug.
-
-`~/.zshrc`:
-
-```zsh
-export GPG_TTY=$(tty)
-export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
-gpgconf --launch gpg-agent
-```
+- The agent's sockets are static (`gpg-agent.socket`, `gpg-agent-ssh.socket`, under `$XDG_RUNTIME_DIR/gnupg`): `zsh/.zshenv` sets `SSH_AUTH_SOCK` to that path, `.zshrc` exports `GPG_TTY`.
 
 ```zsh
 gpgconf --kill gpg-agent
@@ -170,13 +166,12 @@ ssh-add -L | grep 'cardno:' > ~/.ssh/id_ed25519_ic_yubikey.pub
 - One SSH key = one GitHub account. Card key covers a single account; other accounts get on-disk keys (`ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_<id>`).
 - `IdentitiesOnly yes` requires `IdentityFile` even for the agent key - without it SSH ignores the agent → `Permission denied (publickey)`.
 
-`~/.ssh/config`:
+`~/.ssh/config` (one `Host` per identity; step `keys` writes `pb`, `ic`, `gx`):
 
 ```
 Host ic
     HostName github.com
     User git
-    IdentityAgent ~/.gnupg/S.gpg-agent.ssh
     IdentityFile ~/.ssh/id_ed25519_ic_yubikey.pub
     IdentitiesOnly yes
 
@@ -191,16 +186,21 @@ Remotes: `git@ic:org/repo.git`.
 
 ## A7 - Git signing
 
+Signing is wired in the dotfiles, not with `git config --global` (that would edit `git/config` in the repo): `git/config` sets `commit.gpgsign true` and includes `git/<id>` per remote alias, and each `git/<id>` carries the identity:
+
+```
+[user]
+    email = <uid email>
+    signingkey = <sign-subkey-id>!   # ! pins the subkey; ssb [S] line
+```
+
 ```zsh
-git config --global user.signingkey <sign-subkey-id>!   # ! pins the subkey; ssb [S] line
-git config --global commit.gpgsign true
-git config --global gpg.format openpgp
 gpg --armor --export <key-id>                           # GitHub → Settings → GPG keys (not SSH keys); same key on every account
 ```
 
 - Verified badge needs `user.email` matching a key UID.
 - Signing prompts **User PIN + touch**. User PIN exhausted → `gpg --card-edit` → `admin` → `passwd` (Admin PIN). Admin PIN exhausted → applet wiped.
-- Per-account identity via `~/.config/git/config`:
+- The include rule in `git/config`:
 
 ```
 [includeIf "hasconfig:remote.*.url:git@ic:**/**"]     # **/** - single ** doesn't match scp-style remotes; git ≥ 2.36
@@ -275,7 +275,7 @@ echo test | gpg --clearsign
 # Part C - Register
 
 - **C1 FIDO2**: every security-key account (GitHub, AWS, Google, Auth0, password manager) - add key #1, then key #2. Name them `yubikey-1` / `yubikey-2`.
-- **C2 Card TOTP**: top-value TOTP-only accounts → Yubico Authenticator, same QR/seed on both keys, one sitting. ~32 slots.
+- **C2 Card TOTP**: top-value TOTP-only accounts → `ykman oath accounts uri '<otpauth URI>'`, same seed on both keys, one sitting. ~32 slots.
 - **C3 App TOTP**: everything else → authenticator app. Not the password manager.
 - **C4 Recovery codes**: fresh set per account, printed, offline.
 - Remove the temporary 2FA from Part 0.
@@ -285,9 +285,9 @@ echo test | gpg --clearsign
 # Recovery
 
 - FIDO2 PIN blocked (3 wrong in a row): replug, the remaining retries continue.
-- FIDO2 applet wiped (8 wrong) or a key lost: boot with the LUKS passphrase (keyslot 0, prompted 30 s after boot with no key). On the key: `ykman fido reset` (ykman says when to replug and touch), `ykman fido access change-pin` (same PIN as the other key). LUKS: `sudo systemd-cryptenroll --wipe-slot=fido2 --fido2-device=auto --fido2-with-client-pin=yes /dev/<luks-partition>` with the first key plugged (drops every FIDO2 slot, enrolls this key), then the same without `--wipe-slot` for the second key. sudo / polkit / lock screen: `post-install.sh --redo yubikey_pam` re-enrolls both keys into `/etc/u2f_mappings`. WebAuthn registrations of a reset key are gone: Part C again for that key.
+- FIDO2 applet wiped (8 wrong) or a key lost: boot with the LUKS passphrase (keyslot 0, prompted 30 s after boot with no key). On the key: `ykman fido reset` (ykman says when to replug and touch), `ykman fido access change-pin` (same PIN as the other key). LUKS: `sudo systemd-cryptenroll --wipe-slot=fido2 --fido2-device=auto --fido2-with-client-pin=yes /dev/<luks-partition>` with the first key plugged (drops every FIDO2 slot, enrolls this key), then the same without `--wipe-slot` for the second key. login / sudo / polkit / lock screen: `post-install.sh --redo yubikey_pam` re-enrolls both keys into `/etc/u2f_mappings`. WebAuthn registrations of a reset key are gone: Part C again for that key.
 - OpenPGP User PIN blocked: `ykman openpgp access unblock-pin` (Admin PIN). Admin PIN blocked: applet wiped; A4 + A5 again from the offline primary (the other card keeps working meanwhile).
-- `/etc/u2f_mappings` or PAM broken: `login` and `sudo` fall through to the password (`sufficient`), `su` never had `pam_u2f`.
+- `/etc/u2f_mappings` or PAM broken: `login`, `sudo` and polkit fall through to the password (`sufficient`), `su` never had `pam_u2f`.
 
 ---
 
