@@ -41,7 +41,6 @@ Segment {
         id: popup
         anchorItem: root
         popupId: "weather"
-        cardWidth: 300
         onOpenChanged: if (!open) root.editing = false
         keymap: [
             { key: "e Enter", run: () => root.startEdit() },

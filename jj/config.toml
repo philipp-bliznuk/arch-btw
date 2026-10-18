@@ -6,8 +6,6 @@ email = "philipp.bliznuk@gmail.com"
 
 [ui]
 default-command = "log"
-editor = "nvim"
-diff-editor = ":builtin"
 merge-editor = "vimdiff"  # builtin preset, program swapped below
 pager = "delta"
 diff-formatter = ":git"
@@ -20,10 +18,6 @@ behavior = "own"
 backend = "gpg"
 key = "90FCB72BBEA3C725"
 
-[git]
-colocate = true
-sign-on-push = false
-
 [remotes.origin]
 auto-track-bookmarks = "*"
 
@@ -35,7 +29,5 @@ auto-track-bookmarks = "*"
 'format_timestamp(timestamp)' = 'timestamp.ago()'
 
 [aliases]
-ci = ["commit"]
 d = ["diff"]
-st = ["status"]
 lg = ["log", "--limit", "20"]

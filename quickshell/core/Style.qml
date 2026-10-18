@@ -32,7 +32,7 @@ QtObject {
     readonly property int cardPadding: 10
 
     readonly property int notifWidth: 380
-    readonly property int popupWidth: 320
+    readonly property int popupWidth: 300
     readonly property int osdWidth: 260
     readonly property int mediaWidth: 260
     readonly property int tooltipDelay: 600

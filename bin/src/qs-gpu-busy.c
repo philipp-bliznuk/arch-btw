@@ -1,7 +1,7 @@
 // qs-gpu-busy [interval_s] - i915 engine busy % via the i915 PMU (same source
 // btop / intel_gpu_top use). Needs CAP_PERFMON; post-install.sh installs it
 // root-owned to /usr/local/bin with the capability set.
-// Prints "<render%> <video%>" per interval; quickshell/core/Metrics.qml reads it.
+// Prints "<render%>" per interval; quickshell/core/Metrics.qml reads it.
 #define _GNU_SOURCE
 #include <fcntl.h>
 #include <linux/perf_event.h>
@@ -80,16 +80,13 @@ int main(int argc, char **argv) {
 		perror("qs-gpu-busy: perf_event_open (needs CAP_PERFMON)");
 		return 1;
 	}
-	int video = open_engine(type, "vcs0-busy");
 	setvbuf(stdout, NULL, _IOLBF, 0);
-	uint64_t pr = read_u64(render), pv = video >= 0 ? read_u64(video) : 0, pt = now_ns();
+	uint64_t pr = read_u64(render), pt = now_ns();
 	for (;;) {
 		sleep(interval);
-		uint64_t r = read_u64(render), v = video >= 0 ? read_u64(video) : 0, t = now_ns();
-		double dt = (double)(t - pt);
-		printf("%d %d\n", pct(r - pr, dt), pct(v - pv, dt));
+		uint64_t r = read_u64(render), t = now_ns();
+		printf("%d\n", pct(r - pr, (double)(t - pt)));
 		pr = r;
-		pv = v;
 		pt = t;
 	}
 }

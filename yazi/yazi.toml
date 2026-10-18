@@ -10,9 +10,6 @@ sort_translit = true
 linemode = "size"
 show_hidden = true
 
-[opener]
-extract = [{ run = 'ouch d -y %s', desc = "Extract here with ouch" }]
-
 [plugin]
 prepend_previewers = [
     { mime = "application/{*zip,tar,bzip2,7z*,rar,xz,zstd,java-archive}", run = "ouch --show-file-icons" },

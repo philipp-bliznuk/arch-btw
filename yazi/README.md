@@ -11,7 +11,8 @@ defaults and consistent theming that matches the rest of the dotfiles ecosystem.
    bat, Quickshell).
 3. **Built-in previewer** - uses yazi's native syntect-based code previewer
    with proper true-color support via `tmux-256color` terminal.
-4. **ouch for archives** - single tool for preview, extraction, and compression.
+4. **ouch for archive preview and compression** - extraction is yazi's built-in
+   `extract` plugin (Enter on an archive; needs `7zip`).
 
 ## File Structure
 
@@ -47,7 +48,6 @@ type - no background highlight artifacts.
 | ----- | --------------------------------------------- |
 | `!`   | Open `$SHELL` in current directory (blocking) |
 | `C`   | Compress selected files with ouch             |
-| `X`   | Extract hovered archive here                  |
 | `Esc` | Cancel input                                  |
 
 ## Manager Settings
@@ -87,7 +87,8 @@ ya pkg upgrade
 
 ## Dependencies
 
-- `ouch` - archive list/extract/compress
+- `ouch` - archive list/compress
+- `7zip` - yazi's built-in extraction
 - `yazi` - the file manager itself
 
-Both in `install.sh`'s package list.
+All in `install.sh`'s package list.

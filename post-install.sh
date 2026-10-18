@@ -212,11 +212,12 @@ step_snapper() {
 		sudo chmod 750 /.snapshots
 	fi
 	# snap-pac pre/post pairs use the number cleanup (snap-restore picks the
-	# newest pre); the Arch defaults also keep 10 yearly timeline snapshots of root
+	# newest pre); the template keeps 50 of those and 10 monthly plus 10 yearly
+	# timeline snapshots of root
 	sudo snapper -c root set-config \
 		TIMELINE_LIMIT_HOURLY=5 TIMELINE_LIMIT_DAILY=7 \
-		TIMELINE_LIMIT_WEEKLY=0 TIMELINE_LIMIT_MONTHLY=0 TIMELINE_LIMIT_YEARLY=0 \
-		NUMBER_LIMIT=20 NUMBER_LIMIT_IMPORTANT=10
+		TIMELINE_LIMIT_MONTHLY=0 TIMELINE_LIMIT_YEARLY=0 \
+		NUMBER_LIMIT=20
 
 	if sudo snapper list-configs | grep -qE '^home\s'; then
 		success "snapper home config exists."
@@ -341,8 +342,6 @@ step_yubikey_pam() {
 	rm -f "$tmp"
 
 	local rule='auth sufficient pam_u2f.so authfile=/etc/u2f_mappings cue [cue_prompt=Touch the YubiKey, or unplug it and type the password] origin=pam://arch-yubikey appid=pam://arch-yubikey'
-	# older revisions put the rule in system-auth (every login); no-op on a fresh install
-	sudo sed -i '/pam_u2f\.so/d' /etc/pam.d/system-auth
 	# sudo and login: the packages' own files, rule above their `auth include`
 	# line (login: after pam_nologin; pacnew on upgrade, pacdiff keeps it)
 	local f
@@ -412,7 +411,6 @@ step_lid() {
 		# Written by post-install.sh (lid).
 		[Login]
 		HandleLidSwitch=suspend-then-hibernate
-		HandleLidSwitchExternalPower=suspend-then-hibernate
 		# external display attached: lock only (swayidle relays the Lock signal to qs-lock)
 		HandleLidSwitchDocked=lock
 	EOF

@@ -61,7 +61,6 @@ Segment {
         id: popup
         anchorItem: root
         popupId: "clock"
-        cardWidth: 300
         keymap: [
             { key: "h l Left Right", run: k => root.shift(k === "h" || k === "Left" ? -1 : 1, 0) },
             { key: "j k Down Up", run: k => root.shift(0, k === "j" || k === "Down" ? -1 : 1) },

@@ -26,7 +26,6 @@ Segment {
         id: popup
         anchorItem: root
         popupId: "battery"
-        cardWidth: 300
         count: Power.profiles.length
         keymap: [
             { key: "Enter", run: () => { if (Power.profiles[cursor] !== undefined) PowerProfiles.profile = Power.profiles[cursor]; } },

@@ -18,8 +18,7 @@
             "outputColor": "90"
         },
         {
-            "type": "title",
-            "keyWidth": 10
+            "type": "title"
         },
         {
             "type": "custom",
@@ -61,28 +60,13 @@
             "keyColor": "blue"
         },
         {
-            "type": "lm",
-            "key": "│ ├󰧨",
-            "keyColor": "blue"
-        },
-        {
-            "type": "wmtheme",
-            "key": "│ ├󰉼",
-            "keyColor": "blue"
-        },
-        {
             "type": "icons",
             "key": "│ ├󰀻",
             "keyColor": "blue"
         },
         {
             "type": "terminal",
-            "key": "│ ├",
-            "keyColor": "blue"
-        },
-        {
-            "type": "wallpaper",
-            "key": "│ └󰸉",
+            "key": "│ └",
             "keyColor": "blue"
         },
         {

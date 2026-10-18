@@ -42,7 +42,7 @@ Scope {
     property string lastQuery: ""
 
     Component.onCompleted: {
-        Model.setBin(Util.home() + "/.local/bin/")
+        Model.setBin(Util.bin(""))
         appsProbe.running = true
     }
 

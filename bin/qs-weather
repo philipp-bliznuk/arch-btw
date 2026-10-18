@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# qs-weather [refresh|set NAME|clear|status]
+# qs-weather [refresh|set NAME|clear]
 # Fetches current conditions + today's/tomorrow's sunrise/sunset from open-meteo
 # into ~/.local/state/qs/weather.json (Quickshell watches it). Location: ~/.local/state/qs/weather-location.json
 # {name,latitude,longitude}; without it, IP geolocation (wttr.in) is used.
@@ -78,15 +78,8 @@ clear)
 	rm -f "$loc_file"
 	refresh
 	;;
-status)
-	[[ -s "$out" ]] && jq -e .current "$out" >/dev/null 2>&1 || {
-		echo "no weather data" >&2
-		exit 1
-	}
-	jq -r '"\(.name): \(.current.temperature_2m)° · feels \(.current.apparent_temperature)° · wind \(.current.wind_speed_10m) km/h · \(.current.relative_humidity_2m)% humidity"' "$out"
-	;;
 *)
-	echo "usage: qs-weather [refresh|set NAME|clear|status]" >&2
+	echo "usage: qs-weather [refresh|set NAME|clear]" >&2
 	exit 2
 	;;
 esac

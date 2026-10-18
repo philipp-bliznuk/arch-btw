@@ -39,7 +39,7 @@ PACKAGES=(
 	ttf-jetbrains-mono-nerd noto-fonts noto-fonts-cjk noto-fonts-emoji # cjk: fallback glyphs for app menus/titles (tray menus, window titles)
 	brightnessctl xdg-user-dirs man-db man-pages
 	wlsunset power-profiles-daemon # night light (qs-toggle), battery power profiles (Quickshell battery popup talks D-Bus, no powerprofilesctl)
-	libqalculate systemd-ukify
+	libqalculate
 	pam-u2f libfido2 yubikey-manager ccid
 	kguiaddons kwindowsystem # pinentry-qt links against these (gpg passphrase prompt)
 	qt6ct adw-gtk-theme      # Catppuccin for Qt (qt6ct palette) and GTK 3/4 (adw-gtk3 + gtk/gtk.css named colours)
@@ -551,11 +551,8 @@ EOF
 _write_system_config() {
 	cat >/etc/sysctl.d/99-hardening.conf <<'EOF'
 kernel.kptr_restrict = 2
-kernel.dmesg_restrict = 1
-kernel.yama.ptrace_scope = 1
 kernel.unprivileged_bpf_disabled = 1
 net.core.bpf_jit_harden = 2
-net.ipv4.tcp_syncookies = 1
 EOF
 
 	mkdir -p /etc/systemd/resolved.conf.d
@@ -571,7 +568,6 @@ EOF
 	sed -i -E 's/^(pool|server) /#&/' /etc/chrony.conf # Arch ships either form
 	cat >>/etc/chrony.conf <<'EOF'
 server time.cloudflare.com iburst nts
-minsources 1
 EOF
 
 	mkdir -p /etc/systemd/journald.conf.d

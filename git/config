@@ -2,7 +2,6 @@
 	defaultBranch = master
 
 [core]
-	editor = nvim
 	pager = delta
 
 [includeIf "hasconfig:remote.*.url:git@pb:**/**"]
@@ -79,7 +78,6 @@
 
 [delta]
 	features = line-numbers decorations
-	line-numbers = true
 
 [delta "decorations"]
 	file-decoration-style = blue box

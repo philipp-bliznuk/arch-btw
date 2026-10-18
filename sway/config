@@ -167,10 +167,9 @@ smart_borders on
 mouse_warping container
 
 ### Window rules
+# qs-float: $mod+Shift+Return; qs-task: launcher-spawned terminal tasks (install, remove, update)
 # `border pixel`: kitty negotiates CSD, which sway honours for floating windows (no border)
-for_window [app_id="^qs-float$"] floating enable, border pixel 1, resize set 75 ppt 75 ppt, move position center
-# qs-task: launcher-spawned terminal tasks (install, remove, update)
-for_window [app_id="^qs-task$"] floating enable, border pixel 1, resize set 75 ppt 75 ppt, move position center
+for_window [app_id="^qs-(float|task)$"] floating enable, border pixel 1, resize set 75 ppt 75 ppt, move position center
 # qs-screensaver: cmatrix in kitty, one per output (bin/qs-screensaver)
 for_window [app_id="^qs-screensaver$"] fullscreen enable, inhibit_idle none
 

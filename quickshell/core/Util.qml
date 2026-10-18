@@ -45,7 +45,8 @@ QtObject {
         return v.toFixed(v < 10 ? 1 : 0) + " " + units[i];
     }
 
-    function humanSize(bytes, units = ["B", "KiB", "MiB", "GiB"]) {
+    function humanSize(bytes) {
+        const units = ["B", "KiB", "MiB", "GiB"];
         let i = 0;
         let v = bytes || 0;
         while (v >= 1024 && i < units.length - 1) {

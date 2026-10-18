@@ -203,7 +203,7 @@ Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage
 | `qs-capture MODE`      | `region` `window` `screen` `region-clip` `color`                          |
 | `qs-wallpaper`         | `set PATH` `random` `current` `list`                                      |
 | `qs-notify`            | `notify-send` via `busctl`; `-r ID` replace, `-p` print id, `-g GLYPH` (hint `qs-glyph`, shown without icon) |
-| `qs-weather`           | `refresh` `set CITY` `clear` `status` - open-meteo → `weather.json`        |
+| `qs-weather`           | `refresh` `set CITY` `clear` - open-meteo → `weather.json`                 |
 | `qs-battery`           | `status` `limit [on\|off]` - UPower charge thresholds (JSON)              |
 | `qs-network-status`    | internal, JSON for the network popup (ip/gateway/ping/traffic)             |
 | `qs-clipboard-capture` | internal, `wl-paste --watch` target                                       |
