@@ -460,7 +460,11 @@ dbus-user.talk org.freedesktop.portal.Desktop
 EOF
 	mkdir -p "$cfg" "$HOME/.librewolf"
 	cat >"$cfg/librewolf.overrides.cfg" <<'EOF'
-defaultPref("privacy.resistFingerprinting.letterboxing", true);
+// librewolf.cfg upgrades private network addresses to HTTPS as well (loopback
+// is always exempt); homelab services speak plain HTTP, so IP literals in
+// private and link-local ranges load as typed (Firefox's default). The
+// internet is still HTTPS-Only.
+defaultPref("dom.security.https_only_mode.upgrade_local", false);
 defaultPref("network.http.referer.XOriginPolicy", 2);
 defaultPref("media.autoplay.blocking_policy", 2);
 defaultPref("librewolf.webgl.prompt", true);
