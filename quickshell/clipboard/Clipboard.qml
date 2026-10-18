@@ -66,13 +66,5 @@ Scope {
         function refresh(): void {
             root.refresh();
         }
-
-        function clear(): void {
-            root.clear();
-        }
-
-        function count(): int {
-            return root.entries.length;
-        }
     }
 }

@@ -67,10 +67,6 @@ function match(entry, query) {
   return { score: total, named: named, strong: strong }
 }
 
-function score(entry, query) {
-  return match(entry, query).score
-}
-
 // usage: optional function(row) -> frecency number
 function sorted(values, query, usage) {
   var q = String(query || "").trim()

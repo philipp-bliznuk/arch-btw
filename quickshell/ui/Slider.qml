@@ -6,7 +6,6 @@ import qs.core
 Item {
     id: root
     property real value: 0
-    property color fill: Theme.accent
     property bool muted: false
     property real peak: -1
 
@@ -27,7 +26,7 @@ Item {
             width: parent.width * Util.clamp(root.value, 0, 1)
             height: parent.height
             radius: parent.radius
-            color: root.muted ? Theme.overlay0 : root.fill
+            color: root.muted ? Theme.overlay0 : Theme.accent
         }
 
         Rectangle {

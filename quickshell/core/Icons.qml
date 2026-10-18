@@ -60,8 +60,8 @@ QtObject {
     readonly property string wifiOff: g(0xF092E)
     readonly property string ethernet: g(0xF0200)
     readonly property list<string> networkIcons: [wifi4, wifi3, wifi2, wifi1, wifi0, wifiOff, ethernet]
-    readonly property string arrowUp: "\u21e1"
-    readonly property string arrowDown: "\u21e3"
+    readonly property string arrowUp: "\u2191" // 21e1/21e3 are not in JetBrainsMono NF (fallback font, other metrics)
+    readonly property string arrowDown: "\u2193"
 
     // Audio
     readonly property string volumeMute: g(0xF075F)

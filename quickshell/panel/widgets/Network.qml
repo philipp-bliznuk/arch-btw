@@ -256,7 +256,6 @@ Segment {
             }
         }
         keymap: [
-            { key: "j k", run: k => cursor = Util.clamp(cursor + (k === "j" ? 1 : -1), 0, count - 1) },
             { key: "Enter", run: () => root.activate() },
             { key: "w", run: () => Networking.wifiEnabled = !Networking.wifiEnabled },
             { key: "r", run: () => root.refresh() }

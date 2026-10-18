@@ -28,7 +28,6 @@ Scope {
 
     readonly property string flagPath: Quickshell.env("XDG_RUNTIME_DIR") + "/qs/locked"
     property bool requested: false
-    readonly property bool secure: sessionLock.secure
     property bool flagSaved: false
     property bool fidoPresent: false
     property bool authenticating: false

@@ -29,7 +29,6 @@ Segment {
         cardWidth: 300
         count: Power.profiles.length
         keymap: [
-            { key: "j k", run: k => cursor = Util.clamp(cursor + (k === "j" ? 1 : -1), 0, count - 1) },
             { key: "Enter", run: () => { if (Power.profiles[cursor] !== undefined) PowerProfiles.profile = Power.profiles[cursor]; } },
             { key: "c", run: () => Power.toggleLimit() },
             { key: "p", run: () => Settings.set("batteryPercent", !root.showPct) }

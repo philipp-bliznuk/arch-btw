@@ -60,9 +60,6 @@ NORMAL[Qt.Key_R] = "refresh"
 NORMAL[Qt.Key_Q] = "close"
 NORMAL[Qt.Key_Space] = "activate"
 
-var NORMAL_SHIFT = {}
-NORMAL_SHIFT[Qt.Key_G] = "bottom"
-
 function insert(e) {
   if (e.key === Qt.Key_Left || e.key === Qt.Key_Right) return ""
   if (SHARED[e.key] !== undefined && plain(e)) return SHARED[e.key]
@@ -81,7 +78,7 @@ function normal(e) {
     return ""
   }
   pendingG = false
-  if (shift(e)) return NORMAL_SHIFT[e.key] || ""
+  if (shift(e)) return ""
   return NORMAL[e.key] || ""
 }
 

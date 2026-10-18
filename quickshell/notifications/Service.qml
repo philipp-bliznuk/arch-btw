@@ -42,12 +42,6 @@ Scope {
             popups.remove(i);
     }
 
-    function dismissAll() {
-        for (const n of all())
-            n.dismiss();
-        popups.clear();
-    }
-
     function clearHistory() {
         history = [];
         saveLater.stop();
@@ -112,10 +106,6 @@ Scope {
             n.dismiss();
     }
 
-    function toggleDnd() {
-        Toggles.flip("dnd");
-    }
-
     function latest() {
         return popups.count ? popups.get(popups.count - 1).notification : null;
     }
@@ -174,22 +164,6 @@ Scope {
 
     IpcHandler {
         target: "notifications"
-
-        function toggleDnd(): void {
-            root.toggleDnd();
-        }
-
-        function clear(): void {
-            root.dismissAll();
-        }
-
-        function clearHistory(): void {
-            root.clearHistory();
-        }
-
-        function count(): int {
-            return root.popups.count;
-        }
 
         function dismissLatest(): void {
             root.dismissLatest();

@@ -467,7 +467,7 @@ function launcherKeyRows(I) {
     k("reset", "Clear search, keep mode", "C-o", "Both"),
     k("copy", "Copy row text", "y / C-y", "Both"),
     k("paste", "Paste clipboard row", "p", "Normal"),
-    k("delete", "Delete row (clipboard, notifications)", "d / x / Del", "Both"),
+    k("delete", "Delete row (clipboard)", "d / x / Del", "Both"),
     k("word", "Delete word", "C-w", "Insert"),
     k("refresh", "Refresh app list", "r / C-r", "Both"),
     k("hide", "Blacklist app", "C--", "Normal"),

@@ -12,7 +12,7 @@ Scope {
     id: root
 
     readonly property string fallback: Util.home() + "/.config/wallpapers/wallpaper1.jpg"
-    property string current: fallback
+    property string current: "" // "" until the resolver answers, so its first answer is a change
 
     function refresh() {
         resolver.running = true;
@@ -41,10 +41,6 @@ Scope {
         function refresh(): void {
             root.refresh();
         }
-
-        function current(): string {
-            return root.current;
-        }
     }
 
     Variants {
@@ -67,15 +63,19 @@ Scope {
             WlrLayershell.namespace: "qs-wallpaper"
             WlrLayershell.layer: WlrLayer.Background
 
-            // two layers for crossfade
+            // Two layers for the crossfade: a change loads into the back one,
+            // which becomes the front once decoded. A panel created later (new
+            // output) starts on the current file; at startup nothing is decoded
+            // before the resolver answers.
             property int front: 0
             readonly property var layers: [a, b]
+
+            Component.onCompleted: a.source = Util.fileUrl(root.current)
 
             Connections {
                 target: root
                 function onCurrentChanged() {
-                    const back = panel.layers[1 - panel.front];
-                    back.source = Util.fileUrl(root.current);
+                    panel.layers[1 - panel.front].source = Util.fileUrl(root.current);
                 }
             }
 
@@ -100,7 +100,7 @@ Scope {
                 }
             }
 
-            Layer { id: a; source: Util.fileUrl(root.current); opacity: 1 }
+            Layer { id: a; opacity: 1 }
             Layer { id: b }
 
             // Stay-awake toggle. Sway counts a layer-surface inhibitor only

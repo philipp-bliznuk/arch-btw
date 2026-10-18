@@ -134,18 +134,6 @@ Scope {
         function brightness(): void {
             root.showBrightness();
         }
-
-        function volume(): void {
-            root.showSink();
-        }
-
-        function mic(): void {
-            root.showSource();
-        }
-
-        function media(): void {
-            root.showMedia();
-        }
     }
 
     PanelWindow {

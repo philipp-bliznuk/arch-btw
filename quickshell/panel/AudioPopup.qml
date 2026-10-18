@@ -108,7 +108,6 @@ PopupCard {
     }
 
     keymap: [
-        { key: "j k", run: k => cursor = Util.clamp(cursor + (k === "j" ? 1 : -1), 0, count - 1) },
         { key: "h l", run: k => adjust(k === "h" ? -0.05 : 0.05) },
         { key: "m", run: () => toggleMute() },
         { key: "Enter", run: () => pick() }

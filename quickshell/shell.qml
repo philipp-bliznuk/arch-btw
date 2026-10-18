@@ -61,10 +61,6 @@ ShellRoot {
         function open(section: string): void {
             launcher.openSection(section);
         }
-
-        function close(): void {
-            launcher.close();
-        }
     }
 
     IpcHandler {
@@ -84,14 +80,6 @@ ShellRoot {
 
         function open(id: string): void {
             Popups.open(id);
-        }
-
-        function close(): void {
-            Popups.close();
-        }
-
-        function current(): string {
-            return Popups.current;
         }
     }
 
@@ -125,18 +113,6 @@ ShellRoot {
         function previous(): void {
             Player.previous();
             osd.showMedia();
-        }
-
-        function status(): string {
-            const p = Player.player;
-            return JSON.stringify({
-                player: p ? p.identity : null,
-                playing: Player.playing,
-                line: Player.line,
-                streams: Player.streams.length,
-                volume: Player.volume,
-                volumeMax: Player.volumeMax
-            });
         }
     }
 

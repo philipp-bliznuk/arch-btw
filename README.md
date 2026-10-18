@@ -216,7 +216,7 @@ Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage
 
 State: `~/.local/state/qs/` (`toggles/`, `settings.json`, `notifications.json`, `clipboard.json`, `clipboard-images/`, `weather.json`, `weather-location.json`, `launcher-usage.json`, `background`). Clipboard history skips `x-kde-passwordManagerHint` sources (1Password) - the file is still plaintext, rely on LUKS.
 
-IPC targets: `launcher` (toggle/open/close) · `popups` (toggle/open/close/current) · `lock` (lock → `ok`/`already`/`fallback`, status JSON) · `media` (toggle/next/previous, status JSON) · `notifications` (toggleDnd/clear/clearHistory/count/dismissLatest/actionLatest; sway `$mod+Shift+d` / `$mod+Shift+a`) · `clipboard` (refresh/clear/count) · `osd` (brightness/volume/mic/media) · `background` (refresh/current) · `toggles` (refresh) · `polkit` (status JSON) · `shell` (ping/resume).
+IPC targets (`qs-shell T FN`): `launcher` (toggle/open) · `popups` (toggle/open) · `lock` (lock → `ok`/`already`/`fallback`, status JSON) · `media` (toggle/next/previous) · `notifications` (dismissLatest/actionLatest; sway `$mod+Shift+d` / `$mod+Shift+a`) · `clipboard` (refresh) · `osd` (brightness) · `background` (refresh) · `toggles` (refresh) · `polkit` (status JSON, a diagnostic: registered/active/responseRequired) · `shell` (ping/resume).
 
 Lint: `quickshell/lint.sh` (qmllint, must be clean).
 
