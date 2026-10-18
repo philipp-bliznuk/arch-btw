@@ -429,6 +429,7 @@ step_aur_helper() {
 		# Written by post-install.sh (aur_helper): no -debug split packages from local builds.
 		OPTIONS+=(!debug)
 	EOF
+	rustup default stable # the rustup package ships only proxies; local builds need a toolchain
 	if pacman -Q yay >/dev/null 2>&1; then
 		echo "yay already installed"
 		return 0
@@ -532,7 +533,6 @@ step_dotfiles() {
 
 	rm -f "$HOME/.zshrc" # install-time placeholder
 	xdg-user-dirs-update
-	rustup default stable
 	success "Dotfiles linked."
 }
 

@@ -11,7 +11,7 @@ QtObject {
     readonly property int fontTitle: 16
     readonly property int fontIcon: 14
     readonly property int fontWeight: Font.Medium
-    readonly property int renderType: Text.NativeRendering
+    readonly property int renderType: Text.NativeRendering // for TextMetrics, which the shell.qml pragma does not reach
 
     readonly property int panelHeight: 30
     readonly property int segmentHeight: 22

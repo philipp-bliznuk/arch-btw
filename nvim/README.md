@@ -26,7 +26,7 @@ Core principles:
 - **Git** - gitsigns (gutter signs, hunk staging/reset, inline blame, diff) + lazygit via tmux popup
 - **Treesitter** - arborist.nvim for parser management, textobjects (`af/if/ac/ic/aa/ia`), sticky context header, autotag for HTML/JSX
 - **Session** - auto-save on quit, auto-restore on bare `nvim`
-- **8 colorschemes** - catppuccin, tokyonight, kanagawa, gruvbox, rose-pine, everforest, dracula, nord. Defaults to catppuccin-mocha; `$THEME` overrides on startup
+- **Colorscheme** - catppuccin-mocha
 - **File explorer** - yazi.nvim with LSP-aware rename/move (auto-updates imports)
 
 ## Key Decisions
@@ -66,7 +66,7 @@ Core principles:
 | **mini.icons**                  | Filetype icons                      | Eager                       |
 | **mini.indentscope**            | Scope indent guide                  | On BufReadPost              |
 | **mini.surround**               | Add/delete/change surroundings      | On BufReadPost              |
-| **catppuccin/nvim**             | Colorscheme (default)               | Eager (only active theme)   |
+| **catppuccin/nvim**             | Colorscheme                         | Eager                       |
 
 ## LSP Servers
 
@@ -74,7 +74,7 @@ Core principles:
 | ------------ | -------------- | ------------------------------------------------------------------------- |
 | basedpyright | Python         | Type checking, auto-import, inlay hints, venv detection via `vim.fs.root` |
 | ruff         | Python         | Linting + formatting (hover disabled, defers to basedpyright)             |
-| lua_ls       | Lua            | Neovim runtime libs, LuaJIT, diagnostics.globals = vim                    |
+| lua_ls       | Lua            | Neovim runtime libs, LuaJIT, inlay hints                                  |
 | tsgo         | JS/TS/JSX/TSX  | Microsoft's Go-based TS server, lockfile-first root detection             |
 | gopls        | Go             | Analyses, staticcheck, gofumpt, inlay hints                               |
 | jsonls       | JSON/JSONC     | Schema validation                                                         |
@@ -84,7 +84,7 @@ Core principles:
 | taplo        | TOML           | Validation, formatting, pyproject.toml schema                             |
 | postgres_lsp | SQL            | PostgreSQL-native parser (libpg_query)                                    |
 | dockerls     | Dockerfile     | Containerfile support via filetype mapping                                |
-| bashls       | Bash/Shell     | ShellCheck integration                                                    |
+| bashls       | Bash/Shell/Zsh | Diagnostics, completion (no ShellCheck installed)                         |
 | harper_ls    | All code files | Grammar + spell checking in comments/strings                              |
 | typos_lsp    | All files      | Common misspelling detection in identifiers                               |
 
@@ -113,7 +113,8 @@ Leader key: `Space`
 | `<leader>w`                | n    | Save file                         |
 | `<leader>d`                | n, v | Delete to void register           |
 | `<leader>p`                | x    | Paste without losing register     |
-| `<leader>y` / `<leader>Y`  | n, v | Yank to system clipboard          |
+| `<leader>y`                | n, v | Yank to system clipboard          |
+| `<leader>Y`                | n    | Yank line to system clipboard     |
 | `<leader>P`                | n, v | Paste from system clipboard       |
 | `<leader>sr`               | n, x | Search and replace word/selection |
 | `<leader>-` / `<leader>\|` | n    | Split horizontal / vertical       |
@@ -167,7 +168,6 @@ Leader key: `Space`
 | `<leader>hS` | Stage buffer              |
 | `<leader>hr` | Reset hunk                |
 | `<leader>hR` | Reset buffer              |
-| `<leader>hu` | Undo stage hunk           |
 | `<leader>hp` | Preview hunk inline       |
 | `<leader>hb` | Blame line (popup)        |
 | `<leader>hB` | Toggle inline blame       |
@@ -206,14 +206,9 @@ Leader key: `Space`
 | `[b` / `]b`              | Previous/next buffer             |
 | `[d` / `]d`              | Previous/next diagnostic         |
 | `[q` / `]q`              | Previous/next quickfix           |
+| `[Q` / `]Q`              | First/last quickfix              |
 | `-` / `_`                | Yazi at this file / at the cwd   |
 | `z=`                     | Spell suggestions (picker)       |
-
-## Colorschemes
-
-Defaults to `catppuccin-mocha`. Override by exporting `$THEME` before launch - only the active theme plugin is loaded at startup, others remain installed but not sourced.
-
-Supported values: `catppuccin-mocha`, `tokyo-night`, `kanagawa`, `gruvbox-dark`, `rose-pine`, `everforest`, `dracula`, `nord`
 
 ## Requirements
 

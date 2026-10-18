@@ -65,13 +65,12 @@ autocmd("BufWritePre", {
   end,
 })
 
--- Wrap + linebreak for prose filetypes (spell handled by harper-ls)
+-- Wrap for prose filetypes (linebreak is global) (spell handled by harper-ls)
 autocmd("FileType", {
   group = augroup("config_prose_settings"),
   pattern = { "gitcommit", "markdown", "text", "plaintex" },
   callback = function()
     vim.opt_local.wrap = true
-    vim.opt_local.linebreak = true
   end,
 })
 

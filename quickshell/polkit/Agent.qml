@@ -265,6 +265,7 @@ Scope {
                         width: parent.width
                         visible: text !== ""
                         text: root.error || root.note
+                        textFormat: Text.PlainText
                         color: root.error || (root.flow && root.flow.supplementaryIsError) ? Theme.urgent : Theme.muted
                         font.family: Style.fontFamily
                         font.pixelSize: Style.fontCaption

@@ -9,7 +9,7 @@ export GPG_TTY=$TTY
 
 # History
 HISTFILE="$XDG_DATA_HOME/zsh/zsh_history"
-HISTSIZE=50000
+HISTSIZE=60000 # above SAVEHIST, hist_expire_dups_first needs the headroom
 SAVEHIST=50000
 setopt share_history hist_ignore_dups hist_ignore_space hist_verify
 setopt hist_expire_dups_first hist_find_no_dups extended_history
@@ -42,7 +42,7 @@ source ${zplugins}.zsh
 [[ -f ${ZDOTDIR}/.zalias ]] && source ${ZDOTDIR}/.zalias
 
 # FZF colors (catppuccin-mocha)
-export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS \
+export FZF_DEFAULT_OPTS="\
   --color=bg+:#313244,bg:#1e1e2e,spinner:#f5e0dc,hl:#f38ba8 \
   --color=fg:#cdd6f4,header:#f38ba8,info:#cba6f7,pointer:#f5e0dc \
   --color=marker:#b4befe,fg+:#cdd6f4,prompt:#cba6f7,hl+:#f38ba8 \

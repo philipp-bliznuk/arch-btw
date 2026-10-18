@@ -4,9 +4,7 @@
 local pack = require("config.pack")
 
 pack.add("https://github.com/mason-org/mason.nvim", function()
-  require("mason").setup({
-    ui = { border = "rounded" },
-  })
+  require("mason").setup()
 
   -- Map of all tools to auto-install (mason package names).
   local tools = {

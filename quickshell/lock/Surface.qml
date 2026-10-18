@@ -107,7 +107,6 @@ WlSessionLockSurface {
                 font.family: Style.fontFamily
                 font.pixelSize: Style.fontTitle
                 font.weight: Style.fontWeight
-                renderType: Style.renderType
                 focus: true
                 clip: true
                 onTextEdited: surface.service.typed = text

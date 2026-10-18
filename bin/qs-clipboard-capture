@@ -19,13 +19,13 @@ mkdir -p "$imgdir"
 [[ "${CLIPBOARD_STATE:-}" != "sensitive" ]] || exit 0
 
 payload="$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/qs-clip.XXXXXX")"
-trap 'rm -f "$payload"' EXIT
+trap 'rm -f "$payload" "${tmp:-}"' EXIT
 cat >"$payload"
 size=$(stat -c %s "$payload")
 ((size > 0)) || exit 0
 
 now=$(date +%s%3N)
-tmp="$db.tmp"
+tmp="$(mktemp "$state/clipboard.XXXXXX")" # two watchers (text, image) can fire for one offer
 
 case "$kind" in
 text)

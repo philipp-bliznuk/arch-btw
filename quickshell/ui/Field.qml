@@ -31,7 +31,6 @@ Rectangle {
         font.family: Style.fontFamily
         font.pixelSize: Style.fontBody
         font.weight: Style.fontWeight
-        renderType: Style.renderType
         selectionColor: Theme.accent
         selectedTextColor: Theme.base
         clip: true

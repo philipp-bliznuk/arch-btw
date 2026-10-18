@@ -25,7 +25,6 @@ pack.add("https://github.com/stevearc/conform.nvim", function()
       sh = { "shfmt" },
       bash = { "shfmt" },
       markdown = { "prettierd" },
-      dockerfile = { "trim_whitespace" },
       ["_"] = { "trim_whitespace" }, -- catch-all for unspecified filetypes
     },
     default_format_opts = {

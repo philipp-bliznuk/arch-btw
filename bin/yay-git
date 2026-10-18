@@ -34,7 +34,7 @@ fetch() {
 
 # Dependency names from .SRCINFO, version constraints stripped.
 deps() {
-	awk -F' = ' '/^\t(make|check)?depends = /{print $2}' "$1/.SRCINFO" |
+	awk -F' = ' '/^\t(make|check)?depends(_x86_64)? = /{print $2}' "$1/.SRCINFO" |
 		sed -E 's/[<>=].*$//' | sort -u
 }
 

@@ -59,7 +59,7 @@ QtObject {
         return Quickshell.env("HOME");
     }
 
-    readonly property string stateDir: home() + "/.local/state/qs"
+    readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || home() + "/.local/state") + "/qs"
 
     function bin(name) {
         return home() + "/.local/bin/" + name;

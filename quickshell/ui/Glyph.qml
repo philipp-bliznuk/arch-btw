@@ -54,6 +54,5 @@ Item {
         font.pixelSize: root.size
         font.weight: Style.fontWeight
         color: root.glyphColor
-        renderType: Style.renderType
     }
 }

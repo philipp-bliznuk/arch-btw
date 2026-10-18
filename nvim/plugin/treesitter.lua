@@ -41,8 +41,6 @@ vim.api.nvim_create_autocmd("FileType", {
 pack.add("https://github.com/nvim-treesitter/nvim-treesitter-context", function()
   require("treesitter-context").setup({
     max_lines = 3,
-    mode = "cursor",
-    trim_scope = "outer",
   })
   util.map("n", "<leader>tc", function()
     require("treesitter-context").toggle()
