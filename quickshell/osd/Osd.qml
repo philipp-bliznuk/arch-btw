@@ -9,7 +9,8 @@ import qs.ui
 
 // On-screen display for volume / mic / brightness / media.
 // Volume + mic: reacts to Pipewire node changes (any source: keys, wheel, apps).
-// Brightness: sysfs has no inotify → sway bind calls `qs-shell -q osd brightness`.
+// Brightness: sysfs has no inotify, and DDC has nothing to watch at all, so
+// bin/qs-brightness reports the percent it set: `qs-shell -q osd brightness <pct>`.
 // Media: the `media` IPC target in shell.qml runs the command, then showMedia().
 Scope {
     id: root
@@ -80,8 +81,8 @@ Scope {
         show(source.audio.muted ? Icons.micOff : Icons.mic, source.audio.muted ? "Mic muted" : Math.round(source.audio.volume * 100) + "%", source.audio.volume, source.audio.muted);
     }
 
-    function showBrightness() {
-        brightness.running = true;
+    function showBrightness(pct) {
+        show(Icons.brightness, pct + "%", pct / 100, false);
     }
 
     PwObjectTracker {
@@ -102,20 +103,6 @@ Scope {
         function onMutedChanged() { root.showSource(); }
     }
 
-    Process {
-        id: brightness
-        command: ["brightnessctl", "-m"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const f = text.trim().split(",");
-                if (f.length < 4)
-                    return;
-                const pct = parseInt(f[3]) / 100;
-                root.show(Icons.brightness, f[3], pct, false);
-            }
-        }
-    }
-
     Timer {
         id: hide
         interval: 1200
@@ -131,8 +118,8 @@ Scope {
     IpcHandler {
         target: "osd"
 
-        function brightness(): void {
-            root.showBrightness();
+        function brightness(pct: int): void {
+            root.showBrightness(pct);
         }
     }
 

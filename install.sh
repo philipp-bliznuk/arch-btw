@@ -38,7 +38,7 @@ PACKAGES=(
 	wl-clipboard grim slurp kitty xorg-xwayland
 	xdg-desktop-portal-wlr xdg-desktop-portal-gtk
 	ttf-jetbrains-mono-nerd noto-fonts noto-fonts-cjk noto-fonts-emoji # cjk: fallback glyphs for app menus/titles (tray menus, window titles)
-	brightnessctl xdg-user-dirs man-db man-pages
+	brightnessctl ddcutil xdg-user-dirs man-db man-pages # ddcutil: brightness keys on an external monitor over DDC/CI (bin/qs-brightness)
 	wireless-regdb kernel-modules-hook udisks2 # Wi-Fi rules for the timezone's country; the running kernel's modules survive an upgrade; udisksctl mounts USB/SD as the user, no automount
 	wlsunset power-profiles-daemon # night light (qs-toggle), battery power profiles (Quickshell battery popup talks D-Bus, no powerprofilesctl)
 	libqalculate

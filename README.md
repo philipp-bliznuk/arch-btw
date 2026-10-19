@@ -201,6 +201,7 @@ Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage
 | `qs-lock [--sleep]`    | lock via IPC (`swaylock` fallback); `--sleep` (swayidle `before-sleep`) holds the touch path until resume, blocks until the compositor confirms, 4 s max, then outputs off |
 | `qs-screensaver MODE`  | `start` `stop` - fullscreen `cmatrix` kitty per output (`app_id` `qs-screensaver`); no-op without `cmatrix` |
 | `qs-capture MODE`      | `region` `window` `screen` `region-clip` `color`                          |
+| `qs-brightness DIR`    | `up` `down` - 5 % on the focused output: laptop panel via `brightnessctl`, external monitor over DDC/CI (`ddcutil` on the bus `/sys/class/drm/card*-OUTPUT/ddc` names; its package loads `i2c-dev` and tags the GPU's i2c buses `uaccess`, so any session process may talk to the monitor, no group), then `osd brightness PCT`; a monitor without DDC does nothing |
 | `qs-wallpaper`         | `set PATH` `random` `current` `list`                                      |
 | `qs-notify`            | `notify-send` via `busctl`; `-r ID` replace, `-p` print id, `-g GLYPH` (hint `qs-glyph`, shown without icon) |
 | `qs-weather`           | `refresh` `set CITY` `clear` - open-meteo → `weather.json`                 |
@@ -216,7 +217,7 @@ Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage
 
 State: `~/.local/state/qs/` (`toggles/`, `settings.json`, `notifications.json`, `clipboard.json`, `clipboard-images/`, `weather.json`, `weather-location.json`, `launcher-usage.json`, `background`). Clipboard history skips `x-kde-passwordManagerHint` sources (1Password) - the file is still plaintext, rely on LUKS.
 
-IPC targets (`qs-shell T FN`): `launcher` (toggle/open) · `popups` (toggle/open) · `lock` (lock, sleep → `ok`/`already`/`fallback`, status JSON) · `media` (toggle/next/previous) · `notifications` (dismissLatest/actionLatest; sway `$mod+Shift+d` / `$mod+Shift+a`) · `clipboard` (refresh) · `osd` (brightness) · `background` (refresh) · `toggles` (refresh) · `polkit` (status JSON, a diagnostic: registered/active/responseRequired) · `shell` (ping/resume).
+IPC targets (`qs-shell T FN`): `launcher` (toggle/open) · `popups` (toggle/open) · `lock` (lock, sleep → `ok`/`already`/`fallback`, status JSON) · `media` (toggle/next/previous) · `notifications` (dismissLatest/actionLatest; sway `$mod+Shift+d` / `$mod+Shift+a`) · `clipboard` (refresh) · `osd` (brightness PCT) · `background` (refresh) · `toggles` (refresh) · `polkit` (status JSON, a diagnostic: registered/active/responseRequired) · `shell` (ping/resume).
 
 Lint: `quickshell/lint.sh` (qmllint; the 14 lines it still prints are Quickshell qmltypes gaps listed in the script, anything else is a bug).
 

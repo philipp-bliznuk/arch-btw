@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# qs-brightness <up|down>
+# Brightness of the focused output, 5 % a step, shown on the OSD: the laptop
+# panel through brightnessctl, an external monitor over DDC/CI (ddcutil,
+# VCP 10) on the I2C bus sysfs names for the connector
+# (/sys/class/drm/card*-<output>/ddc). A DDC read plus write takes ~0.5 s, so
+# presses that overlap one in flight are dropped; a port whose monitor does
+# not answer DDC (dock, TV) does nothing.
+set -Eeuo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+step=5
+case "${1:?usage: qs-brightness <up|down>}" in
+up)
+	sign='+'
+	dir=1
+	;;
+down)
+	sign='-'
+	dir=-1
+	;;
+*)
+	echo "qs-brightness: unknown direction '$1'" >&2
+	exit 2
+	;;
+esac
+
+exec {lock}>"${XDG_RUNTIME_DIR:-/run/user/$UID}/qs-brightness.lock"
+flock -n "$lock" || exit 0
+
+show() {
+	"$here"/qs-shell -q osd brightness "$1"
+}
+
+panel() {
+	local state # device,class,current,percent%,max
+	state="$(brightnessctl -m set "${step}%${sign}")"
+	state="${state#*,*,*,}"
+	show "${state%%%*}"
+}
+
+ddc() {
+	local link bus out cur max new
+	for link in /sys/class/drm/card*-"$output"/ddc; do
+		[[ -e "$link" ]] || exit 0
+		break
+	done
+	bus="$(readlink -f "$link")"
+	bus="${bus##*/i2c-}"
+	# --brief: "VCP 10 C <current> <max>"; a failed read prints "VCP 10 ERR" on stdout and exits 1
+	out="$(ddcutil --bus "$bus" getvcp 10 --brief 2>/dev/null)" || exit 0
+	read -r _ _ _ cur max _ <<<"$out"
+	[[ "$cur" =~ ^[0-9]+$ && "$max" =~ ^[1-9][0-9]*$ ]] || exit 0
+	new=$((cur + dir * max * step / 100))
+	((new < 0)) && new=0
+	((new > max)) && new=$max
+	ddcutil --bus "$bus" --noverify setvcp 10 "$new" >/dev/null 2>&1 || exit 0
+	show $(((new * 100 + max / 2) / max))
+}
+
+output="$(swaymsg -t get_outputs | jq -r '.[] | select(.focused) | .name')"
+if [[ -z "$output" || "$output" =~ ^(eDP|LVDS|DSI)- ]]; then
+	panel
+else
+	ddc
+fi

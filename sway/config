@@ -161,8 +161,8 @@ bindsym --locked $mod+p exec qs-shell -q media toggle
 bindsym --locked $mod+bracketright exec qs-shell -q media next
 bindsym --locked $mod+bracketleft exec qs-shell -q media previous
 bindsym $mod+Shift+p exec qs-shell -q popups toggle media
-bindsym --locked XF86MonBrightnessUp exec brightnessctl set 5%+ && qs-shell -q osd brightness
-bindsym --locked XF86MonBrightnessDown exec brightnessctl set 5%- && qs-shell -q osd brightness
+bindsym --locked XF86MonBrightnessUp exec qs-brightness up
+bindsym --locked XF86MonBrightnessDown exec qs-brightness down
 
 ### Screenshot
 bindsym Print exec qs-capture region
