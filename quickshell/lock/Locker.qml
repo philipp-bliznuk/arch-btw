@@ -30,6 +30,8 @@ Scope {
     property bool requested: false
     property bool flagSaved: false
     property bool fidoPresent: false
+    // Locked for a sleep (qs-lock --sleep): no touch request until resume()
+    property bool sleeping: false
     property bool authenticating: false
     property int failures: 0
     property string typed: ""
@@ -79,6 +81,29 @@ Scope {
         return "ok";
     }
 
+    // swayidle's before-sleep. A touch request started now would wait on a
+    // host that systemd-sleep freezes within the second and that resets the
+    // bus on the way back, and a touch landing before the freeze would put an
+    // unlocked session to sleep. So none until resume(); the password path is
+    // untouched. Set after lock(): engage() clears the per-lock state.
+    function sleep(): string {
+        const result = lock();
+        if (result !== "fallback")
+            sleeping = true;
+        return result;
+    }
+
+    // swayidle's after-resume. The token may be a new device now (always after
+    // a hibernation, the laptop was off), so the touch path starts from the
+    // rescan, once udev has made the node readable.
+    function resume() {
+        sleeping = false;
+        if (!requested)
+            return;
+        fidoPresent = false;
+        fidoScan.running = true;
+    }
+
     // FileView preloads in the background even with blockLoading, so `loaded`
     // is stale until a job is awaited; text() forces the synchronous read.
     function pamReady(): bool {
@@ -107,6 +132,7 @@ Scope {
         u2fFastFails = 0;
         u2fAttempts = 0;
         wakeKey = 0;
+        sleeping = false;
         requested = true;
         guard.restart();
         fidoScan.running = true;
@@ -217,7 +243,7 @@ Scope {
     function armU2f() {
         if (!requested || !sessionLock.secure || !fidoPresent || u2f.active)
             return;
-        if (!u2fPam.loaded)
+        if (sleeping || !u2fPam.loaded)
             return;
         u2fStartedAt = Date.now();
         u2fAttempts += 1;
@@ -250,6 +276,7 @@ Scope {
             u2fAttempts: u2fAttempts,
             u2fFast: u2fFastFails,
             fido: fidoPresent,
+            sleeping: sleeping,
             authenticating: authenticating,
             failures: failures
         });

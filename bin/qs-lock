@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# qs-lock [--wait]
+# qs-lock [--sleep]
 # Lock the session through the shell (ext-session-lock + PAM); swaylock when
 # the shell is not answering or has no PAM service file. Idempotent: sway
 # replaces a lock whose client died, so this also recovers a red screen.
-# --wait returns once the compositor reports the lock secure (4 s budget:
-# logind InhibitDelayMaxSec is 5 s, swayidle before-sleep runs us inside it).
+# --sleep is swayidle's before-sleep: the shell holds the touch path back until
+# `shell resume` (swayidle after-resume); we return once the compositor reports
+# the lock secure (4 s budget: logind InhibitDelayMaxSec is 5 s, swayidle
+# before-sleep runs us inside it) and with the outputs off (after-resume turns
+# them on).
 set -Eeuo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-wait=0
-[[ "${1:-}" == --wait ]] && wait=1
+mode=lock
+[[ "${1:-}" == --sleep ]] && mode="sleep"
 
 budget() { # budget MS CMD...: poll CMD until it succeeds or MS elapse
 	local ms=$1 start=${EPOCHREALTIME/./}
@@ -30,7 +33,7 @@ swaylock_up() {
 	pgrep -u "$UID" -x swaylock >/dev/null
 }
 
-result="$("$here"/qs-shell lock lock 2>/dev/null)" || result=error
+result="$("$here"/qs-shell lock "$mode" 2>/dev/null)" || result=error
 case "$result" in
 ok | already) shell=1 ;;
 fallback) shell=0 ;; # swaylock is up: the shell's own child, or a foreign one
@@ -39,7 +42,13 @@ fallback) shell=0 ;; # swaylock is up: the shell's own child, or a foreign one
 	swaylock_up || setsid -f swaylock >/dev/null 2>&1
 	;;
 esac
-((wait)) || exit 0
+[[ $mode == sleep ]] || exit 0
+# Outputs off before the freeze, whichever lock holds: the kernel thaws every
+# device to write the hibernation image and i915 restores what was lit, so the
+# lock screen would come back for the seconds the write takes. Sway keeps the
+# state, so they come back dark after a hibernation too; after-resume turns
+# them on.
+trap 'swaymsg -q "output * power off"' EXIT
 if ((shell)); then
 	budget 3000 secure && exit 0
 	# the shell took the request but the compositor never confirmed: swaylock

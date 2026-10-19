@@ -125,6 +125,11 @@ ShellRoot {
             return locker.lock();
         }
 
+        // swayidle before-sleep (qs-lock --sleep): lock, touch path held until resume
+        function sleep(): string {
+            return locker.sleep();
+        }
+
         function status(): string {
             return locker.statusJson();
         }
@@ -138,8 +143,10 @@ ShellRoot {
         }
 
         // Timers run on the monotonic clock and freeze across suspend/hibernate;
-        // swayidle calls this on wake so clock-bound state catches up at once.
+        // swayidle calls this on wake so clock-bound state catches up at once and
+        // the lock's touch path starts on the re-enumerated token.
         function resume(): void {
+            locker.resume();
             Weather.refresh();
             Sun.wake();
             Toggles.refresh();
