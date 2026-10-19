@@ -429,7 +429,6 @@ step_aur_helper() {
 		# Written by post-install.sh (aur_helper): no -debug split packages from local builds.
 		OPTIONS+=(!debug)
 	EOF
-	rustup default stable # the rustup package ships only proxies; local builds need a toolchain
 	if pacman -Q yay >/dev/null 2>&1; then
 		echo "yay already installed"
 		return 0
@@ -478,7 +477,6 @@ EOF
 defaultPref("dom.security.https_only_mode.upgrade_local", false);
 defaultPref("network.http.referer.XOriginPolicy", 2);
 defaultPref("media.autoplay.blocking_policy", 2);
-defaultPref("librewolf.webgl.prompt", true);
 defaultPref("librewolf.webgl.prompt.hide", false);
 // Hardware video decode via VA-API (intel-media-driver / libva-mesa-driver).
 // AV1 off: pre-Tiger-Lake iGPUs lack an AV1 decoder, and sites pick AV1 when

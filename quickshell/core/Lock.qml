@@ -12,8 +12,6 @@ Singleton {
     // The shell asked the compositor for a lock. True before the lock surfaces
     // exist and until the password or key is accepted.
     property bool locked: false
-    // The compositor confirmed every output is covered.
-    property bool secure: false
 
     signal lockRequested
 

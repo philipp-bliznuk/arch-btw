@@ -47,7 +47,7 @@ PACKAGES=(
 	librewolf
 	eza fzf fd ripgrep bat zoxide yazi ouch tmux fastfetch git-delta lazygit jujutsu podman
 	poppler ffmpeg 7zip unzip jq go-yq btop tree # go-yq = mikefarah yq; unzip: mason unpacks stylua with it
-	tree-sitter-cli nodejs npm go python rustup uv bun
+	tree-sitter-cli nodejs npm go python uv bun
 )
 
 # --- helpers ---------------------------------------------------------------

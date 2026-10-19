@@ -280,12 +280,6 @@ Scope {
         value: root.requested || swaylock.running || root.foreignLock
     }
 
-    Binding {
-        target: Lock
-        property: "secure"
-        value: sessionLock.secure
-    }
-
     Connections {
         target: Lock
 

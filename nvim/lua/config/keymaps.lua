@@ -57,9 +57,7 @@ map("n", "<C-Right>", "<cmd>vertical resize +2<CR>", { desc = "Increase width" }
 map("n", "<leader>-", "<cmd>split<CR>", { desc = "Split horizontal" })
 map("n", "<leader>|", "<cmd>vsplit<CR>", { desc = "Split vertical" })
 
--- Buffer navigation
-map("n", "[b", "<cmd>bprevious<CR>", { desc = "Previous buffer" })
-map("n", "]b", "<cmd>bnext<CR>", { desc = "Next buffer" })
+-- Buffer navigation ([b / ]b are nvim defaults)
 map("n", "<leader>bd", "<cmd>bdelete<CR>", { desc = "Delete buffer" })
 map("n", "<leader>bo", function()
   local current = vim.api.nvim_get_current_buf()

@@ -7,12 +7,11 @@ export XDG_STATE_HOME=${XDG_STATE_HOME:-$HOME/.local/state}
 # Relocate zsh config
 export ZDOTDIR=${ZDOTDIR:-$XDG_CONFIG_HOME/zsh}
 
-# Set the list of directories that zsh searches for commands. cargo install
-# and go install (install.sh ships rustup and go) put binaries in the last two.
+# Set the list of directories that zsh searches for commands. go install
+# (install.sh ships go) puts binaries in the last one.
 path=(
   $HOME/.local/{,s}bin(N)
   /usr/local/{,s}bin(N)
-  $HOME/.cargo/bin(N)
   $HOME/go/bin(N)
   $path
 )
@@ -27,8 +26,6 @@ typeset -gU path fpath manpath
 
 # Antidote
 export ANTIDOTE_HOME=${ANTIDOTE_HOME:-$XDG_DATA_HOME/antidote}
-
-export LC_ALL="en_US.UTF-8"
 
 # Use Neovim as default editor
 export EDITOR="nvim"

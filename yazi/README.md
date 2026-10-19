@@ -18,7 +18,7 @@ defaults and consistent theming that matches the rest of the dotfiles ecosystem.
 
 ```
 ~/.config/yazi/
-  yazi.toml          Manager settings, opener overrides, previewer config
+  yazi.toml          Manager settings, previewer config
   keymap.toml        Custom keybindings
   theme.toml         Flavor selection (one line)
   init.lua           Status bar customization (uid:gid display)

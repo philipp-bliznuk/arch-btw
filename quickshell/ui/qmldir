@@ -9,5 +9,4 @@ ListRow 1.0 ListRow.qml
 Chip 1.0 Chip.qml
 Field 1.0 Field.qml
 Slider 1.0 Slider.qml
-KeyModel 1.0 KeyModel.js
 PopupHost 1.0 PopupHost.qml
