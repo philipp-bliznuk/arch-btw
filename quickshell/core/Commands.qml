@@ -6,7 +6,8 @@ import Quickshell
 // file turns data into a process.
 //
 // Row keys, checked in order:
-//   entry -> DesktopEntry.execute()
+//   entry -> DesktopEntry.execute(); Terminal=true entries get a kitty window
+//            (execute() would start the TUI with no terminal)
 //   argv  -> exec argv directly (preferred)
 //   term  -> argv inside a new terminal window (editors, TUIs)
 //   task  -> argv via qs-task: floating terminal that waits for Enter when done
@@ -17,7 +18,10 @@ QtObject {
         if (!r)
             return false;
         if (r.entry) {
-            r.entry.execute();
+            if (r.entry.runInTerminal)
+                Quickshell.execDetached(["kitty", "--"].concat(r.entry.command));
+            else
+                r.entry.execute();
             return true;
         }
         if (r.argv) {
@@ -47,7 +51,8 @@ QtObject {
         Quickshell.execDetached(["bash", "-c", 'printf %s "$1" | wl-copy', "bash", String(text ?? "")]);
     }
 
-    // The only place besides sway/config and bin/qs-task that names the terminal.
+    // The only place besides sway/config and bin/qs-task that names the terminal
+    // (floating: sway rule qs-float; Terminal=true apps above open tiled).
     function term(argv) {
         return ["kitty", "--class", "qs-float", "--"].concat(argv);
     }
