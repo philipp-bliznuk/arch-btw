@@ -16,6 +16,13 @@ input type:keyboard {
     repeat_rate 35
 }
 
+input type:touchpad {
+    tap enabled
+    # two-finger click = right, three = middle; libinput's default splits the pad into button areas
+    click_method clickfinger
+    scroll_factor 0.4
+}
+
 ### Output
 # No `output * bg` - swaybg not installed; Quickshell paints the wallpaper.
 # Laptop panel is primary (workspace 1, tray); externals sit to its right.
@@ -174,6 +181,10 @@ mouse_warping container
 for_window [app_id="^qs-(float|task)$"] floating enable, border pixel 1, resize set 75 ppt 75 ppt, move position center
 # qs-screensaver: cmatrix in kitty, one per output (bin/qs-screensaver)
 for_window [app_id="^qs-screensaver$"] fullscreen enable, inhibit_idle none
+# LibreWolf picture-in-picture follows the workspace; portal dialogs (file chooser) are
+# a separate process without a parent, so sway would tile them
+for_window [app_id="^librewolf$" title="^Picture-in-Picture$"] floating enable, sticky enable
+for_window [app_id="^xdg-desktop-portal-gtk$"] floating enable
 
 ### Appearance
 default_border pixel 1
