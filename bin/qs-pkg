@@ -111,11 +111,14 @@ remove_pkgs() {
 }
 
 update() {
+	# the idle ladder (lock/Idle.qml) and the power key sleep through logind,
+	# which honours the inhibitor; the lid does not (LidSwitchIgnoreInhibited=yes)
+	local inhibit=(systemd-inhibit --what=sleep --who=qs-pkg --why="package upgrade in progress")
 	if aur_up; then
-		yay -Syu
+		"${inhibit[@]}" yay -Syu
 	else
 		printf '\033[33m●\033[0m AUR unreachable - updating official repositories only.\n'
-		yay -Syu --repo
+		"${inhibit[@]}" yay -Syu --repo
 	fi
 }
 

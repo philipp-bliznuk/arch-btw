@@ -210,7 +210,7 @@ Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage
 | `qs-clipboard-capture` | internal, `wl-paste --watch` target                                       |
 | `qs-apps`              | `list` `hide ID` - explicitly installed desktop ids minus `apps-hide`; pacman hook touches `/run/qs-apps-changed` to re-list |
 | `qs-task CMD…`         | run CMD in a floating 75 % kitty window, `Done!`/`Failed` + Enter to close |
-| `qs-pkg MODE`          | `install` `aur` `remove` `update` `pkgbuild PKG` - fzf package pickers    |
+| `qs-pkg MODE`          | `install` `aur` `remove` `update` `pkgbuild PKG` - fzf package pickers; `update` runs under `systemd-inhibit --what=sleep` (idle ladder, power key; the lid ignores sleep inhibitors) |
 | `qs-wifi-prefer SSID`  | autoconnect-priority 10 for SSID's profile, 0 for other Wi-Fi profiles    |
 | `yay-git PKG…`         | build AUR packages from git (AUR, GitHub mirror fallback), AUR deps recursive |
 | `snap-restore`         | `list` `last` `N` `undo` `rebuild`, `--device DEV` from the ISO - root rollback to a snapper snapshot, UKIs rebuilt inside it (Recovery below) |
