@@ -34,6 +34,7 @@ Scope {
     property var wallpapers: []
     property string wallpaper: ""
     property var drives: []
+    property var defaults: []
     property var pending: null
     property var usage: ({})
     // .desktop ids qs-apps allows (explicit packages minus apps-hide). Empty = show all.
@@ -77,6 +78,7 @@ Scope {
         switch (name) {
         case "wallpaper": wallpaperList.running = true; break
         case "usb": usbList.running = true; break
+        case "defaults": defaultsList.running = true; break
         }
     }
     function reset() {
@@ -124,11 +126,12 @@ Scope {
         case "toggle": return Model.toggleRows(Icons, Toggles.active)
         case "setup": return Model.setupRows(Icons, Util.home())
         case "wallpaper": return Model.wallpaperRows(Icons, wallpapers, wallpaper)
+        case "defaults": return Model.defaultsRows(Icons, defaults)
         case "utils": return Model.utilsRows(Icons)
         case "usb": return Model.usbRows(Icons, drives)
         case "clipboard": return Model.clipboardRows(Icons, clipboard.entries, Util)
         case "notifications": return Model.notificationRows(Icons, notifications.history, Util)
-        default: return []
+        default: return name.startsWith("defaults-") ? Model.defaultAppRows(Icons, defaults, name.slice(9)) : []
         }
     }
 
@@ -319,6 +322,7 @@ Scope {
         switch (r.action) {
         case "hide": hideApp(r.args[0]); break
         case "usb": rerun(usbList, "qs-usb", r.args); break
+        case "default": rerun(defaultsList, "qs-defaults", ["set"].concat(r.args)); break
         case "notifications-clear": notifications.clearHistory(); break
         case "notifications-dismiss": close(); break
         case "back": back(); break
@@ -519,6 +523,11 @@ Scope {
         id: usbList
         command: [Util.bin("qs-usb"), "list"]
         stdout: StdioCollector { onStreamFinished: root.drives = root.listed(usbList, "qs-usb", text, root.drives) }
+    }
+    Process {
+        id: defaultsList
+        command: [Util.bin("qs-defaults"), "list"]
+        stdout: StdioCollector { onStreamFinished: root.defaults = root.listed(defaultsList, "qs-defaults", text, root.defaults) }
     }
     // Both files only trigger a probe; apps-hide content is read by qs-apps.
     FileView {

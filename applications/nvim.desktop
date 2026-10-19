@@ -1,0 +1,17 @@
+# Shadows /usr/share/applications/nvim.desktop (same id, ~/.local/share wins).
+# Upstream says Terminal=true; xdg-open and Quickshell start no terminal for
+# that and GIO only one from its own list (gnome-terminal, konsole, ptyxis,
+# xdg-terminal-exec, ...), so as a default for text files it opened nothing.
+[Desktop Entry]
+Type=Application
+Name=Neovim
+GenericName=Text Editor
+Comment=Edit text files
+Icon=nvim
+TryExec=nvim
+Exec=kitty -- nvim %F
+Terminal=false
+StartupNotify=false
+Keywords=Text;editor;
+Categories=Utility;TextEditor;Development;
+MimeType=text/english;text/plain;text/x-makefile;text/x-c++hdr;text/x-c++src;text/x-chdr;text/x-csrc;text/x-java;text/x-moc;text/x-pascal;text/x-tcl;text/x-tex;application/x-shellscript;text/x-c;text/x-c++;

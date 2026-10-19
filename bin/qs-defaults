@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# qs-defaults <list | set ROLE ID>
+# Default applications for the launcher (Setup > Default apps). A role is a
+# few MIME types that belong together; `set` points them all at one .desktop
+# id (xdg-mime default, lands in ~/.config/mimeapps.list) and prints the list
+# again. Candidates are the installed .desktop files claiming one of the
+# role's types, minus Terminal=true ones: xdg-open and GIO start no terminal
+# for those (applications/*.desktop in this repo wrap nvim and yazi in kitty).
+set -Eeuo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+roles=(
+	"browser|Browser|x-scheme-handler/http x-scheme-handler/https text/html"
+	"pdf|PDF|application/pdf"
+	"image|Images|image/png image/jpeg image/gif image/webp image/svg+xml"
+	"video|Video|video/mp4 video/x-matroska video/webm"
+	"audio|Audio|audio/mpeg audio/flac audio/ogg"
+	"text|Text|text/plain"
+	"folder|Folders|inode/directory"
+)
+
+usage() {
+	sed -n '2p' "$0" >&2
+	exit 2
+}
+
+# ~/.local/share first (firecfg copies, this repo's wrappers), then the system
+# dirs; the first file of an id wins, as in GIO and the launcher.
+desktop_files() {
+	local dir dirs
+	IFS=: read -ra dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+	for dir in "${dirs[@]}"; do
+		[[ -d "$dir/applications" ]] && find "$dir/applications" -maxdepth 1 -name '*.desktop' | sort
+	done
+}
+
+# TSV: id, name, icon, MimeType, Terminal. Hidden means deleted and stays
+# out; NoDisplay only hides from menus (imv registers both entries so) and
+# counts, as in GIO's open-with list.
+apps() {
+	local files
+	mapfile -t files < <(desktop_files)
+	((${#files[@]})) || return 0
+	awk '
+		BEGINFILE { entry = 0; name = ""; icon = ""; mime = ""; term = "false"; skip = 0 }
+		/^\[/ { entry = ($0 == "[Desktop Entry]"); next }
+		!entry { next }
+		/^Name=/ { name = substr($0, 6) }
+		/^Icon=/ { icon = substr($0, 6) }
+		/^MimeType=/ { mime = substr($0, 10) }
+		/^Terminal=true/ { term = "true" }
+		/^Hidden=true/ { skip = 1 }
+		ENDFILE {
+			if (mime != "" && !skip) {
+				id = FILENAME; sub(/.*\//, "", id)
+				print id "\t" name "\t" icon "\t" mime "\t" term
+			}
+		}' "${files[@]}" | awk -F'\t' '!seen[$1]++'
+}
+
+current() {
+	LC_ALL=C gio mime "$1" | sed -n '1s/^Default application for .*: //p'
+}
+
+list() {
+	local r id name mimes
+	# GIO reads an entry's types from the cache of the dir holding it, so the
+	# user dir (firecfg copies, this repo's wrappers) needs its own; pacman's
+	# hook only refreshes /usr/share.
+	update-desktop-database "${XDG_DATA_HOME:-$HOME/.local/share}/applications" 2>/dev/null || true
+	{
+		for r in "${roles[@]}"; do
+			IFS='|' read -r id name mimes <<<"$r"
+			printf 'R\t%s\t%s\t%s\t%s\n' "$id" "$name" "$mimes" "$(current "${mimes%% *}")"
+		done
+		apps | sed 's/^/A\t/'
+	} | jq -Rsc '
+		[split("\n")[] | select(length > 0) | split("\t")] as $rows
+		| [$rows[] | select(.[0] == "A" and .[5] != "true")
+			| { id: .[1], name: .[2], icon: .[3], mimes: (.[4] | split(";") | map(select(length > 0))) }] as $apps
+		| [$rows[] | select(.[0] == "R")
+			| { id: .[1], name: .[2], mimes: (.[3] | split(" ")), current: .[4] }
+			| .mimes as $m
+			| .apps = [$apps[] | select(any(.mimes[]; IN($m[]))) | del(.mimes)]]'
+}
+
+# Failures end in a toast and the list all the same, so the launcher redraws.
+fail() {
+	"$here"/qs-notify -u critical -i preferences-other "Default apps" "$1" || true
+	list
+	exit 1
+}
+
+set_default() {
+	local role="$1" id="$2" r rid mimes m
+	apps | cut -f1 | grep -xF "$id" >/dev/null || fail "no desktop entry '$id'"
+	for r in "${roles[@]}"; do
+		IFS='|' read -r rid _ mimes <<<"$r"
+		[[ $rid == "$role" ]] || continue
+		read -ra m <<<"$mimes"
+		xdg-mime default "$id" "${m[@]}" || fail "xdg-mime default $id failed for $role"
+		list
+		return
+	done
+	fail "unknown role '$role'"
+}
+
+case "${1:-}" in
+list) list ;;
+set) set_default "${2:?usage: qs-defaults set ROLE ID}" "${3:?usage: qs-defaults set ROLE ID}" ;;
+*) usage ;;
+esac

@@ -147,7 +147,7 @@ Segment {
 
     function openPortal() {
         Popups.close();
-        Commands.run({ argv: ["librewolf", "http://ping.archlinux.org/nm-check.txt"] });
+        Commands.run({ argv: ["xdg-open", "http://ping.archlinux.org/nm-check.txt"] });
     }
 
     function refresh() {

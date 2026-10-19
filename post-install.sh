@@ -547,6 +547,13 @@ step_dotfiles() {
 	link "$DOTFILES/containers/registries.conf" "$XDG_CONFIG_HOME/containers/registries.conf"
 	link "$DOTFILES/zsh/.zshenv" "$HOME/.zshenv" # only file in $HOME; bootstraps ZDOTDIR
 	link "$DOTFILES/bin" "$HOME/.local/bin"      # qs-* helper scripts (sway binds + Quickshell call them)
+	local entry
+	for entry in "$DOTFILES"/applications/*.desktop; do # nvim and yazi wrapped in kitty: usable as xdg-open defaults
+		link "$entry" "$HOME/.local/share/applications/${entry##*/}"
+	done
+	# GIO reads a user-dir entry's types from the user dir's cache (bin/qs-defaults
+	# refreshes it too); pacman's hook only covers /usr/share.
+	update-desktop-database "$HOME/.local/share/applications"
 	mkdir -p "$HOME/.local/state/qs/toggles"
 
 	rm -f "$HOME/.zshrc" # install-time placeholder

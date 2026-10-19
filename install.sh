@@ -45,7 +45,8 @@ PACKAGES=(
 	pam-u2f libfido2 yubikey-manager ccid
 	kguiaddons kwindowsystem # pinentry-qt links against these (gpg passphrase prompt)
 	qt6ct adw-gtk-theme      # Catppuccin for Qt (qt6ct palette) and GTK 3/4 (adw-gtk3 + gtk/gtk.css named colours)
-	librewolf
+	librewolf imv mpv # imv/mpv: the only image and video handlers for xdg-open (LibreWolf registers neither); Setup > Default apps picks
+	xdg-utils desktop-file-utils # xdg-mime, update-desktop-database (bin/qs-defaults, post-install.sh); deps of qt6-base and gtk3 anyway
 	eza fzf fd ripgrep bat zoxide yazi ouch tmux fastfetch git-delta lazygit jujutsu podman
 	poppler ffmpeg 7zip unzip jq go-yq btop tree # go-yq = mikefarah yq; unzip: mason unpacks stylua with it
 	tree-sitter-cli nodejs npm go python uv bun

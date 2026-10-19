@@ -1,0 +1,16 @@
+# Shadows /usr/share/applications/yazi.desktop (same id, ~/.local/share wins).
+# Upstream says Terminal=true; xdg-open and Quickshell start no terminal for
+# that and GIO only one from its own list (gnome-terminal, konsole, ptyxis,
+# xdg-terminal-exec, ...), so as a default for folders it opened nothing.
+[Desktop Entry]
+Type=Application
+Name=Yazi
+GenericName=File Manager
+Comment=Terminal file manager
+Icon=yazi
+TryExec=yazi
+Exec=kitty -- yazi %f
+Terminal=false
+Keywords=File;Manager;Explorer;Browser;
+Categories=System;FileManager;FileTools;
+MimeType=inode/directory;

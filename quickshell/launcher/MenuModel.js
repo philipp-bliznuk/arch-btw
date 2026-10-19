@@ -161,6 +161,7 @@ function setupRows(I, home) {
     edit("nvim", "Neovim", c + "nvim/init.lua"),
     edit("apps-hide", "App blacklist", c + "quickshell/apps-hide"),
     row("wallpaper", "Wallpaper", "pick from ~/.config/wallpapers", I.image, { section: "wallpaper", keywords: ["background"] }),
+    row("defaults", "Default apps", "browser, PDF, images, video, audio, text, folders", I.openInApp, { section: "defaults", keywords: ["mime", "xdg-open", "handler", "browser", "viewer"] }),
   ]
 }
 
@@ -173,6 +174,26 @@ function wallpaperRows(I, files, current) {
     rows.push(row("wp-" + i, name, f === current ? "current" : "", I.image, { argv: [BIN + "qs-wallpaper", "set", f], checked: f === current, thumb: f }))
   }
   return rows
+}
+
+// roles = qs-defaults list: [{ id, name, mimes, current, apps: [{ id, name, icon }] }]
+function defaultsRows(I, roles) {
+  var glyph = { browser: I.web, pdf: I.pdf, image: I.image, video: I.video, audio: I.music, text: I.document, folder: I.folder }
+  return roles.map(function (r) {
+    var cur = r.apps.filter(function (a) { return a.id === r.current })[0]
+    return row(r.id, r.name, cur ? cur.name : (r.current || "not set"), glyph[r.id] || I.openInApp, { section: "defaults-" + r.id, keywords: r.mimes })
+  })
+}
+
+// One role's candidates (installed .desktop files claiming its types), the
+// current default checked. Enter sets it in place via qs-defaults.
+function defaultAppRows(I, roles, id) {
+  var r = roles.filter(function (x) { return x.id === id })[0]
+  if (!r) return []
+  if (!r.apps.length) return [row("none", "Nothing installed handles " + r.name.toLowerCase(), r.mimes.join(" "), I.openInApp, { action: "back" })]
+  return r.apps.map(function (a) {
+    return row(a.id, a.name, a.id, I.openInApp, { icon: a.icon, checked: a.id === r.current, action: "default", args: [r.id, a.id] })
+  })
 }
 
 function utilsRows(I) {

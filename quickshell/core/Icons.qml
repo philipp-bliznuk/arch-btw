@@ -48,6 +48,10 @@ QtObject {
     readonly property string eject: g(0xF01EA)
     readonly property string lockOpen: g(0xF033F)
     readonly property string folder: g(0xF024B)
+    readonly property string openInApp: g(0xF03CB)
+    readonly property string pdf: g(0xF0226)
+    readonly property string video: g(0xF0567)
+    readonly property string document: g(0xF09EE)
 
     // System actions
     readonly property string lock: g(0xF033E)
