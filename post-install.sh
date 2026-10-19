@@ -405,9 +405,12 @@ step_lock_pam() {
 	success "PAM services qs-lock-password and qs-lock-u2f written, faillock tally file created."
 }
 
-# Lid policy. Closing the lid suspends, then hibernates, on battery and on AC
-# alike. With an external display attached logind counts the laptop as docked,
-# and then the lid only locks: swayidle relays logind's Lock signal to qs-lock.
+# Lid and power key. Closing the lid suspends, then hibernates, on battery and
+# on AC alike. With an external display attached logind counts the laptop as
+# docked, and then the lid only locks: swayidle relays logind's Lock signal to
+# qs-lock. The power key does what the lid does (logind's default is poweroff,
+# sway binds nothing, so one accidental press ended the session); a 5 s hold
+# powers off cleanly, the way out of a hung session (logind's default: ignore).
 step_lid() {
 	sudo install -D -o root -g root -m 644 /dev/stdin /etc/systemd/logind.conf.d/00-lid.conf <<-'EOF'
 		# Written by post-install.sh (lid).
@@ -415,9 +418,11 @@ step_lid() {
 		HandleLidSwitch=suspend-then-hibernate
 		# external display attached: lock only (swayidle relays the Lock signal to qs-lock)
 		HandleLidSwitchDocked=lock
+		HandlePowerKey=suspend-then-hibernate
+		HandlePowerKeyLongPress=poweroff
 	EOF
 	sudo systemctl reload systemd-logind
-	success "Lid policy written (00-lid.conf), logind reloaded."
+	success "Lid and power key policy written (00-lid.conf), logind reloaded."
 }
 
 # yay for AUR-only desktop apps (slack-desktop, zoom). yay-bin: no Go toolchain.
