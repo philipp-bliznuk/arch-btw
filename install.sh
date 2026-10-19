@@ -506,6 +506,7 @@ EOF
 		exit 1
 	}
 	systemctl enable NetworkManager apparmor earlyoom chronyd systemd-resolved upower power-profiles-daemon ufw
+	systemctl mask sshd-unix-local.socket # systemd-ssh-generator starts it on every boot once sshd is installed (AF_UNIX, password stack)
 	systemctl enable systemd-boot-update.service # no pacman hook for systemd-boot on Arch
 	systemctl enable snapper-timeline.timer snapper-cleanup.timer
 	systemctl enable fstrim.timer paccache.timer

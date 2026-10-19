@@ -451,10 +451,16 @@ whitelist \${HOME}/.config/librewolf
 # librewolf.profile); this file is included before that line, so the
 # firejail-default profile applies again.
 apparmor
+# firefox-common.profile adds nou2f (browser-disable-u2f defaults to yes in
+# firejail.config), which hides /dev/hidraw*: no WebAuthn with the YubiKey.
+# private-dev stays, so the jail still sees only the devices it needs.
+ignore nou2f
 # Session bus, filtered by xdg-dbus-proxy (the stock profile talks to the
 # portal Documents service only): the MPRIS name for the bar's media widget,
 # and the desktop portal, Firefox's route to the colour scheme and to screen
-# capture on Wayland.
+# capture on Wayland. xdg-desktop-portal/sway-portals.conf (dotfiles) turns
+# the portal's DynamicLauncher off: through it a host app rewrites any
+# ~/.local/share/applications/*.desktop without a dialog.
 dbus-user.own org.mpris.MediaPlayer2.firefox.*
 dbus-user.talk org.freedesktop.portal.Desktop
 EOF
@@ -486,9 +492,11 @@ EOF
 }
 
 step_firecfg() {
-	# symlinks in /usr/local/bin for every installed program firejail has a
-	# profile for (librewolf, ssh, man, ping, ffplay, pdftotext, ...; see
-	# `firecfg --list`). Blacklist misbehaving tools in /etc/firejail/firecfg.config.
+	# symlinks in /usr/local/bin for the installed programs named in
+	# /etc/firejail/firecfg.config (librewolf, ssh, man, ping, ffplay, pdftotext,
+	# ...; see `firecfg --list`). Programs with a profile but outside that list
+	# (curl, git, nvim, tmux, node) run unconfined. Add or remove names in
+	# /etc/firejail/firecfg.d/*.conf (`!name` removes), never in firecfg.config.
 	# The hook re-runs it after every transaction that touches /usr/bin, so AUR
 	# packages installed later (slack, zoom) get their symlink and fixed .desktop.
 	sudo tee /etc/pacman.d/hooks/firecfg.hook >/dev/null <<'EOF'
@@ -521,7 +529,7 @@ link() {
 
 step_dotfiles() {
 	local pkg
-	for pkg in bat fastfetch git kitty nvim qt6ct quickshell ruff sway tmux wallpapers yazi zsh; do
+	for pkg in bat fastfetch git kitty nvim qt6ct quickshell ruff sway tmux wallpapers xdg-desktop-portal yazi zsh; do
 		link "$DOTFILES/$pkg" "$XDG_CONFIG_HOME/$pkg"
 	done
 	link "$DOTFILES/gtk" "$XDG_CONFIG_HOME/gtk-3.0" # same gtk.css + settings.ini for GTK 3 and 4
