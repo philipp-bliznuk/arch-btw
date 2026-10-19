@@ -6,10 +6,10 @@ import qs.ui
 // set event.accepted to swallow it (launcher vim bindings).
 Rectangle {
     id: root
-    property alias text: input.text
-    property alias echoMode: input.echoMode
+    property alias text: textInput.text
+    property alias echoMode: textInput.echoMode
     property string placeholder: ""
-    property alias input: input
+    property alias input: textInput
 
     signal accepted
     signal escaped
@@ -19,10 +19,10 @@ Rectangle {
     radius: Style.radius
     color: Theme.surface0
     border.width: 1
-    border.color: input.activeFocus ? Theme.accent : Theme.surface1
+    border.color: textInput.activeFocus ? Theme.accent : Theme.surface1
 
     TextInput {
-        id: input
+        id: textInput
         anchors.fill: parent
         anchors.leftMargin: Style.spaceLg
         anchors.rightMargin: Style.spaceLg
@@ -46,8 +46,8 @@ Rectangle {
     }
 
     Label {
-        anchors.fill: input
-        visible: input.text === "" && !input.preeditText
+        anchors.fill: textInput
+        visible: textInput.text === "" && !textInput.preeditText
         text: root.placeholder
         color: Theme.overlay0
     }

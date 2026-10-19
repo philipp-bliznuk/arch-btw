@@ -274,7 +274,7 @@ var SWAY_LABELS = [
 var TMUX_LABELS = [
   [/^send-prefix/, "Send prefix to nested tmux"],
   [/^send-keys -X begin-selection/, "Begin selection"],
-  [/^send-keys -X copy-pipe-and-cancel/, "Copy selection to clipboard"],
+  [/^send-keys -X copy-selection-and-cancel/, "Copy selection to clipboard"],
   [/^send-keys -X cancel/, "Leave copy mode"],
   [/^send-keys -X start-of-line/, "Start of line"],
   [/^paste-buffer/, "Paste buffer"],
@@ -421,6 +421,7 @@ function tmuxKeyRows(text, I) {
     if (p) { prefix = p[1]; continue }
     var h = l.match(/^#\s*(.+)$/)
     if (h) { tag = tagOf(h[1]); continue }
+    l = l.replace(/\s+#.*$/, "") // trailing comment (tmux: unquoted # at a word start)
     var m = l.match(/^(?:bind|bind-key)\s+(.*)$/)
     if (!m) continue
     var parts = m[1].split(/\s+/)

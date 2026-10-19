@@ -13,7 +13,7 @@ QtObject {
     readonly property int fontWeight: Font.Medium
     readonly property int renderType: Text.NativeRendering // for TextMetrics, which the shell.qml pragma does not reach
 
-    readonly property int panelHeight: 28 // 768 - 28 = 740 = 37 kitty rows of 20 px, no leftover strip under the last row
+    readonly property int panelHeight: 28 // 768 - 28 = 740 = 37 kitty rows of 20 px: one tiled window on eDP-1 ends on a cell boundary (2560x1440 leaves 12 px, tiled borders add rows; kitty paints the rest in the last row's colour)
     readonly property int segmentHeight: 22
     readonly property int segmentPadX: 4
     readonly property int radius: 6

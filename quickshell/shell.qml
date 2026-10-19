@@ -28,7 +28,7 @@ ShellRoot {
     Idle {}
 
     Service {
-        id: notifications
+        id: notificationService
     }
 
     Agent {}
@@ -38,7 +38,7 @@ ShellRoot {
     }
 
     Clipboard {
-        id: clipboard
+        id: clipboardStore
     }
 
     PopupHost {}
@@ -47,8 +47,8 @@ ShellRoot {
 
     Launcher {
         id: launcher
-        notifications: notifications
-        clipboard: clipboard
+        notifications: notificationService
+        clipboard: clipboardStore
     }
 
     // sway: set $menu qs-shell launcher toggle

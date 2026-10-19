@@ -41,7 +41,7 @@ Variants {
             anchors.bottomMargin: 1
 
             Row {
-                id: left
+                id: leftRow
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 2
@@ -66,11 +66,11 @@ Variants {
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.verticalCenter: parent.verticalCenter
                 // stay clear of both rows and yield the centre to the mode indicator
-                visible: !modeHint.visible && Player.player !== null && width < right.x - (left.x + left.width) - Style.spaceXl * 2
+                visible: !modeHint.visible && Player.player !== null && width < rightRow.x - (leftRow.x + leftRow.width) - Style.spaceXl * 2
             }
 
             Row {
-                id: right
+                id: rightRow
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 2

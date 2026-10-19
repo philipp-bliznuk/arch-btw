@@ -19,7 +19,7 @@ if [[ -n "$iface" ]]; then
 fi
 ping_ms=null
 if [[ -n "$gateway" ]]; then
-	ping_ms="$(ping -n -c1 -W1 "$gateway" 2>/dev/null | sed -n 's/.*time=\([0-9.]*\).*/\1/p' | head -1 || true)" # no reply: pipeline fails, not the script
+	ping_ms="$(/usr/bin/ping -n -c1 -W1 "$gateway" 2>/dev/null | sed -n 's/.*time=\([0-9.]*\).*/\1/p' | head -1 || true)" # no reply: pipeline fails, not the script; /usr/bin: the firecfg symlink in /usr/local/bin starts a jail per call, 0.2 to 0.8 s
 	[[ -n "$ping_ms" ]] || ping_ms=null
 fi
 conn="$(nmcli -t -g CONNECTIVITY general status 2>/dev/null || echo unknown)"

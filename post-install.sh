@@ -244,9 +244,11 @@ step_luks_header() {
 		return 0
 	}
 
-	# Never to ~ - @home snapshots would keep a copy.
+	# Never to ~ - @home snapshots would keep a copy. Minutes in the name: a
+	# second backup the same day (--redo after a keyslot change) must not fail
+	# on the existing file, luksHeaderBackup refuses to overwrite.
 	sudo cryptsetup luksHeaderBackup "$luks" \
-		--header-backup-file "$dest/luks-header-$(date +%Y%m%d).img"
+		--header-backup-file "$dest/luks-header-$(date +%Y%m%d-%H%M).img"
 	success "Header written. Re-take after any keyslot change."
 	umount_usb
 }
@@ -442,11 +444,11 @@ step_aur_helper() {
 # $XDG_CONFIG_HOME/librewolf/librewolf/librewolf.overrides.cfg (yes, twice).
 step_librewolf() {
 	local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/librewolf/librewolf"
-	sudo tee /etc/firejail/librewolf.local >/dev/null <<EOF
+	sudo tee /etc/firejail/librewolf.local >/dev/null <<'EOF'
 # XDG profile dir (firejail's stock profile predates LibreWolf's move)
-noblacklist \${HOME}/.config/librewolf
-mkdir \${HOME}/.config/librewolf
-whitelist \${HOME}/.config/librewolf
+noblacklist ${HOME}/.config/librewolf
+mkdir ${HOME}/.config/librewolf
+whitelist ${HOME}/.config/librewolf
 # Upstream turned AppArmor off for the browser (ignore apparmor further down in
 # librewolf.profile); this file is included before that line, so the
 # firejail-default profile applies again.
@@ -469,7 +471,10 @@ EOF
 // librewolf.cfg upgrades private network addresses to HTTPS as well (loopback
 // is always exempt); homelab services speak plain HTTP, so IP literals in
 // private and link-local ranges load as typed (Firefox's default). The
-// internet is still HTTPS-Only.
+// internet is still HTTPS-Only. A per-site exception would cover one host at
+// a time; several services on several ports made the global switch cheaper.
+// Cost: on a hostile LAN a typed http://10.x or http://192.168.x URL is not
+// upgraded; https:// URLs are unaffected.
 defaultPref("dom.security.https_only_mode.upgrade_local", false);
 defaultPref("network.http.referer.XOriginPolicy", 2);
 defaultPref("media.autoplay.blocking_policy", 2);

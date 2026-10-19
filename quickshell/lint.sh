@@ -19,6 +19,11 @@ ln -s "$here" "$tmp/qs"
 #   uncreatable-type   PanelWindow flagged uncreatable in quickshell-core.qmltypes
 #   missing-type       anchor.edges group type missing
 #   unresolved-type    DBusMenuHandle not exposed declaratively
+# Still printed (14 lines, same cause): missing-property on
+# QuickshellScreenInfo.width/height, PopupAnchor.item/edges/gravity/adjustment,
+# anchors top/right on layer windows, UntypedObjectModel.values; unqualified
+# PopupAnchor.margins; incompatible-type DBusMenuHandle vs QsMenuHandle.
+# Anything else is ours. Exit code is non-zero while those remain.
 mapfile -d '' files < <(find "$here" -name '*.qml' -print0 | sort -z)
 "$qmllint" \
 	-I "$tmp" -I "$here" \

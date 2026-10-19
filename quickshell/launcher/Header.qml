@@ -16,7 +16,7 @@ Item {
 
     Row {
         anchors.left: parent.left
-        anchors.right: right.left
+        anchors.right: rightRow.left
         anchors.rightMargin: Style.spaceMd
         height: parent.height
         spacing: Style.spaceSm
@@ -53,7 +53,7 @@ Item {
     }
 
     Row {
-        id: right
+        id: rightRow
         anchors.right: parent.right
         height: parent.height
         spacing: Style.spaceMd
