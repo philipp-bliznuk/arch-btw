@@ -33,6 +33,7 @@ Scope {
     property var caps: ({ canSuspend: true, canHibernate: true })
     property var wallpapers: []
     property string wallpaper: ""
+    property var drives: []
     property var pending: null
     property var usage: ({})
     // .desktop ids qs-apps allows (explicit packages minus apps-hide). Empty = show all.
@@ -68,9 +69,15 @@ Scope {
         reset()
         if (name && name !== "root")
             stack = [{ name: "root", title: "", id: name }, { name: name, title: Model.sectionTitle(name) }]
-        if (name === "wallpaper")
-            wallpaperList.running = true
+        load(name)
         shown = true
+    }
+    // Sections listed by a helper script (re)run it on entry.
+    function load(name) {
+        switch (name) {
+        case "wallpaper": wallpaperList.running = true; break
+        case "usb": usbList.running = true; break
+        }
     }
     function reset() {
         query = ""
@@ -117,6 +124,8 @@ Scope {
         case "toggle": return Model.toggleRows(Icons, Toggles.active)
         case "setup": return Model.setupRows(Icons, Util.home())
         case "wallpaper": return Model.wallpaperRows(Icons, wallpapers, wallpaper)
+        case "utils": return Model.utilsRows(Icons)
+        case "usb": return Model.usbRows(Icons, drives)
         case "clipboard": return Model.clipboardRows(Icons, clipboard.entries, Util)
         case "notifications": return Model.notificationRows(Icons, notifications.history, Util)
         default: return []
@@ -266,8 +275,7 @@ Scope {
         if (!r || r.disabled)
             return
         if (r.section) {
-            if (r.section === "wallpaper")
-                wallpaperList.running = true
+            load(r.section)
             remember(r)
             push(r.section, r.name)
             return
@@ -295,7 +303,7 @@ Scope {
             return
         }
         if (r.action) {
-            runAction(r.action)
+            runAction(r)
             return
         }
         remember(r)
@@ -303,16 +311,37 @@ Scope {
         Commands.run(r)
     }
 
-    function runAction(name) {
-        if (name.startsWith("hide:")) {
-            hideApp(name.slice(5))
-            return
-        }
-        switch (name) {
+    // action = name, args = list handed to a helper script that ends by
+    // printing its list again, so the section redraws in place (Mount
+    // becomes Unmount). A probe mid-flight keeps its command: Enter again
+    // once the rows have redrawn.
+    function runAction(r) {
+        switch (r.action) {
+        case "hide": hideApp(r.args[0]); break
+        case "usb": rerun(usbList, "qs-usb", r.args); break
         case "notifications-clear": notifications.clearHistory(); break
         case "notifications-dismiss": close(); break
         case "back": back(); break
         case "clipboard-clear": clipboard.clear(); break
+        }
+    }
+
+    function rerun(probe, script, args) {
+        if (probe.running)
+            return
+        probe.command = [Util.bin(script)].concat(args)
+        probe.running = true
+    }
+
+    // Probe output: re-arm `list` before parsing, so a bad payload can never
+    // leave a device action on the trigger; the old rows stay on a parse error.
+    function listed(probe, script, text, previous) {
+        probe.command = [Util.bin(script), "list"]
+        try {
+            return JSON.parse(text || "[]")
+        } catch (e) {
+            console.warn(script + ": " + e.message)
+            return previous
         }
     }
 
@@ -321,7 +350,7 @@ Scope {
     function askHide(r) {
         if (mode !== "normal" || section !== "apps" || !r || !r.entry)
             return
-        pending = { name: "Blacklist " + r.name, genericName: "undo: delete its line in ~/.config/quickshell/apps-hide", glyph: Icons.eyeOff, confirm: { action: "hide:" + r.id } }
+        pending = { name: "Blacklist " + r.name, genericName: "undo: delete its line in ~/.config/quickshell/apps-hide", glyph: Icons.eyeOff, confirm: { action: "hide", args: [r.id] } }
         push("confirm", "Do you really want to blacklist " + r.name + "?")
     }
 
@@ -485,6 +514,11 @@ Scope {
                 appsProbe.command = [Util.bin("qs-apps"), "list"]
             }
         }
+    }
+    Process {
+        id: usbList
+        command: [Util.bin("qs-usb"), "list"]
+        stdout: StdioCollector { onStreamFinished: root.drives = root.listed(usbList, "qs-usb", text, root.drives) }
     }
     // Both files only trigger a probe; apps-hide content is read by qs-apps.
     FileView {

@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# qs-usb <list | mount DEV | unmount DEV | lock DEV | power-off DEV | unlock DEV>
+# Removable drives for the launcher (Utils > USB). `list` prints lsblk's JSON
+# tree cut down to USB/SD drives with media in. The verbs wrap udisksctl, which
+# polkit lets the active session run without a prompt (no root, mounts under
+# /run/media/$USER), end in a notification and print the list again whatever
+# happened, so the launcher redraws. `unlock` asks for the passphrase on the
+# terminal, so the launcher runs it in a qs-task window; it mounts what it opened.
+set -Eeuo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+	sed -n '2p' "$0" >&2
+	exit 2
+}
+
+# Removable or hotplug or on the USB bus; an empty card reader is a 0B disk.
+# lsblk pads vendor and model with spaces.
+list() {
+	lsblk -J -o NAME,PATH,PKNAME,SIZE,TYPE,FSTYPE,LABEL,MOUNTPOINT,RM,HOTPLUG,TRAN,VENDOR,MODEL \
+		| jq -c '[.blockdevices[]
+			| select((.rm or .hotplug or .tran == "usb") and .size != "0B")
+			| .vendor |= ((. // "") | gsub("\\s+$"; ""))
+			| .model |= ((. // "") | gsub("\\s+$"; ""))]'
+}
+
+# <dev> <jq condition>: paths at or below DEV where it holds; $dev is bound.
+# NAME keeps lsblk's output a tree whatever DEV is (without it the list is flat).
+below() {
+	lsblk -J -o NAME,PATH,TYPE,FSTYPE,MOUNTPOINT "$1" | jq -r --arg dev "$1" ".. | objects | select($2) | .path"
+}
+
+out=""
+code=0
+# One udisksctl call; its answer and errors (stderr folded in) join the toast,
+# the first failure stops the sequence.
+step() {
+	local line
+	((code)) && return 0
+	line="$(udisksctl "$@" --no-user-interaction 2>&1)" || code=$?
+	out+="${line:+$line$'\n'}"
+}
+
+# udisks refuses to lock or power off while anything below the device is in
+# use: unmount the filesystems there first, then lock LUKS devices below that
+# still hold an open mapping (LUKS straight on the disk included for
+# power-off; lock's own target is its final step).
+run() {
+	local verb="$1" dev="$2" path luks='.fstype? == "crypto_LUKS" and (.children? | length) > 0'
+	if [[ $verb == lock ]]; then
+		luks=".path != \$dev and $luks"
+	fi
+	if [[ $verb == lock || $verb == power-off ]]; then
+		while read -r path; do step unmount -b "$path"; done < <(below "$dev" '.mountpoint? != null')
+		while read -r path; do step lock -b "$path"; done < <(below "$dev" "$luks")
+	fi
+	step "$verb" -b "$dev"
+	if ((code == 0)); then
+		[[ $verb == power-off ]] && out+="Powered off $dev."
+		"$here"/qs-notify -i drive-removable-media "USB" "${out%$'\n'}" || true
+	else
+		"$here"/qs-notify -u critical -i drive-removable-media "USB: $verb failed" "${out%$'\n'}" || true
+	fi
+	list
+	exit "$code"
+}
+
+unlock() {
+	local dev="$1" mapped
+	udisksctl unlock -b "$dev"
+	mapfile -t mapped < <(below "$dev" '.type? == "crypt"')
+	if ((${#mapped[@]})); then
+		udisksctl mount -b "${mapped[0]}" --no-user-interaction
+	fi
+}
+
+case "${1:-}" in
+list) list ;;
+mount | unmount | lock | power-off) run "$1" "${2:?usage: qs-usb $1 DEV}" ;;
+unlock) unlock "${2:?usage: qs-usb unlock DEV}" ;;
+*) usage ;;
+esac

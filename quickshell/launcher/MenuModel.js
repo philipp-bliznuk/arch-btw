@@ -6,7 +6,7 @@
 // popup   -> open a panel popup by id
 // clip    -> clipboard history entry (Enter copies, d deletes)
 // toggle  -> flip a core/Toggles flag
-// action  -> launcher-internal action name
+// action  -> launcher-internal action name (args: list handed along)
 // argv    -> exec
 // term    -> exec inside a terminal window
 // task    -> exec inside bin/qs-task (floating terminal, waits for Enter)
@@ -30,7 +30,7 @@ function row(id, name, generic, glyph, extra) {
 
 // Sections whose rows join global search from root. Dynamic content
 // (clipboard, notifications, wallpaper files) stays out.
-var SEARCH_SECTIONS = ["system", "packages", "capture", "toggle", "setup", "keys-sway", "keys-tmux", "keys-launcher", "keys-popups"]
+var SEARCH_SECTIONS = ["system", "packages", "capture", "toggle", "setup", "utils", "keys-sway", "keys-tmux", "keys-launcher", "keys-popups"]
 
 // Tags rows with their origin section so search results can show a
 // breadcrumb and usage stats stay distinct per submenu.
@@ -54,6 +54,7 @@ function rootRows(I, reboot) {
     row("toggle", "Toggle", "Stay awake, night light, DND, bar", I.toggle, { section: "toggle" }),
     row("setup", "Setup", "Edit configs, wallpaper", I.cog, { section: "setup", keywords: ["config", "settings"] }),
     row("packages", "Packages", reboot ? "reboot required: " + reboot : "Install, remove, update", I.pkg, { section: "packages", keywords: ["install", "remove", "update", "pacman", "aur", "yay"], warn: !!reboot }),
+    row("utils", "Utils", "USB drives", I.tools, { section: "utils", keywords: ["tools", "helpers", "scripts"] }),
     row("notifications", "Notifications", "History", I.bell, { section: "notifications", keywords: ["history"] }),
     row("clipboard", "Clipboard", "History · Enter copies", I.clipboard, { section: "clipboard", keywords: ["history", "paste"] }),
   ]
@@ -65,7 +66,10 @@ var TITLES = null
 function titles() {
   if (TITLES) return TITLES
   TITLES = {}
-  rootRows({}, "").forEach(function (r) { if (r.section) TITLES[r.section] = r.name })
+  function add(r) { if (r.section) TITLES[r.section] = r.name }
+  rootRows({}, "").forEach(add)
+  setupRows({}, "").forEach(add)
+  utilsRows({}).forEach(add)
   keyRows({}).forEach(function (r) { TITLES[r.section] = "Keybindings · " + r.name })
   return TITLES
 }
@@ -168,6 +172,49 @@ function wallpaperRows(I, files, current) {
     var name = f.split("/").pop()
     rows.push(row("wp-" + i, name, f === current ? "current" : "", I.image, { argv: [BIN + "qs-wallpaper", "set", f], checked: f === current, thumb: f }))
   }
+  return rows
+}
+
+function utilsRows(I) {
+  return [
+    row("usb", "USB", "mount, unmount, unlock, power off removable drives", I.usb, { section: "usb", keywords: ["drive", "stick", "card", "sd", "mount", "udisks", "eject"] }),
+  ]
+}
+
+// drives = qs-usb list: lsblk's tree of removable disks (children = partitions,
+// a LUKS partition's child = its unlocked mapping). One row per possible
+// action, so the list reads as state: Mount / Open + Unmount / Unlock / Lock.
+function usbRows(I, drives) {
+  if (!drives.length) return [row("none", "No removable drives", "plug in a USB stick or a card", I.usb, { action: "back" })]
+  var rows = []
+  function add(verb, d, label, generic, glyph, extra) {
+    extra.keywords = [d.name, d.label || "", d.fstype || ""]
+    rows.push(row(verb.toLowerCase().replace(/ /g, "-") + "-" + d.name, verb + " " + label, generic, glyph, extra))
+  }
+  function walk(d, label) {
+    label = d.label || label
+    var dev = (d.type === "crypt" ? d.pkname + " unlocked" : d.name) + " · " + d.size + (d.fstype ? " · " + d.fstype : "")
+    if (d.fstype === "crypto_LUKS") {
+      if (d.children && d.children.length) add("Lock", d, label, dev, I.lock, { action: "usb", args: ["lock", d.path] })
+      else add("Unlock", d, label, dev + " · asks for the passphrase, then mounts", I.lockOpen, { task: [BIN + "qs-usb", "unlock", d.path] })
+    } else if (d.mountpoint) {
+      add("Open", d, label, d.mountpoint + " · yazi", I.folder, { term: ["yazi", d.mountpoint] })
+      add("Unmount", d, label, dev, I.eject, { action: "usb", args: ["unmount", d.path] })
+    } else if (d.fstype) {
+      add("Mount", d, label, dev, I.usb, { action: "usb", args: ["mount", d.path] })
+    } else if (!d.children) {
+      add("No filesystem on", d, label, dev, I.usb, { disabled: true })
+    }
+    ;(d.children || []).forEach(function (c) { walk(c, label) })
+  }
+  drives.forEach(function (d) {
+    var model = [d.vendor, d.model].filter(function (x) { return x }).join(" ") || d.name
+    walk(d, model)
+    // hotplug = the port itself is external (sysfs `removable` up the chain);
+    // the built-in card reader is on the USB bus too, and powered off it is
+    // gone until a reboot.
+    if (d.hotplug) add("Power off", d, model, d.name + " · " + d.size + " · unmounts and locks first, then the stick can be pulled", I.power, { action: "usb", args: ["power-off", d.path] })
+  })
   return rows
 }
 

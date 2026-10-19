@@ -43,6 +43,11 @@ QtObject {
     readonly property string window: g(0xF05AF)
     readonly property string eyedropper: g(0xF020A)
     readonly property string shield: g(0xF0498)
+    readonly property string tools: g(0xF1064)
+    readonly property string usb: g(0xF0553)
+    readonly property string eject: g(0xF01EA)
+    readonly property string lockOpen: g(0xF033F)
+    readonly property string folder: g(0xF024B)
 
     // System actions
     readonly property string lock: g(0xF033E)
