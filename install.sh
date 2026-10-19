@@ -39,6 +39,7 @@ PACKAGES=(
 	xdg-desktop-portal-wlr xdg-desktop-portal-gtk
 	ttf-jetbrains-mono-nerd noto-fonts noto-fonts-cjk noto-fonts-emoji # cjk: fallback glyphs for app menus/titles (tray menus, window titles)
 	brightnessctl xdg-user-dirs man-db man-pages
+	wireless-regdb kernel-modules-hook udisks2 # Wi-Fi rules for the timezone's country; the running kernel's modules survive an upgrade; udisksctl mounts USB/SD as the user, no automount
 	wlsunset power-profiles-daemon # night light (qs-toggle), battery power profiles (Quickshell battery popup talks D-Bus, no powerprofilesctl)
 	libqalculate
 	pam-u2f libfido2 yubikey-manager ccid
@@ -158,8 +159,14 @@ prompt_inputs() {
 	while :; do
 		printf 'Timezone (e.g. Europe/Berlin): ' >/dev/tty
 		read -r TIMEZONE </dev/tty
-		[[ -f "$TIMEZONE_ROOT/$TIMEZONE" ]] && break
-		warn "No such zone: $TIMEZONE_ROOT/$TIMEZONE"
+		[[ -f "$TIMEZONE_ROOT/$TIMEZONE" ]] || {
+			warn "No such zone: $TIMEZONE_ROOT/$TIMEZONE"
+			continue
+		}
+		[[ "$TIMEZONE" == UTC || "$TIMEZONE" == Etc/* ]] && break
+		# zone.tab lists canonical names only; it is where the Wi-Fi regulatory domain's country comes from
+		awk -v tz="$TIMEZONE" '$3 == tz { found = 1 } END { exit !found }' "$TIMEZONE_ROOT/zone.tab" && break
+		warn "$TIMEZONE is an alias (tzdata 'backward' link); use the canonical name from $TIMEZONE_ROOT/zone.tab"
 	done
 
 	while :; do
@@ -507,6 +514,7 @@ EOF
 		exit 1
 	}
 	systemctl enable NetworkManager apparmor earlyoom chronyd systemd-resolved upower power-profiles-daemon ufw
+	systemctl enable linux-modules-cleanup.service # drops the modules kernel-modules-hook kept for the previous kernel
 	systemctl mask sshd-unix-local.socket # systemd-ssh-generator starts it on every boot once sshd is installed (AF_UNIX, password stack)
 	systemctl enable systemd-boot-update.service # no pacman hook for systemd-boot on Arch
 	systemctl enable snapper-timeline.timer snapper-cleanup.timer
@@ -555,6 +563,43 @@ _write_system_config() {
 kernel.kptr_restrict = 2
 kernel.unprivileged_bpf_disabled = 1
 net.core.bpf_jit_harden = 2
+EOF
+
+	# Wi-Fi regulatory domain = the timezone's country (zone.tab); zones without
+	# one (UTC, Etc/*) keep the world domain, which is what the kernel has
+	# without a regulatory.db at all: fewer 5 GHz channels, lower power. Intel
+	# LAR firmware (`iw reg get`: self-managed) takes the country from the AP
+	# and ignores this; the global domain covers adapters without that.
+	local country
+	country="$(awk -v tz="$TIMEZONE" '$3 == tz { print $1; exit }' /usr/share/zoneinfo/zone.tab)"
+	if [[ "$country" =~ ^[A-Z]{2}$ ]]; then
+		echo "WIRELESS_REGDOM=\"$country\"" >>/etc/conf.d/wireless-regdom
+	fi
+
+	# Thresholds stay at -m 10 -s 10: with a RAM-sized swapfile that is "RAM and
+	# swap both nearly gone", a few hundred MB before the kernel's own OOM killer,
+	# but SIGTERM first, the compositor and the shell last (--avoid takes 300 off
+	# their oom_score). Browser content processes go first: a tab reload is the
+	# cheapest loss. No -n: its D-Bus notifications need systembus-notify running
+	# as the user, which is not installed.
+	cat >/etc/default/earlyoom <<'EOF'
+# Written by install.sh.
+EARLYOOM_ARGS="-r 3600 --avoid '^(systemd|sway|quickshell)$' --prefer '^(Isolated Web Co|Web Content)$'"
+EOF
+
+	# udisks2 lets the active session mount removable media without a prompt
+	# (polkit allow_active). The same default on loop-setup would let any
+	# session process hand a file it wrote to the kernel's filesystem parsers
+	# as root; that, and format/partition changes (modify-device), take an
+	# admin auth instead: the polkit agent, pam_u2f, one touch.
+	cat >/etc/polkit-1/rules.d/10-udisks2.rules <<'EOF'
+// Written by install.sh.
+polkit.addRule(function (action, subject) {
+    if (action.id == "org.freedesktop.udisks2.loop-setup" ||
+        action.id == "org.freedesktop.udisks2.modify-device") {
+        return polkit.Result.AUTH_ADMIN_KEEP;
+    }
+});
 EOF
 
 	mkdir -p /etc/systemd/resolved.conf.d

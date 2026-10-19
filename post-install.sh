@@ -254,8 +254,8 @@ step_luks_header() {
 }
 
 # Flag /run/reboot-required (tmpfs → cleared by the reboot itself) after
-# packages that need one. The shell watches the file; kernels are also checked
-# once at startup (/usr/lib/modules/$(uname -r) vanishes on upgrade).
+# packages that need one. The shell watches the file (kernel-modules-hook keeps
+# the running kernel's modules in place, so their absence is no signal).
 # /run/qs-apps-changed is touched whenever a .desktop file is installed or
 # removed so the launcher re-reads the app list (bin/qs-apps).
 step_pacman_hooks() {
