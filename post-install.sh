@@ -259,9 +259,11 @@ step_luks_header() {
 # /run/qs-apps-changed is touched whenever a .desktop file is installed or
 # removed so the launcher re-reads the app list (bin/qs-apps). Orphans are
 # listed after every transaction: nothing else ever mentions them. Pending
-# .pacnew/.pacsave files go to /var/lib/pacnew-pending (not /run: they outlive
-# a reboot) after any transaction touching /etc; the launcher's Packages rows
+# .pacnew files go to /var/lib/pacnew-pending (not /run: they outlive a
+# reboot) after any transaction touching /etc; the launcher's Packages rows
 # show them and qs-pkg pacdiff rewrites the file after a merge session.
+# (pacdiff -p knows the backup files of installed packages only, so a .pacsave
+# left by a removed package never shows; qs-pkg remove uses -Rns, no .pacsave.)
 step_pacman_hooks() {
 	sudo mkdir -p /etc/pacman.d/hooks
 	sudo tee /etc/pacman.d/hooks/zz-reboot-required.hook >/dev/null <<'EOF'
@@ -323,7 +325,8 @@ Type = Path
 Target = etc/*
 
 [Action]
-Description = Listing pacnew and pacsave files...
+Description = Listing pacnew files...
+Depends = pacman-contrib
 When = PostTransaction
 Exec = /bin/sh -c 'f=/var/lib/pacnew-pending; pacdiff -o | tee "$f"; [ -s "$f" ] || rm -f "$f"'
 EOF

@@ -3,7 +3,7 @@
 # qs-pkg aur             -> pick AUR packages in fzf, yay -S (yay-git when AUR is down)
 # qs-pkg remove          -> pick installed packages in fzf, pacman -Rns
 # qs-pkg update          -> yay -Syu (repo-only when AUR is down)
-# qs-pkg pacdiff         -> merge pending .pacnew/.pacsave files (pacdiff --sudo)
+# qs-pkg pacdiff         -> merge pending .pacnew files (pacdiff --sudo)
 # qs-pkg pkgbuild <pkg>  -> print PKGBUILD of an official package (fzf preview)
 #
 # Meant to run inside qs-task (floating terminal). fzf exits 130 on Esc/empty,
@@ -130,6 +130,13 @@ pacnew() {
 	# As the user: --sudo views each pair through sudoedit (EDITOR=nvim gives
 	# nvim -d with the user's config) and moves files with sudo. Then the list
 	# the pacnew hook keeps is rebuilt as root, who can see every /etc dir.
+	# pacdiff as the user skips a file in a directory it cannot enter; a file
+	# gone since the list was written is no concern, the rebuild drops it.
+	local f
+	while IFS= read -r f; do
+		[[ -f "$f" || -x "${f%/*}" ]] && continue
+		printf '\033[33m●\033[0m %s sits in a directory %s cannot enter: merge it with sudo pacdiff.\n' "$f" "$USER"
+	done < <(cat /var/lib/pacnew-pending 2>/dev/null)
 	pacdiff --sudo
 	sudo sh -c 'f=/var/lib/pacnew-pending; pacdiff -o > "$f"; [ -s "$f" ] || rm -f "$f"'
 }

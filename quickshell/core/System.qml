@@ -11,8 +11,8 @@ import Quickshell.Io
 // so their absence is no signal here. Indicators + launcher show it until
 // reboot; no notification (too easy to miss).
 //
-// pacnew: /var/lib/pacnew-pending lists the .pacnew/.pacsave files pacdiff -o
-// found after a transaction that touched /etc. Not /run: the files outlive a
+// pacnew: /var/lib/pacnew-pending lists the .pacnew files pacdiff -o found
+// after a transaction that touched /etc. Not /run: the files outlive a
 // reboot. qs-pkg pacdiff rewrites it after a merge session.
 Singleton {
     id: root
