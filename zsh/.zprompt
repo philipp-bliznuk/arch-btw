@@ -48,8 +48,7 @@ function _prompt_git_branch() {
 # --- Prompt ---
 setopt prompt_subst
 
-PROMPT='
-%F{#89b4fa}%B%1~%b%f$(_prompt_git_branch)
+PROMPT='%F{#89b4fa}%B%~%b%f$(_prompt_git_branch)
 %(?.%F{#a6e3a1}.%F{#f38ba8})❯%f '
 
 RPROMPT='%F{#7f849c}${_cmd_duration}%f'
