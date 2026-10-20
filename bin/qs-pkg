@@ -114,6 +114,9 @@ update() {
 	# the idle ladder (lock/Idle.qml) and the power key sleep through logind,
 	# which honours the inhibitor; the lid does not (LidSwitchIgnoreInhibited=yes)
 	local inhibit=(systemd-inhibit --what=sleep --who=qs-pkg --why="package upgrade in progress")
+	# Arch news newer than the newest installed package: manual interventions
+	# are announced there and nowhere else
+	yay -Pw || true
 	if aur_up; then
 		"${inhibit[@]}" yay -Syu
 	else

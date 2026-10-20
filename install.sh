@@ -649,6 +649,16 @@ EOF
   </alias>
 </fontconfig>
 EOF
+
+	# pacman output for a human: colour, the package list as a table (name,
+	# old → new version, size) instead of one wrapped line, Pac-Man in the
+	# progress bar. The stock mirrorlist stays: see README, Packages.
+	sed -i -e 's/^#Color$/Color/' -e '/^Color$/a ILoveCandy' \
+		-e 's/^#VerbosePkgLists$/VerbosePkgLists/' /etc/pacman.conf
+	grep -q '^VerbosePkgLists$' /etc/pacman.conf || {
+		err "pacman.conf: Color/VerbosePkgLists not set."
+		exit 1
+	}
 }
 
 # --- entry -----------------------------------------------------------------

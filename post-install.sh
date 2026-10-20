@@ -257,7 +257,8 @@ step_luks_header() {
 # packages that need one. The shell watches the file (kernel-modules-hook keeps
 # the running kernel's modules in place, so their absence is no signal).
 # /run/qs-apps-changed is touched whenever a .desktop file is installed or
-# removed so the launcher re-reads the app list (bin/qs-apps).
+# removed so the launcher re-reads the app list (bin/qs-apps). Orphans are
+# listed after every transaction: nothing else ever mentions them.
 step_pacman_hooks() {
 	sudo mkdir -p /etc/pacman.d/hooks
 	sudo tee /etc/pacman.d/hooks/zz-reboot-required.hook >/dev/null <<'EOF'
@@ -296,6 +297,19 @@ Target = usr/share/applications/*.desktop
 Description = Flagging launcher app list refresh...
 When = PostTransaction
 Exec = /bin/sh -c 'date +%s > /run/qs-apps-changed'
+EOF
+	sudo tee /etc/pacman.d/hooks/zz-orphans.hook >/dev/null <<'EOF'
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Checking for orphaned packages...
+When = PostTransaction
+Exec = /bin/sh -c 'o=$(pacman -Qdtq) || exit 0; echo "orphans (pacman -Rns): $(echo $o)"'
 EOF
 }
 
