@@ -251,8 +251,10 @@ Scope {
                             text: root.phase()
                             color: Theme.subtext0
 
+                            // win.visible, not just status.visible: an animation in a hidden
+                            // window still runs, and Qt then repaints the bar every vsync.
                             SequentialAnimation on opacity {
-                                running: status.visible && !root.submitted
+                                running: win.visible && status.visible && !root.submitted
                                 loops: Animation.Infinite
                                 onStopped: phaseLabel.opacity = 1
                                 NumberAnimation { to: 0.35; duration: 900; easing.type: Easing.InOutSine }
