@@ -118,9 +118,9 @@ function captureRows(I) {
     return row(id, name, generic, glyph, { argv: [BIN + "qs-capture", id], keywords: ["screenshot", "grim"] })
   }
   return [
-    cap("region", "Screenshot region", "select area → ~/Pictures", I.crop),
-    cap("window", "Screenshot window", "focused window → ~/Pictures", I.window),
-    cap("screen", "Screenshot screen", "full output → ~/Pictures", I.monitor),
+    cap("region", "Screenshot region", "select area → ~/Pictures/Screenshots", I.crop),
+    cap("window", "Screenshot window", "focused window → ~/Pictures/Screenshots", I.window),
+    cap("screen", "Screenshot screen", "full output → ~/Pictures/Screenshots", I.monitor),
     cap("region-clip", "Screenshot region to clipboard", "select area → wl-copy", I.clipboard),
     cap("color", "Pick color", "click a pixel → hex to clipboard", I.eyedropper),
   ]

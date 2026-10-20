@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # qs-capture <region|screen|window|region-clip|color>
-# Screenshots to ~/Pictures/shot-<stamp>.png (grim + slurp), colour picker to clipboard.
+# Screenshots to ~/Pictures/Screenshots/shot-<stamp>.png (grim + slurp), colour picker to clipboard.
 set -Eeuo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-dir="${XDG_PICTURES_DIR:-$HOME/Pictures}"
+dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots"
 mkdir -p "$dir"
 out="$dir/shot-$(date +%Y%m%d-%H%M%S).png"
 

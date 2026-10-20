@@ -202,7 +202,7 @@ Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage
 | `qs-toggle NAME`       | `awake` `nightlight` `dnd` `bar-hidden` - flag files; nightlight also runs `wlsunset` as a transient unit |
 | `qs-lock [--sleep]`    | lock via IPC (`swaylock` fallback); `--sleep` (swayidle `before-sleep`) holds the touch path until resume, blocks until the compositor confirms, 4 s max, then outputs off |
 | `qs-screensaver MODE`  | `start` `stop` - fullscreen `cmatrix` kitty per output (`app_id` `qs-screensaver`); no-op without `cmatrix` |
-| `qs-capture MODE`      | `region` `window` `screen` `region-clip` `color`                          |
+| `qs-capture MODE`      | `region` `window` `screen` (→ `~/Pictures/Screenshots/shot-<stamp>.png`) `region-clip` `color` |
 | `qs-brightness DIR`    | `up` `down` - 5 % on the focused output: laptop panel via `brightnessctl`, external monitor over DDC/CI (`ddcutil` on the bus `/sys/class/drm/card*-OUTPUT/ddc` names; its package loads `i2c-dev` and tags the GPU's i2c buses `uaccess`, so any session process may talk to the monitor, no group), then `osd brightness PCT`; a monitor without DDC does nothing |
 | `qs-wallpaper`         | `set PATH` `random` `current` `list`                                      |
 | `qs-usb`               | `list` `mount DEV` `unmount DEV` `lock DEV` `power-off DEV` `unlock DEV` - removable drives (`lsblk` JSON) over `udisksctl`; verbs toast the result and print the list again, failures included; `lock` and `power-off` first unmount and lock everything below (udisks refuses while in use), `unlock` is interactive and mounts |
