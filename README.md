@@ -143,7 +143,7 @@ Not covered: Secure Boot stays off, so the ESP (systemd-boot, UKIs, `loader/addo
 
 ## Desktop shell (Sway + Quickshell)
 
-One Quickshell process owns everything, including the lock screen and the idle ladder (`swaylock` stays installed as the fallback, `swayidle` only bridges logind's Lock and sleep signals). `sway/config` and `tmux/tmux.conf` stay the single source of truth for keybindings - the launcher parses them live into the Keybindings menu (Sway · Tmux · Launcher · Popups), grouping `h/j/k/l` and `1-0` runs into one row and labelling commands from a table in `MenuModel.js`. Helper scripts live in `bin/` (→ `~/.local/bin`, prefix `qs-`, plus `yay-git` and `snap-restore`); launcher rows and panel buttons are data, `core/Commands.qml` turns them into processes (`argv`, `term` = kitty window, `task` = `qs-task` floating window that waits for Enter when done). Every interactive zsh execs into the tmux session `default` (`zsh/.zshrc`; a TTY2 login lands in the same session), except the floating terminal (`$mod+Shift+Return`, started with `NO_TMUX=1`).
+One Quickshell process owns everything, including the lock screen and the idle ladder (`swaylock` stays installed as the fallback, `swayidle` only bridges logind's Lock and sleep signals). `sway/config` and `tmux/tmux.conf` stay the single source of truth for keybindings - the launcher parses them live into the Keybindings menu (Sway · Tmux · Launcher · Popups), grouping `h/j/k/l` and `1-0` runs into one row and labelling commands from a table in `MenuModel.js`. Helper scripts live in `bin/` (→ `~/.local/bin`, prefix `qs-`, plus `yay-git` and `snap-restore`); launcher rows and panel buttons are data, `core/Commands.qml` turns them into processes (`argv`, `term` = kitty window, `task` = `qs-task` floating window that waits for Enter when done). Every interactive zsh execs into the tmux session `default` (`zsh/.zshrc`; a TTY2 login lands in the same session), except the floating terminal (`$mod+Shift+Return`, started with `NO_TMUX=1`). Floating kitty windows (`qs-float`, `qs-task`) take kitty's own size, 113x27 cells (`initial_window_width/height`, `remember_window_size no`), not a sway `resize set`: whole cells leave no leftover strip for `padding_fill_strategy neighboring_cell` to paint as a ghost status line.
 
 ```
 quickshell/
@@ -211,7 +211,7 @@ Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage
 | `qs-network-status`    | internal, JSON for the network popup (ip/gateway/ping/traffic)             |
 | `qs-clipboard-capture` | internal, `wl-paste --watch` target                                       |
 | `qs-apps`              | `list` `hide ID` - explicitly installed desktop ids minus `apps-hide`; pacman hook touches `/run/qs-apps-changed` to re-list |
-| `qs-task CMD…`         | run CMD in a floating 75 % kitty window, `Done!`/`Failed` + Enter to close |
+| `qs-task CMD…`         | run CMD in a floating kitty window, `Done!`/`Failed` + Enter to close |
 | `qs-pkg MODE`          | `install` `aur` `remove` `update` `pkgbuild PKG` - fzf package pickers; `update` runs under `systemd-inhibit --what=sleep` (idle ladder, power key; the lid ignores sleep inhibitors) |
 | `qs-wifi-prefer SSID`  | autoconnect-priority 10 for SSID's profile, 0 for other Wi-Fi profiles    |
 | `yay-git PKG…`         | build AUR packages from git (AUR, GitHub mirror fallback), AUR deps recursive |

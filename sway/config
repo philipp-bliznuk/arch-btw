@@ -178,7 +178,8 @@ mouse_warping container
 ### Window rules
 # qs-float: $mod+Shift+Return; qs-task: launcher-spawned terminal tasks (install, remove, update)
 # `border pixel`: kitty negotiates CSD, which sway honours for floating windows (no border)
-for_window [app_id="^qs-(float|task)$"] floating enable, border pixel 1, resize set 75 ppt 75 ppt, move position center
+# No `resize set`: kitty picks a whole-cell size itself (kitty.conf initial_window_width/height)
+for_window [app_id="^qs-(float|task)$"] floating enable, border pixel 1
 # qs-screensaver: cmatrix in kitty, one per output (bin/qs-screensaver)
 for_window [app_id="^qs-screensaver$"] fullscreen enable, inhibit_idle none
 # LibreWolf picture-in-picture follows the workspace; portal dialogs (file chooser) are

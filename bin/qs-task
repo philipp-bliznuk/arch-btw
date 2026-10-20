@@ -3,8 +3,9 @@
 #                             with "Done!" / "Failed!" until Enter is pressed
 # qs-task run <cmd> [...]  -> inner mode, executed inside the terminal
 #
-# Window class qs-task is matched by sway (floating, 75% centered). Exit code
-# 130 (Ctrl-C / fzf abort) closes silently - the user already said no.
+# Window class qs-task is matched by sway (floating, centered; the size comes
+# from kitty.conf, whole cells). Exit code 130 (Ctrl-C / fzf abort) closes
+# silently - the user already said no.
 # The only place besides sway/config and Commands.qml that names the terminal.
 set -Eeuo pipefail
 
