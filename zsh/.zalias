@@ -15,5 +15,12 @@ alias lt="eza --color=always --tree --level=2 --icons=always"
 alias n="nvim"
 alias dotf='cd "$HOME/projects/dotfiles/" && ${VISUAL:-${EDITOR:-nvim}}'
 
+# Safety: ask before overwriting; rm asks once for more than three files or
+# a recursive delete (-I, not -i: a prompt per file trains a reflexive y).
+# Interactive shells only; scripts and `command rm` are unaffected.
+alias cp="cp -i"
+alias mv="mv -i"
+alias rm="rm -I"
+
 # Yubikey resync
 alias yksync='gpg-connect-agent "scd serialno" "learn --force" /bye'
