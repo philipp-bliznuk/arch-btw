@@ -45,10 +45,12 @@ Item {
     }
 
     // Never restart mid-scroll: a long title needs duration + pause to finish.
+    // Not while locked: the bar sits unexposed under the lock surface and the
+    // scroll would make the lock surface repaint every vsync (README, Idle CPU).
     Timer {
         id: tick
         interval: Math.max(root.interval, root.duration + root.pause + 1000)
-        running: root.overflow > 0 && root.visible
+        running: root.overflow > 0 && root.visible && !Lock.locked
         repeat: true
         onTriggered: scroll.restart()
     }

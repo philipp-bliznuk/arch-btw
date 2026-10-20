@@ -252,7 +252,8 @@ Scope {
                             color: Theme.subtext0
 
                             // win.visible, not just status.visible: an animation in a hidden
-                            // window still runs, and Qt then repaints the bar every vsync.
+                            // window still runs and Qt then repaints the one exposed window,
+                            // the bar, every vsync (README, Idle CPU).
                             SequentialAnimation on opacity {
                                 running: win.visible && status.visible && !root.submitted
                                 loops: Animation.Infinite
