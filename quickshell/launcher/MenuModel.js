@@ -300,6 +300,7 @@ var SWAY_LABELS = [
   [/^qs-lock/, "Lock screen"],
   [/^qs-toggle dnd/, "Toggle do not disturb"],
   [/^qs-toggle nightlight/, "Toggle night light"],
+  [/^qs-toggle awake/, "Toggle stay awake"],
   [/^qs-toggle (\w+)/, "Toggle $1"],
   [/^qs-shell notifications dismissLatest/, "Dismiss latest notification"],
   [/^qs-shell notifications actionLatest/, "Run latest notification action"],
