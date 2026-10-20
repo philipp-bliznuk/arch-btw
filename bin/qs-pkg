@@ -3,6 +3,7 @@
 # qs-pkg aur             -> pick AUR packages in fzf, yay -S (yay-git when AUR is down)
 # qs-pkg remove          -> pick installed packages in fzf, pacman -Rns
 # qs-pkg update          -> yay -Syu (repo-only when AUR is down)
+# qs-pkg pacdiff         -> merge pending .pacnew/.pacsave files (pacdiff --sudo)
 # qs-pkg pkgbuild <pkg>  -> print PKGBUILD of an official package (fzf preview)
 #
 # Meant to run inside qs-task (floating terminal). fzf exits 130 on Esc/empty,
@@ -14,7 +15,7 @@ cache="${XDG_CACHE_HOME:-$HOME/.cache}/qs-pkg"
 self="$here/qs-pkg"
 
 usage() {
-	sed -n '2,6p' "$0" >&2
+	sed -n '2,7p' "$0" >&2
 	exit 64
 }
 
@@ -125,6 +126,14 @@ update() {
 	fi
 }
 
+pacnew() {
+	# As the user: --sudo views each pair through sudoedit (EDITOR=nvim gives
+	# nvim -d with the user's config) and moves files with sudo. Then the list
+	# the pacnew hook keeps is rebuilt as root, who can see every /etc dir.
+	pacdiff --sudo
+	sudo sh -c 'f=/var/lib/pacnew-pending; pacdiff -o > "$f"; [ -s "$f" ] || rm -f "$f"'
+}
+
 (( $# )) || usage
 
 case "$1" in
@@ -132,6 +141,7 @@ case "$1" in
 	aur) install_aur ;;
 	remove) remove_pkgs ;;
 	update) update ;;
+	pacdiff) pacnew ;;
 	pkgbuild) pkgbuild "${2:-}" ;;
 	*) usage ;;
 esac

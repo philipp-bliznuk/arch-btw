@@ -44,8 +44,15 @@ function fromSection(rows, section, title) {
   })
 }
 
-// reboot = System.summary ("" when not needed)
-function rootRows(I, reboot) {
+// Subtitle for the Packages rows: a pending reboot outranks pacnew files.
+// reboot = System.summary ("" when not needed), pacnew = System.pacnew (paths)
+function packagesNote(reboot, pacnew) {
+  if (reboot) return "reboot required: " + reboot
+  if (pacnew.length) return pacnew.length + " pacnew to merge"
+  return ""
+}
+
+function rootRows(I, reboot, pacnew) {
   return [
     row("apps", "Apps", "Launch an application", I.apps, { section: "apps", keywords: ["launch", "run"] }),
     row("system", "System", "Lock, sleep, reboot, shutdown, roll back", I.power, { section: "system", keywords: ["power"] }),
@@ -53,7 +60,7 @@ function rootRows(I, reboot) {
     row("capture", "Capture", "Screenshots", I.camera, { section: "capture", keywords: ["screenshot", "grim"] }),
     row("toggle", "Toggle", "Stay awake, night light, DND, bar", I.toggle, { section: "toggle" }),
     row("setup", "Setup", "Edit configs, wallpaper, default apps", I.cog, { section: "setup", keywords: ["config", "settings"] }),
-    row("packages", "Packages", reboot ? "reboot required: " + reboot : "Install, remove, update", I.pkg, { section: "packages", keywords: ["install", "remove", "update", "pacman", "aur", "yay"], warn: !!reboot }),
+    row("packages", "Packages", packagesNote(reboot, pacnew) || "Install, remove, update", I.pkg, { section: "packages", keywords: ["install", "remove", "update", "pacman", "aur", "yay"], warn: !!reboot || pacnew.length > 0 }),
     row("utils", "Utils", "Helper scripts and tools", I.tools, { section: "utils", keywords: ["tools", "helpers", "scripts", "usb"] }),
     row("notifications", "Notifications", "History", I.bell, { section: "notifications", keywords: ["history"] }),
     row("clipboard", "Clipboard", "History · Enter copies", I.clipboard, { section: "clipboard", keywords: ["history", "paste"] }),
@@ -67,7 +74,7 @@ function titles() {
   if (TITLES) return TITLES
   TITLES = {}
   function add(r) { if (r.section) TITLES[r.section] = r.name }
-  rootRows({}, "").forEach(add)
+  rootRows({}, "", []).forEach(add)
   setupRows({}, "").forEach(add)
   utilsRows({}).forEach(add)
   keyRows({}).forEach(function (r) { TITLES[r.section] = "Keybindings · " + r.name })
@@ -133,17 +140,19 @@ function toggleRows(I, state) {
   ]
 }
 
-// reboot = System.summary ("" when not needed)
-function packageRows(I, reboot) {
+// reboot = System.summary ("" when not needed), pacnew = System.pacnew (paths)
+function packageRows(I, reboot, pacnew) {
   function pkg(id, name, generic, glyph, extra) {
     extra.task = [BIN + "qs-pkg", id]
     return row(id, name, generic, glyph, extra)
   }
+  var pending = pacnew.map(function (p) { return p.replace(/^\/etc\//, "") }).join(", ")
   return [
     pkg("install", "Install from pacman", "official repositories · fzf, tab to multi-select", I.arch, { keywords: ["official", "repo", "package"] }),
     pkg("aur", "Install from AUR", "yay · falls back to yay-git when AUR is down", I.download, { keywords: ["yay", "package", "community"] }),
     pkg("remove", "Remove", "pacman -Rns · fzf, tab to multi-select", I.trash, { keywords: ["uninstall", "package"] }),
     pkg("update", "Update", reboot ? "yay -Syu · reboot required: " + reboot : "yay -Syu", I.update, { keywords: ["upgrade", "pacman", "yay", "reboot"], warn: !!reboot }),
+    pkg("pacdiff", "Merge pacnew files", pending ? "pacdiff --sudo · " + pending : "pacdiff --sudo · nothing pending", I.document, { keywords: ["pacnew", "pacsave", "config", "merge"], warn: pacnew.length > 0, disabled: pacnew.length === 0 }),
   ]
 }
 

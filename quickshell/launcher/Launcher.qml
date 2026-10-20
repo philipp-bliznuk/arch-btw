@@ -112,7 +112,7 @@ Scope {
 
     function sectionRows(name) {
         switch (name) {
-        case "root": return Model.rootRows(Icons, System.summary)
+        case "root": return Model.rootRows(Icons, System.summary, System.pacnew)
         case "apps": return appRows()
         case "system": return Model.systemRows(Icons, caps, System.summary)
         case "confirm": return pending ? Model.confirmRows(Icons, pending) : []
@@ -122,7 +122,7 @@ Scope {
         case "keys-launcher": return Model.launcherKeyRows(Icons)
         case "keys-popups": return Model.popupKeyRows(Icons)
         case "capture": return Model.captureRows(Icons)
-        case "packages": return Model.packageRows(Icons, System.summary)
+        case "packages": return Model.packageRows(Icons, System.summary, System.pacnew)
         case "toggle": return Model.toggleRows(Icons, Toggles.active)
         case "setup": return Model.setupRows(Icons, Util.home())
         case "wallpaper": return Model.wallpaperRows(Icons, wallpapers, wallpaper)
