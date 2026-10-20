@@ -460,17 +460,21 @@ step_lid() {
 # default OPTIONS has debug on, which splits a -debug package out of every
 # build and makepkg -si installs it; off system-wide before the first build.
 # The same drop-in lets a build use every core (stock MAKEFLAGS is unset, one
-# job), builds on the /tmp tmpfs (src and pkg trees never touch the disk;
-# a from-source build bigger than RAM fails there, none installed is) and
-# skips compressing the result: it is installed and, with yay's cleanAfter
-# (yay/config.json), deleted right after.
+# job) and keeps src, pkg and the finished package on the /tmp tmpfs: nothing
+# touches the disk, the package is installed from there and gone by the next
+# boot (tmpfiles: 10 days). A build bigger than the tmpfs (half of RAM) fails
+# there; a batch of the four -bin packages peaks around 4 GB. The package has
+# to leave ~/.cache/yay because yay's cleanAfter (yay/config.json) deletes
+# downloaded sources only and keeps every *.pkg.* file; makepkg creates the
+# directory. No compression: the file is read once by pacman -U.
 step_aur_helper() {
 	sudo install -D -o root -g root -m 644 /dev/stdin /etc/makepkg.conf.d/local.conf <<-'EOF'
 		# Written by post-install.sh (aur_helper). Local builds: no -debug split
-		# packages, all cores, src/pkg on tmpfs, uncompressed package files.
+		# packages, all cores, src/pkg and the package on tmpfs, uncompressed.
 		OPTIONS+=(!debug)
 		MAKEFLAGS="-j$(nproc)"
 		BUILDDIR=/tmp/makepkg
+		PKGDEST=/tmp/makepkg
 		PKGEXT='.pkg.tar'
 	EOF
 	if pacman -Q yay >/dev/null 2>&1; then
