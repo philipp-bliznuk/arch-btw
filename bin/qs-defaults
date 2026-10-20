@@ -34,26 +34,27 @@ desktop_files() {
 	done
 }
 
-# TSV: id, name, icon, MimeType, Terminal. Hidden means deleted and stays
-# out; NoDisplay only hides from menus (imv registers both entries so) and
-# counts, as in GIO's open-with list.
+# TSV: id, name, icon, Comment, MimeType, Terminal. Hidden means deleted and
+# stays out; NoDisplay only hides from menus (imv registers both entries so)
+# and counts, as in GIO's open-with list.
 apps() {
 	local files
 	mapfile -t files < <(desktop_files)
 	((${#files[@]})) || return 0
 	awk '
-		BEGINFILE { entry = 0; name = ""; icon = ""; mime = ""; term = "false"; skip = 0 }
+		BEGINFILE { entry = 0; name = ""; icon = ""; comment = ""; mime = ""; term = "false"; skip = 0 }
 		/^\[/ { entry = ($0 == "[Desktop Entry]"); next }
 		!entry { next }
 		/^Name=/ { name = substr($0, 6) }
 		/^Icon=/ { icon = substr($0, 6) }
+		/^Comment=/ { comment = substr($0, 9) }
 		/^MimeType=/ { mime = substr($0, 10) }
 		/^Terminal=true/ { term = "true" }
 		/^Hidden=true/ { skip = 1 }
 		ENDFILE {
 			if (mime != "" && !skip) {
 				id = FILENAME; sub(/.*\//, "", id)
-				print id "\t" name "\t" icon "\t" mime "\t" term
+				print id "\t" name "\t" icon "\t" comment "\t" mime "\t" term
 			}
 		}' "${files[@]}" | awk -F'\t' '!seen[$1]++'
 }
@@ -76,8 +77,8 @@ list() {
 		apps | sed 's/^/A\t/'
 	} | jq -Rsc '
 		[split("\n")[] | select(length > 0) | split("\t")] as $rows
-		| [$rows[] | select(.[0] == "A" and .[5] != "true")
-			| { id: .[1], name: .[2], icon: .[3], mimes: (.[4] | split(";") | map(select(length > 0))) }] as $apps
+		| [$rows[] | select(.[0] == "A" and .[6] != "true")
+			| { id: .[1], name: .[2], icon: .[3], comment: .[4], mimes: (.[5] | split(";") | map(select(length > 0))) }] as $apps
 		| [$rows[] | select(.[0] == "R")
 			| { id: .[1], name: .[2], mimes: (.[3] | split(" ")), current: .[4] }
 			| .mimes as $m

@@ -52,9 +52,9 @@ function rootRows(I, reboot) {
     row("keys", "Keybindings", "Sway, tmux, launcher, popups", I.keyboard, { section: "keys", keywords: ["shortcuts", "hotkeys", "keybinds"] }),
     row("capture", "Capture", "Screenshots", I.camera, { section: "capture", keywords: ["screenshot", "grim"] }),
     row("toggle", "Toggle", "Stay awake, night light, DND, bar", I.toggle, { section: "toggle" }),
-    row("setup", "Setup", "Edit configs, wallpaper", I.cog, { section: "setup", keywords: ["config", "settings"] }),
+    row("setup", "Setup", "Edit configs, wallpaper, default apps", I.cog, { section: "setup", keywords: ["config", "settings"] }),
     row("packages", "Packages", reboot ? "reboot required: " + reboot : "Install, remove, update", I.pkg, { section: "packages", keywords: ["install", "remove", "update", "pacman", "aur", "yay"], warn: !!reboot }),
-    row("utils", "Utils", "USB drives", I.tools, { section: "utils", keywords: ["tools", "helpers", "scripts"] }),
+    row("utils", "Utils", "Helper scripts and tools", I.tools, { section: "utils", keywords: ["tools", "helpers", "scripts", "usb"] }),
     row("notifications", "Notifications", "History", I.bell, { section: "notifications", keywords: ["history"] }),
     row("clipboard", "Clipboard", "History · Enter copies", I.clipboard, { section: "clipboard", keywords: ["history", "paste"] }),
   ]
@@ -176,7 +176,7 @@ function wallpaperRows(I, files, current) {
   return rows
 }
 
-// roles = qs-defaults list: [{ id, name, mimes, current, apps: [{ id, name, icon }] }]
+// roles = qs-defaults list: [{ id, name, mimes, current, apps: [{ id, name, icon, comment }] }]
 function defaultsRows(I, roles) {
   var glyph = { browser: I.web, pdf: I.pdf, image: I.image, video: I.video, audio: I.music, text: I.document, folder: I.folder }
   return roles.map(function (r) {
@@ -186,13 +186,15 @@ function defaultsRows(I, roles) {
 }
 
 // One role's candidates (installed .desktop files claiming its types), the
-// current default checked. Enter sets it in place via qs-defaults.
+// current default checked, each entry's Comment as the subtitle (imv ships imv
+// and imv-dir, kitty a URL launcher: the name alone says little). Enter sets
+// it in place via qs-defaults.
 function defaultAppRows(I, roles, id) {
   var r = roles.filter(function (x) { return x.id === id })[0]
   if (!r) return []
   if (!r.apps.length) return [row("none", "Nothing installed handles " + r.name.toLowerCase(), r.mimes.join(" "), I.openInApp, { action: "back" })]
   return r.apps.map(function (a) {
-    return row(a.id, a.name, a.id, I.openInApp, { icon: a.icon, checked: a.id === r.current, action: "default", args: [r.id, a.id] })
+    return row(a.id, a.name, a.comment || a.id, I.openInApp, { icon: a.icon, checked: a.id === r.current, action: "default", args: [r.id, a.id] })
   })
 }
 
