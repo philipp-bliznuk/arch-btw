@@ -443,10 +443,19 @@ step_lid() {
 # Built via bin/yay-git so the GitHub mirror covers AUR outages. makepkg's
 # default OPTIONS has debug on, which splits a -debug package out of every
 # build and makepkg -si installs it; off system-wide before the first build.
+# The same drop-in lets a build use every core (stock MAKEFLAGS is unset, one
+# job), builds on the /tmp tmpfs (src and pkg trees never touch the disk;
+# a from-source build bigger than RAM fails there, none installed is) and
+# skips compressing the result: it is installed and, with yay's cleanAfter
+# (yay/config.json), deleted right after.
 step_aur_helper() {
-	sudo install -D -o root -g root -m 644 /dev/stdin /etc/makepkg.conf.d/nodebug.conf <<-'EOF'
-		# Written by post-install.sh (aur_helper): no -debug split packages from local builds.
+	sudo install -D -o root -g root -m 644 /dev/stdin /etc/makepkg.conf.d/local.conf <<-'EOF'
+		# Written by post-install.sh (aur_helper). Local builds: no -debug split
+		# packages, all cores, src/pkg on tmpfs, uncompressed package files.
 		OPTIONS+=(!debug)
+		MAKEFLAGS="-j$(nproc)"
+		BUILDDIR=/tmp/makepkg
+		PKGEXT='.pkg.tar'
 	EOF
 	if pacman -Q yay >/dev/null 2>&1; then
 		echo "yay already installed"
@@ -551,7 +560,7 @@ link() {
 
 step_dotfiles() {
 	local pkg
-	for pkg in bat fastfetch git kitty nvim qt6ct quickshell ruff sway tmux wallpapers xdg-desktop-portal yazi zsh; do
+	for pkg in bat fastfetch git kitty nvim qt6ct quickshell ruff sway tmux wallpapers xdg-desktop-portal yay yazi zsh; do
 		link "$DOTFILES/$pkg" "$XDG_CONFIG_HOME/$pkg"
 	done
 	link "$DOTFILES/gtk" "$XDG_CONFIG_HOME/gtk-3.0" # same gtk.css + settings.ini for GTK 3 and 4

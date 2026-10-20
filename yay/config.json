@@ -1,0 +1,6 @@
+{
+  "sudoloop": true,
+  "cleanAfter": true,
+  "removemake": "yes",
+  "batchinstall": true
+}
