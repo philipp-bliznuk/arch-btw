@@ -53,9 +53,13 @@ now=$(date +%s%3N)
 tmp="$(mktemp "$state/clipboard.XXXXXX")"
 case "$verb" in
 text)
-	text="$(tr -d '\0' <"$payload")"
-	[[ -n "${text//[[:space:]]/}" ]] || exit 0
-	jq --arg t "$text" --argjson now "$now" --argjson cap "$cap" \
+	# NULs go (wl-copy takes the text as an argument); the cap counted them.
+	# LC_ALL=C: a payload the locale cannot decode is not blank
+	sed -i 's/\x00//g' "$payload"
+	LC_ALL=C grep -q '[^[:space:]]' "$payload" || exit 0
+	# --rawfile: an argument is capped at 128 KiB, the text at 256; the text
+	# is stored byte for byte, a trailing newline included
+	jq --rawfile t "$payload" --argjson now "$now" --argjson cap "$cap" \
 		'[{kind:"text", text:$t, time:$now}] + map(select(.kind != "text" or .text != $t)) | .[:$cap]' \
 		"$db" >"$tmp"
 	;;
