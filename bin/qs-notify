@@ -38,6 +38,12 @@ if [[ $# -gt 2 ]]; then
 	echo "qs-notify: unexpected argument '$3'" >&2
 	exit 2
 fi
+# The daemon reads the body as markup (bodyMarkupSupported); ours is text, and
+# some of it is foreign: qs-usb relays udisksctl, whose mountpoint carries the
+# stick's own label.
+body=${body//&/\&amp;}
+body=${body//</\&lt;}
+body=${body//>/\&gt;}
 
 hints=(urgency y "$urgency")
 [[ -n "$glyph" ]] && hints+=(qs-glyph s "$glyph")
