@@ -8,10 +8,13 @@ export XDG_STATE_HOME=${XDG_STATE_HOME:-$HOME/.local/state}
 export ZDOTDIR=${ZDOTDIR:-$XDG_CONFIG_HOME/zsh}
 
 # Set the list of directories that zsh searches for commands. go install
-# (install.sh ships go) puts binaries in the last one.
+# (install.sh ships go) puts binaries in the second to last one, uv tool
+# install in the one before (UV_TOOL_BIN_DIR: ~/.local/bin is the repo's bin/).
+export UV_TOOL_BIN_DIR=${UV_TOOL_BIN_DIR:-$XDG_DATA_HOME/uv/bin}
 path=(
   $HOME/.local/{,s}bin(N)
   /usr/local/{,s}bin(N)
+  $UV_TOOL_BIN_DIR(N)
   $HOME/go/bin(N)
   $path
 )

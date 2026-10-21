@@ -598,13 +598,20 @@ EOF
 	sudo firecfg
 }
 
+# Replaces a symlink or nothing. A real file or directory at $dest is the
+# user's (a ~/.local/bin full of shims, a config dir an app wrote first):
+# the step stops and names it instead of deleting it.
 link() {
 	local src="$1" dest="$2"
 	[[ -e "$src" ]] || {
 		err "missing: $src"
 		return 1
 	}
-	rm -rf "$dest"
+	if [[ -e "$dest" && ! -L "$dest" ]]; then
+		err "not a symlink, move it away first: $dest"
+		return 1
+	fi
+	rm -f "$dest"
 	mkdir -p "$(dirname "$dest")"
 	ln -sf "$src" "$dest"
 	info "$dest -> $src"
