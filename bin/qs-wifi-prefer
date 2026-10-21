@@ -18,5 +18,7 @@ while IFS= read -r line; do
 	ssid="$(nmcli -g 802-11-wireless.ssid connection show "$name" 2>/dev/null || true)"
 	prio=0
 	[[ "$ssid" == "$want" ]] && prio=10
-	nmcli connection modify "$name" connection.autoconnect-priority "$prio"
+	# one profile refusing (not ours to edit) must not leave the rest unranked
+	nmcli connection modify "$name" connection.autoconnect-priority "$prio" \
+		|| echo "qs-wifi-prefer: $name: priority not set" >&2
 done < <(nmcli -t -f NAME,TYPE connection show)
