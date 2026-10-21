@@ -38,6 +38,7 @@ readonly STEPS=(
 	"dotfiles:step_dotfiles"
 	"theme:step_theme"
 	"keys:step_keys"
+	"smb:step_smb"
 	"finish:step_finish"
 )
 
@@ -62,6 +63,18 @@ confirm() {
 	printf '%s>>>%s %s [y/N] ' "$(_c 5)" "$(_r)" "$1" >/dev/tty
 	read -r ans </dev/tty
 	[[ "$ans" == [yY] ]]
+}
+
+# _ask VAR "Prompt" [default]: Enter keeps the default; without one, asks again.
+_ask() {
+	local -n _var="$1"
+	local _ans=""
+	while [[ -z "$_ans" ]]; do
+		printf '%s>>>%s %s%s: ' "$(_c 5)" "$(_r)" "$2" "${3:+ [$3]}" >/dev/tty
+		read -r _ans </dev/tty
+		_ans="${_ans:-${3:-}}"
+	done
+	_var="$_ans"
 }
 
 # Echoes the mountpoint; returns 1 on skip.
@@ -730,6 +743,124 @@ EOF
 
 	git -C "$DOTFILES" remote set-url origin "$REPO_SSH" || true
 	success "Keys wired."
+}
+
+# One SMB share as a pair of systemd units, mounted on first access and
+# unmounted after five idle minutes: boot and login never wait for the NAS,
+# sleep finds nothing mounted, the next cd remounts, and while something holds
+# it open the kernel cifs client reconnects by itself (soft is its default).
+# Native units, not fstab x-systemd.* options: the generator would write the
+# same two units to /run from a longer line. The password lives in
+# /etc/credstore (0600 root) and reaches mount.cifs through LoadCredential=,
+# so neither the unit file nor a process list carries it; in this script it
+# is expanded only inside a heredoc body and tested as ${pass:+x}, the two
+# forms a DEBUG=1 trace does not print. LAN names do not resolve on this box
+# (resolved sends every name to Quad9), hence the IP. Four tries; port 445 is
+# probed first so a typo gets a plain message instead of the mount journal.
+# Another --redo smb adds a second share or, on the same path, replaces one.
+step_smb() {
+	confirm "Mount an SMB share (NAS)?" || {
+		info "Skipped - post-install.sh --redo smb adds one later."
+		return 0
+	}
+	sudo pacman -S --needed --noconfirm cifs-utils
+	local host="" share="" user="$USER" target="$HOME/nas" pass
+	local unit="" cred="" new since try
+	for try in 1 2 3 4; do
+		_ask host "NAS host (IP)" "$host"
+		while :; do
+			_ask share "Share (exported name, not a path)" "$share"
+			while [[ "$share" == /* ]]; do share="${share#/}"; done
+			[[ -n "$share" ]] && break
+		done
+		_ask user "User" "$user"
+		pass=""
+		while [[ -z "${pass:+x}" ]]; do
+			printf '%s>>>%s Password: ' "$(_c 5)" "$(_r)" >/dev/tty
+			IFS= read -rs pass </dev/tty
+			printf '\n' >/dev/tty
+		done
+		while :; do
+			_ask target "Mount path" "$target"
+			target="${target/#\~\//$HOME/}"
+			while [[ "$target" == */ ]]; do target="${target%/}"; done
+			[[ "$target" == /?* && "$target" != "$HOME" ]] && break
+			warn "Mount path must be absolute, neither / nor $HOME."
+		done
+		if ! timeout 3 bash -c "exec 3<>/dev/tcp/\$1/445" _ "$host" 2>/dev/null; then
+			warn "Nothing answers on $host:445."
+			continue
+		fi
+		new="$(systemd-escape -p "$target")"
+		[[ -z "$unit" || "$unit" == "$new" ]] || _smb_remove "$unit" "$cred"
+		unit="$new"
+		cred="smb-${unit//\\/}" # a - in the path escapes to \x2d; LoadCredential= would drop the backslash
+		sudo install -D -o root -g root -m 600 /dev/stdin "/etc/credstore/$cred" <<-EOF
+			username=$user
+			password=$pass
+		EOF
+		_smb_units "$unit" "$cred" "//$host/$share" "$target"
+		mkdir -p "$target" 2>/dev/null || sudo mkdir -p "$target"
+		sudo systemctl daemon-reload
+		sudo systemctl enable "$unit.automount"
+		sudo systemctl stop "$unit.mount" 2>/dev/null || true # a --redo must not pass on the old session
+		since=$(date +%s)
+		sudo systemctl restart "$unit.automount"
+		ls "$target" >/dev/null 2>&1 || true # triggers the mount; the proof is findmnt
+		if findmnt -t cifs -n "$target" >/dev/null; then
+			success "Mounted $(findmnt -t cifs -no SOURCE "$target") on $target."
+			return 0
+		fi
+		warn "Mount failed (try $try of 4):"
+		sudo journalctl -u "$unit.mount" --since "@$since" -o cat --no-pager 2>/dev/null |
+			grep -v 'Refer to the\|Mount process exited\|Failed with result' >&2 || true
+	done
+	[[ -z "$unit" ]] || _smb_remove "$unit" "$cred"
+	err "Giving up after four tries - post-install.sh --redo smb"
+	return 1
+}
+
+# _smb_units UNIT CRED WHAT WHERE: the mount and the automount that triggers it.
+_smb_units() {
+	local unit="$1" cred="$2" what="$3" where="$4"
+	sudo install -D -o root -g root -m 644 /dev/stdin "/etc/systemd/system/$unit.mount" <<-EOF
+		# Written by post-install.sh (smb).
+		[Unit]
+		Description=$what
+
+		[Mount]
+		What=$what
+		Where=$where
+		Type=cifs
+		# echo_interval: a held-open share whose NAS went silent blocks the shell
+		# for 3 intervals before soft returns an error, 187 s at the default 60
+		Options=credentials=%d/$cred,uid=$(id -u),gid=$(id -g),file_mode=0644,dir_mode=0755,echo_interval=15
+		LoadCredential=$cred
+		# shutdown with the NAS gone: detach instead of waiting on it
+		LazyUnmount=yes
+	EOF
+	sudo install -D -o root -g root -m 644 /dev/stdin "/etc/systemd/system/$unit.automount" <<-EOF
+		# Written by post-install.sh (smb).
+		[Unit]
+		Description=$what on demand
+
+		[Automount]
+		Where=$where
+		TimeoutIdleSec=300
+
+		[Install]
+		WantedBy=multi-user.target
+	EOF
+}
+
+# _smb_remove UNIT CRED: unit pair and credential, after a path change mid-step
+# or the last failed try. Automount first, so nothing re-triggers the mount.
+_smb_remove() {
+	sudo systemctl disable --now "$1.automount" 2>/dev/null || true
+	sudo systemctl stop "$1.mount" 2>/dev/null || true
+	sudo rm -f "/etc/systemd/system/$1.mount" "/etc/systemd/system/$1.automount" "/etc/credstore/$2"
+	sudo systemctl daemon-reload
+	sudo systemctl reset-failed "$1.mount" 2>/dev/null || true
 }
 
 step_finish() {
