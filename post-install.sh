@@ -125,7 +125,7 @@ mark_done() { touch "$DONE_DIR/$1"; }
 sudo_keepalive() {
 	sudo -v
 	(while true; do
-		sudo -n true
+		sudo -n true || true # the subshell inherits set -e; yubikey_pam runs sudo -k
 		sleep 60
 	done 2>/dev/null) &
 	KEEPALIVE_PID=$!
@@ -218,7 +218,9 @@ step_snapper() {
 	if sudo snapper list-configs | grep -qE '^root\s'; then
 		success "snapper root config exists."
 	else
-		sudo umount /.snapshots || true
+		# A failed umount must stop here: rm -rf on a mounted @snapshots would
+		# walk into the snapshot tree.
+		! mountpoint -q /.snapshots || sudo umount /.snapshots
 		sudo rm -rf /.snapshots
 		sudo snapper -c root create-config /
 		sudo btrfs subvolume delete /.snapshots || true
@@ -589,6 +591,7 @@ Target = usr/bin/*
 
 [Action]
 Description = Refreshing firejail symlinks (firecfg)...
+Depends = firejail
 When = PostTransaction
 Exec = /usr/bin/firecfg
 EOF
