@@ -23,6 +23,13 @@ input type:touchpad {
     scroll_factor 0.4
 }
 
+# What sway synthesizes itself when no seat is named, stated so a reload
+# applies it once. Without the line load_main_config stores a fallback seat
+# config and applies it, then applies every stored seat config again: every
+# keyboard gets its keymap compiled, serialised and set ten times instead of
+# five (README, Reload).
+seat seat0 fallback true
+
 ### Output
 # No `output * bg` - swaybg not installed; Quickshell paints the wallpaper.
 # Laptop panel is primary (workspace 1, tray); externals sit to its right.
