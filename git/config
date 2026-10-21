@@ -79,6 +79,7 @@
 
 [delta]
 	features = line-numbers decorations
+	syntax-theme = Catppuccin Mocha
 
 [delta "decorations"]
 	file-decoration-style = blue box
