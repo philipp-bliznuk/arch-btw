@@ -19,13 +19,13 @@ done_msg() {
 case "${1:?usage: qs-capture <region|screen|window|region-clip|color>}" in
 region)
 	geo="$(slurp)" || exit 0
-	grim -g "$geo" "$out" && done_msg "Saved ${out/#$HOME/~}"
+	grim -g "$geo" "$out" && done_msg "Saved ${out/#$HOME/\~}"
 	;;
 screen)
-	grim "$out" && done_msg "Saved ${out/#$HOME/~}"
+	grim "$out" && done_msg "Saved ${out/#$HOME/\~}"
 	;;
 window)
-	grim -g "$(focused_rect)" "$out" && done_msg "Saved ${out/#$HOME/~}"
+	grim -g "$(focused_rect)" "$out" && done_msg "Saved ${out/#$HOME/\~}"
 	;;
 region-clip)
 	geo="$(slurp)" || exit 0
