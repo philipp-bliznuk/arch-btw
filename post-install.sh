@@ -39,7 +39,6 @@ readonly STEPS=(
 	"theme:step_theme"
 	"keys:step_keys"
 	"smb:step_smb"
-	"finish:step_finish"
 )
 
 # --- helpers ---------------------------------------------------------------
@@ -896,16 +895,6 @@ _smb_remove() {
 	sudo systemctl reset-failed "$1.mount" 2>/dev/null || true
 }
 
-step_finish() {
-	banner "Done"
-	cat <<'EOF'
-
-  Reboot → unlock LUKS (FIDO2 PIN + touch) → TTY1: touch the key, or unplug it and type the password → Sway.
-  Re-run a step:  post-install.sh --redo <step>
-
-EOF
-}
-
 do_list() {
 	local entry name
 	for entry in "${STEPS[@]}"; do
@@ -932,6 +921,13 @@ main() {
 		run_step "$name" "$fn"
 		mark_done "$name"
 	done
+	banner "Done"
+	cat <<'EOF'
+
+  Reboot → unlock LUKS (FIDO2 PIN + touch) → TTY1: touch the key, or unplug it and type the password → Sway.
+  Re-run a step:  post-install.sh --redo <step>
+
+EOF
 }
 
 redo_one() {
