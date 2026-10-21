@@ -71,6 +71,19 @@ Scope {
         return "Authenticating";
     }
 
+    // A locked screen approves nothing. PAM starts the moment a request
+    // arrives, so a flow hidden behind the lock would hold the token in
+    // pam_u2f while the lock screen asks for a touch, and that touch would
+    // approve an action nothing on screen named. Flows arriving while locked
+    // and a flow still open when the lock engages are cancelled (README,
+    // Security: each costs a faillock strike). Deferred: a cancel completes
+    // the flow synchronously and the next queued request starts inside the
+    // same call.
+    function cancelIfLocked() {
+        if (Lock.locked && flow)
+            flow.cancelAuthenticationRequest();
+    }
+
     PolkitAgent {
         id: agent
         path: "/org/qs/PolkitAgent"
@@ -79,7 +92,23 @@ Scope {
             root.error = "";
             root.note = "";
             field.text = "";
+            if (Lock.locked) {
+                console.info("polkit: request while locked, cancelling " + (root.flow ? root.flow.actionId : ""));
+                Qt.callLater(root.cancelIfLocked);
+                return;
+            }
             root.refocus();
+        }
+    }
+
+    Connections {
+        target: Lock
+
+        function onLockedChanged() {
+            if (Lock.locked && root.flow) {
+                console.info("polkit: lock engaged, cancelling " + root.flow.actionId);
+                Qt.callLater(root.cancelIfLocked);
+            }
         }
     }
 
@@ -119,7 +148,7 @@ Scope {
         }
     }
 
-    // Hidden while locked: the request stays pending and shows after unlock.
+    // Never shown while locked; see cancelIfLocked.
     PanelWindow {
         id: win
         visible: root.active && !Lock.locked
