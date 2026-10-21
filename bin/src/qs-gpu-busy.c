@@ -36,11 +36,19 @@ static long long event_config(const char *name) {
 	return ok ? (long long)c : -1;
 }
 
+// A counter that stops reading is an exit, not a zero: a zero makes the next
+// delta wrap and the stream print junk forever, while an exit lets Metrics.qml
+// fall back to sysfs.
 static uint64_t read_u64(int fd) {
 	uint64_t v = 0;
-	if (read(fd, &v, sizeof v) != (ssize_t)sizeof v)
-		return 0;
-	return v;
+	ssize_t n = read(fd, &v, sizeof v);
+	if (n == (ssize_t)sizeof v)
+		return v;
+	if (n < 0)
+		perror("qs-gpu-busy: read");
+	else
+		fprintf(stderr, "qs-gpu-busy: read: short (%zd bytes)\n", n);
+	exit(1);
 }
 
 static uint64_t now_ns(void) {
