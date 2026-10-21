@@ -77,7 +77,9 @@ _ask() {
 	_var="$_ans"
 }
 
-# Echoes the mountpoint; returns 1 on skip.
+# Echoes the mountpoint; returns 1 on skip, 2 when the mount fails. Callers
+# run it inside $(...) on the left of ||, where set -e is off, so every
+# command that matters carries its own || return.
 USB_MNT="/mnt/usb"
 mount_usb() {
 	pause "Insert the USB stick, then press Enter"
@@ -98,14 +100,14 @@ mount_usb() {
 		err "Not a block device: $part"
 	done
 
-	sudo mkdir -p "$USB_MNT"
+	sudo mkdir -p "$USB_MNT" || return 2
 	local fstype
 	fstype="$(lsblk -no FSTYPE "$part")"
 	case "$fstype" in
-	vfat | exfat) sudo mount -o "uid=$(id -u),gid=$(id -g)" "$part" "$USB_MNT" ;;
+	vfat | exfat) sudo mount -o "uid=$(id -u),gid=$(id -g)" "$part" "$USB_MNT" || return 2 ;;
 	*)
 		warn "$fstype stick - files may be unreadable as $USER; prefer FAT/exFAT."
-		sudo mount "$part" "$USB_MNT"
+		sudo mount "$part" "$USB_MNT" || return 2
 		;;
 	esac
 	printf '%s\n' "$USB_MNT"
@@ -243,19 +245,30 @@ step_snapper() {
 }
 
 step_luks_header() {
+	# The device under the installer's mapping, not the first LUKS device lsblk
+	# lists (a second disk or an encrypted stick would sort first). -l: the
+	# tree form prefixes the parent with box-drawing glyphs.
 	local luks
-	luks="$(lsblk -rno NAME,FSTYPE | awk '$2=="crypto_LUKS"{print "/dev/"$1; exit}')"
-	[[ -n "$luks" ]] || {
-		err "No crypto_LUKS partition found."
+	luks="$(lsblk -slpno NAME /dev/mapper/cryptroot 2>/dev/null | sed -n 2p || true)"
+	[[ -b "$luks" ]] || {
+		err "No LUKS device under /dev/mapper/cryptroot."
 		return 1
 	}
 	info "LUKS partition: $luks"
 
-	local dest
-	dest="$(mount_usb)" || {
+	local dest rc=0
+	dest="$(mount_usb)" || rc=$?
+	case "$rc" in
+	0) ;;
+	1)
 		warn "Skipped - back up the LUKS header later."
 		return 0
-	}
+		;;
+	*)
+		err "USB mount failed - fix the stick, then: post-install.sh --redo luks_header"
+		return 1
+		;;
+	esac
 
 	# Never to ~ - @home snapshots would keep a copy. Minutes in the name: a
 	# second backup the same day (--redo after a keyslot change) must not fail
@@ -642,6 +655,40 @@ step_theme() {
 # gpg-agent runs from gnupg's static user sockets (gpg-agent.socket,
 # gpg-agent-ssh.socket: wanted by sockets.target, nothing to enable), under the
 # systemd user environment qs-session imports (WAYLAND_DISPLAY, qt6ct → pinentry-qt).
+# USB layout:
+#   keys/gpg/ic/public.asc                        YubiKey identity, public only
+#   keys/gpg/{pb,gx}/{public,secret-keys}.asc     on-disk identities
+#   keys/ssh/id_ed25519_{pb,gx}[.pub]
+_keys_import() {
+	local usb="$1" id pub sec k
+	for id in pb ic gx; do
+		pub="$usb/keys/gpg/$id/public.asc"
+		if [[ -f "$pub" ]]; then
+			gpg --import "$pub"
+			gpg --with-colons --show-keys "$pub" | # primary fpr only
+				awk -F: '/^fpr:/{print $10":6:"; exit}' | gpg --import-ownertrust
+			success "Imported public key: $id"
+		else
+			warn "No public key for $id at $pub"
+		fi
+		sec="$usb/keys/gpg/$id/secret-keys.asc"
+		if [[ -f "$sec" ]]; then
+			gpg --import "$sec" # prompts passphrase
+			success "Imported secret key: $id"
+		fi
+	done
+
+	for k in id_ed25519_pb id_ed25519_gx; do
+		if [[ -f "$usb/keys/ssh/$k" ]]; then
+			install -m 600 "$usb/keys/ssh/$k" "$HOME/.ssh/$k"
+			[[ -f "$usb/keys/ssh/$k.pub" ]] && install -m 644 "$usb/keys/ssh/$k.pub" "$HOME/.ssh/$k.pub"
+			success "Installed SSH key: $k"
+		else
+			warn "No SSH key at $usb/keys/ssh/$k"
+		fi
+	done
+}
+
 step_keys() {
 	sudo systemctl enable --now pcscd.socket
 	GPG_TTY="$(tty)"
@@ -661,48 +708,24 @@ max-cache-ttl 604800
 EOF
 	gpgconf --kill gpg-agent # pick up new config before imports
 
-	# USB layout:
-	#   keys/gpg/ic/public.asc                        YubiKey identity, public only
-	#   keys/gpg/{pb,gx}/{public,secret-keys}.asc     on-disk identities
-	#   keys/ssh/id_ed25519_{pb,gx}[.pub]
-	local usb
-	usb="$(mount_usb)" || {
-		warn "Skipped key import - later: post-install.sh --redo keys"
-		return 0
-	}
-
-	local id pub sec
-	for id in pb ic gx; do
-		pub="$usb/keys/gpg/$id/public.asc"
-		if [[ -f "$pub" ]]; then
-			gpg --import "$pub"
-			gpg --with-colons --show-keys "$pub" | # primary fpr only
-				awk -F: '/^fpr:/{print $10":6:"; exit}' | gpg --import-ownertrust
-			success "Imported public key: $id"
-		else
-			warn "No public key for $id at $pub"
-		fi
-		sec="$usb/keys/gpg/$id/secret-keys.asc"
-		if [[ -f "$sec" ]]; then
-			gpg --import "$sec" # prompts passphrase
-			success "Imported secret key: $id"
-		fi
-	done
-
 	mkdir -p "$HOME/.ssh"
 	chmod 700 "$HOME/.ssh"
-	local k
-	for k in id_ed25519_pb id_ed25519_gx; do
-		if [[ -f "$usb/keys/ssh/$k" ]]; then
-			install -m 600 "$usb/keys/ssh/$k" "$HOME/.ssh/$k"
-			[[ -f "$usb/keys/ssh/$k.pub" ]] && install -m 644 "$usb/keys/ssh/$k.pub" "$HOME/.ssh/$k.pub"
-			success "Installed SSH key: $k"
-		else
-			warn "No SSH key at $usb/keys/ssh/$k"
-		fi
-	done
 
-	umount_usb
+	# "s" at the USB prompt skips the import only; the card export, ~/.ssh/config
+	# and the remote still happen, a later --redo keys picks the import up.
+	local usb rc=0
+	usb="$(mount_usb)" || rc=$?
+	case "$rc" in
+	0)
+		_keys_import "$usb"
+		umount_usb
+		;;
+	1) warn "Skipped key import - later: post-install.sh --redo keys" ;;
+	*)
+		err "USB mount failed - fix the stick, then: post-install.sh --redo keys"
+		return 1
+		;;
+	esac
 
 	pause "Insert a YubiKey, then Enter"
 	gpg --card-status || warn "Card not seen - check pcscd / scdaemon.conf."
