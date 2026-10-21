@@ -28,7 +28,7 @@ readonly SCRIPT_DIR
 PACKAGES=(
 	base linux linux-lts linux-firmware base-devel "<ucode>"
 	mkinitcpio dbus-broker-units crun pipewire-jack          # explicit providers: initramfs, dbus-units, oci-runtime, jack
-	git openssh btrfs-progs dosfstools neovim networkmanager # openssh = client only, no sshd
+	git openssh btrfs-progs dosfstools neovim networkmanager # openssh: client use, sshd.service never enabled
 	pipewire pipewire-pulse wireplumber
 	sudo zsh efibootmgr snapper snap-pac arch-install-scripts # arch-chroot: bin/snap-restore rebuilds the UKIs inside the restored root
 	apparmor chrony firejail xdg-dbus-proxy earlyoom ufw # xdg-dbus-proxy: without it firejail downgrades every dbus-user filter to allow
@@ -116,7 +116,9 @@ step_preflight() {
 		err "Not booted in UEFI mode."
 		exit 1
 	}
-	if bootctl status 2>/dev/null | grep -qi 'Secure Boot: enabled'; then
+	# Captured, not piped: bootctl exits 1 on the ISO (no ESP yet) and pipefail
+	# would turn a matching grep into a pass.
+	if [[ "$(bootctl status 2>/dev/null || true)" == *"Secure Boot: enabled"* ]]; then
 		err "Secure Boot is enabled. Disable it in firmware (leave it off), then reboot the ISO."
 		exit 1
 	fi
@@ -145,7 +147,17 @@ step_network() {
 prompt_inputs() {
 	CURRENT_STEP="prompt_inputs"
 	info "Available disks:"
-	mapfile -t _disks < <(lsblk -dpno NAME,SIZE,MODEL -e 7,11) # hide loop + sr
+	# Hide loop and sr devices, the stick the ISO runs from, and empty card
+	# readers (0B). For a partition PKNAME,NAME yields the disk first, for a
+	# whole-disk source PKNAME is empty and NAME takes the slot.
+	local iso_src iso_disk=""
+	iso_src="$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null || true)"
+	[[ -b "$iso_src" ]] && iso_disk="/dev/$(lsblk -no PKNAME,NAME "$iso_src" | awk '{print $1; exit}')"
+	mapfile -t _disks < <(lsblk -dpno NAME,SIZE,MODEL -e 7,11 | awk -v skip="$iso_disk" '$1 != skip && $2 != "0B"')
+	[[ ${#_disks[@]} -gt 0 ]] || {
+		err "No target disk found."
+		exit 1
+	}
 	local i
 	for i in "${!_disks[@]}"; do printf '  %d) %s\n' "$((i + 1))" "${_disks[$i]}"; done
 	local n
@@ -388,11 +400,14 @@ step_dotfiles_clone() {
 	arch-chroot /mnt runuser -u "$USERNAME" -- env HOME="$home" touch "$home/.zshrc" # silences zsh-newuser-install
 }
 
-# iwd /var/lib/iwd/<SSID>.psk → NetworkManager keyfiles so Wi-Fi works on first boot.
+# iwd /var/lib/iwd/<SSID>.psk → NetworkManager keyfiles so Wi-Fi works on first
+# boot. WPA-PSK only: iwd keeps 802.1X networks in *.8021x, not carried over.
 _harvest_wifi() {
 	local f base ssid psk nm
 	shopt -s nullglob
-	for f in /var/lib/iwd/*.psk; do
+	local psks=(/var/lib/iwd/*.psk)
+	[[ ${#psks[@]} -gt 0 ]] || warn "No iwd WPA-PSK profile in /var/lib/iwd - Wi-Fi needs setting up on first boot."
+	for f in "${psks[@]}"; do
 		base="$(basename "$f" .psk)"
 		if [[ "$base" == =* ]]; then # iwd hex-encodes SSIDs with chars outside [A-Za-z0-9 _-]
 			ssid="$(printf '%b' "$(sed 's/^=//; s/../\\x&/g' <<<"$base")")"
@@ -403,9 +418,12 @@ _harvest_wifi() {
 		[[ -n "$psk" ]] || psk="$(awk -F= '/^PreSharedKey=/{sub(/^PreSharedKey=/,""); print; exit}' "$f")"
 		[[ -n "$psk" ]] || continue
 
-		nm="/mnt/etc/NetworkManager/system-connections/${ssid}.nmconnection"
+		# File named after iwd's encoded form: the decoded SSID may hold "/".
+		nm="/mnt/etc/NetworkManager/system-connections/${base}.nmconnection"
 		mkdir -p "$(dirname "$nm")"
-		cat >"$nm" <<EOF
+		(
+			umask 077
+			cat >"$nm" <<EOF
 [connection]
 id=$ssid
 type=wifi
@@ -425,7 +443,7 @@ method=auto
 [ipv6]
 method=auto
 EOF
-		chmod 600 "$nm"
+		)
 		success "Wi-Fi profile saved for first boot: $ssid"
 	done
 	shopt -u nullglob
@@ -486,6 +504,10 @@ EOF
 	# systemd hook family only - never mix with busybox encrypt/keymap.
 	sed -i 's/^HOOKS=.*/HOOKS=(base systemd autodetect microcode modconf kms keyboard sd-vconsole block sd-encrypt filesystems fsck)/' \
 		/etc/mkinitcpio.conf
+	grep -q '^HOOKS=(base systemd .* sd-encrypt ' /etc/mkinitcpio.conf || {
+		err "mkinitcpio.conf: HOOKS not rewritten."
+		exit 1
+	}
 
 	# discard: TRIM through dm-crypt so fstrim.timer works. No lockdown= - breaks hibernation.
 	mkdir -p /etc/cmdline.d
@@ -521,7 +543,7 @@ EOF
 	systemctl enable snapper-timeline.timer snapper-cleanup.timer
 	systemctl enable fstrim.timer paccache.timer
 
-	useradd -m -G wheel -s /bin/zsh "$USERNAME"
+	useradd -m -k /dev/null -G wheel -s /bin/zsh "$USERNAME" # no /etc/skel bash files, the shell is zsh
 	grep -q "^${USERNAME}:" /etc/subuid || # rootless podman
 		usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$USERNAME"
 	# tty1 is $USERNAME's console: login runs for that name without asking it, so

@@ -4,7 +4,7 @@
 LUKS2 (FIDO2 PIN + touch) → Btrfs subvolumes → UKI → systemd-boot → snapper + snap-pac + snap-restore → Sway (Wayland) + Quickshell → AppArmor + Firejail + ufw + hardened sysctl → YubiKey (FIDO2 + OpenPGP)
 ```
 
-- `install.sh` - live ISO. Partition, encrypt, pacstrap, base config (tty1 runs `login` for your user, so a boot is LUKS, then a YubiKey touch, or the password with the key unplugged), FIDO2 LUKS enrollment, clone this repo, reboot. Prompts: disk, timezone, username, three passwords. Log: `/root/arch-install.log`, copied to `/var/log/arch-install.log` on the installed system. Run from a checkout (`post-install.sh` and `.git` next to it) and it installs that tree instead of cloning `master`.
+- `install.sh` - live ISO. Partition, encrypt, FIDO2 LUKS enrollment, pacstrap, base config (tty1 runs `login` for your user, so a boot is LUKS, then a YubiKey touch, or the password with the key unplugged), clone this repo, reboot. Prompts: disk (the ISO's own stick and empty card readers are not offered), timezone (a canonical `zone.tab` name, aliases are rejected: the Wi-Fi regulatory domain comes from its country), username, three passwords. Log: `/root/arch-install.log`, copied to `/var/log/arch-install.log` on the installed system. Run from a checkout (`post-install.sh` and `.git` next to it) and it installs that tree instead of cloning `master`.
 - `post-install.sh` - installed system, first boot. Bootloader cleanup, snapper limits, pacman hooks (reboot-required flag, orphan report, pacnew list), Intel GPU PMU helper, YubiKey PAM (login, sudo, polkit, lock screen), yay (AUR helper for `slack-desktop`, `zoom`; built with `bin/yay-git`, which falls back to the GitHub AUR mirror when aur.archlinux.org is down - `yay-git slack-desktop zoom` works without yay too), LibreWolf (firejail XDG whitelist + overrides), dotfiles symlinks, GTK/Qt theme (adw-gtk3 + qt6ct), key import, GPG/SSH, an optional SMB share (systemd automount). Resumable via done-markers.
 
 Prerequisite: both YubiKeys provisioned per [YUBIKEY.md](./YUBIKEY.md) (GPG identity on card, the same FIDO2 PIN set on both).
@@ -51,7 +51,7 @@ Get online first. Wired = automatic. Wi-Fi:
 iwctl device list                       # station name, e.g. wlan0
 iwctl station wlan0 scan
 iwctl station wlan0 get-networks
-iwctl station wlan0 connect "<SSID>"    # prompts passphrase; install.sh copies this profile into the installed system
+iwctl station wlan0 connect "<SSID>"    # prompts passphrase; install.sh copies WPA-PSK profiles into the installed system, nothing else
 ```
 
 ```bash
