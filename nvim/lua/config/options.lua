@@ -10,6 +10,8 @@ opt.shiftwidth = 0 -- follows tabstop
 opt.expandtab = true
 opt.breakindent = true -- wrapped lines follow indent level
 -- NOTE: no smartindent - arborist sets indentexpr per buffer via treesitter
+-- the runtime ftplugin would set shiftwidth=4 softtabstop=4 over the ts=2 autocmd
+vim.g.markdown_recommended_style = 0
 
 -- Search
 opt.ignorecase = true
