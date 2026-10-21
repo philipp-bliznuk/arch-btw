@@ -9,6 +9,22 @@ set -Eeuo pipefail
 
 app=qs-screensaver
 kitty_opts=(-o confirm_os_window_close=0 -o background=#000000 -o color0=#000000)
+# stop touches the flag for a start still in its loop: the kill only reaches
+# the windows mapped by then, the loop would spawn the rest. start marks its
+# own beginning and obeys a flag not older than that: a stop from the previous
+# cycle is ignored, one that lands during the opening checks is not.
+runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/qs"
+stopflag="$runtime/screensaver.stop"
+mark="$runtime/screensaver.start"
+
+# not -nt alone: two touches in one kernel tick carry equal mtimes
+stopped() {
+	[[ -e "$stopflag" && ! "$mark" -nt "$stopflag" ]]
+}
+
+kill_all() {
+	swaymsg -q "[app_id=\"^$app\$\"] kill" 2>/dev/null || true
+}
 
 present() {
 	swaymsg -t get_tree -r | jq -e --arg a "$app" --arg o "${1:-}" '
@@ -17,11 +33,14 @@ present() {
 }
 
 start() {
+	mkdir -p "$runtime"
+	touch "$mark"
 	command -v cmatrix >/dev/null && command -v kitty >/dev/null || exit 0
 	present && exit 0
 	local focused out
 	focused="$(swaymsg -t get_outputs -r | jq -r '.[] | select(.focused) | .name')"
 	for out in $(swaymsg -t get_outputs -r | jq -r '.[] | select(.active) | .name'); do
+		stopped && break
 		swaymsg -q focus output "$out"
 		setsid -f kitty --class "$app" "${kitty_opts[@]}" -- cmatrix -ab >/dev/null 2>&1
 		for _ in $(seq 1 30); do
@@ -30,12 +49,20 @@ start() {
 		done
 	done
 	[[ -n "$focused" ]] && swaymsg -q focus output "$focused"
+	# a stop that landed mid-loop missed the window awaited after it
+	stopped && kill_all
 	return 0
+}
+
+stop() {
+	mkdir -p "$runtime"
+	touch "$stopflag"
+	kill_all
 }
 
 case "${1:-}" in
 start) start ;;
-stop) swaymsg -q "[app_id=\"^$app\$\"] kill" 2>/dev/null || true ;;
+stop) stop ;;
 *)
 	echo "usage: qs-screensaver start|stop" >&2
 	exit 2
