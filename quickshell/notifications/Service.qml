@@ -6,11 +6,13 @@ import qs.core
 
 // org.freedesktop.Notifications daemon.
 // Policy: DND suppresses low/normal only; critical always shown.
-// Popups: max 4 visible; history: last 50 persisted to ~/.local/state/qs/notifications.json.
+// Popups: max 4 visible, at most 20 queued; history: last 50 persisted to
+// ~/.local/state/qs/notifications.json.
 Scope {
     id: root
 
     readonly property int maxVisible: 4
+    readonly property int maxQueued: 20
     readonly property int maxHistory: 50
     readonly property bool dnd: Toggles.has("dnd")
 
@@ -106,8 +108,26 @@ Scope {
             n.dismiss();
     }
 
+    // The newest card on screen. Cards past maxVisible wait hidden, so the
+    // last appended one is not what the user is looking at.
     function latest() {
-        return popups.count ? popups.get(popups.count - 1).notification : null;
+        const shown = Math.min(popups.count, maxVisible);
+        return shown ? popups.get(shown - 1).notification : null;
+    }
+
+    // A sender in a loop would queue without bound, one live Notification
+    // and one Card each. Past maxQueued the oldest waiting non-critical one
+    // expires; it is in the history already.
+    function trim() {
+        if (popups.count <= maxQueued)
+            return;
+        for (let i = maxVisible; i < popups.count; i++) {
+            const n = popups.get(i).notification;
+            if (n.urgency !== NotificationUrgency.Critical) {
+                n.expire();
+                return;
+            }
+        }
     }
 
     function dismissLatest() {
@@ -140,6 +160,7 @@ Scope {
             root.watch(n, time);
             n.closed.connect(() => root.remove(n));
             root.popups.append({ notification: n });
+            root.trim();
         }
     }
 
