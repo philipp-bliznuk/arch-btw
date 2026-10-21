@@ -281,6 +281,22 @@ vim.lsp.config["bashls"] = {
   root_markers = { ".git" },
 }
 
+-- QML (quickshell). qmlls comes with qt6-declarative, which quickshell pulls
+-- in, so it is not in the mason list. Quickshell resolves `import qs.X`
+-- against its config root; the root is exposed as `qs` inside a temp import
+-- path, the way quickshell/lint.sh does it for qmllint.
+vim.lsp.config["qmlls"] = {
+  cmd = function(dispatchers, config)
+    local imports = vim.fn.tempname()
+    vim.fn.mkdir(imports, "p")
+    vim.uv.fs_symlink(config.root_dir, imports .. "/qs")
+    return vim.lsp.rpc.start({ "qmlls6", "-I", imports, "-I", config.root_dir }, dispatchers)
+  end,
+  filetypes = { "qml" },
+  root_markers = { "shell.qml", ".git" },
+  workspace_required = true, -- no root, no symlink target: a stray .qml gets no client
+}
+
 -- Grammar and spell checker (code-comment-aware)
 vim.lsp.config["harper_ls"] = {
   cmd = { "harper-ls", "--stdio" },
@@ -344,6 +360,7 @@ vim.lsp.enable({
   "postgres_lsp",
   "dockerls",
   "bashls",
+  "qmlls",
   "harper_ls",
   "typos_lsp",
 })

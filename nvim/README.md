@@ -19,7 +19,7 @@ Core principles:
 
 ## Features
 
-- **15 LSP servers** - Python (basedpyright + ruff), TypeScript (tsgo), Go (gopls), Lua, JSON, YAML, HTML, CSS, TOML, SQL, Docker, Bash, plus grammar/spell checking (harper-ls, typos-lsp)
+- **16 LSP servers** - Python (basedpyright + ruff), TypeScript (tsgo), Go (gopls), Lua, JSON, YAML, HTML, CSS, TOML, SQL, Docker, Bash, QML (qmlls), plus grammar/spell checking (harper-ls, typos-lsp)
 - **Format on save** - ruff (Python), prettierd (JS/TS/HTML/CSS/JSON/YAML/Markdown), stylua (Lua), goimports + gofmt (Go), shfmt (Shell), pgformatter (SQL)
 - **Completion** - blink.cmp v1 with LSP, buffer, path, snippets, and cmdline sources. Rust fuzzy matcher, ghost text, signature help
 - **Fuzzy picker** - fzf-lua for files, grep, symbols, commands, keymaps, git, code actions, spell suggestions. Inherits system `FZF_DEFAULT_OPTS`
@@ -35,7 +35,7 @@ Core principles:
 | ---------------------------------- | ---------------------------------------------------------------------------------------- |
 | `vim.pack` over lazy.nvim          | Native, zero dependencies, lockfile, forward-looking                                     |
 | Mason only (no mason-lspconfig)    | One plugin for install + registry API for auto-install. No middleware.                   |
-| Inline `vim.lsp.config[]`          | All 15 server configs in one file. No lspconfig plugin needed.                           |
+| Inline `vim.lsp.config[]`          | All 16 server configs in one file. No lspconfig plugin needed.                           |
 | arborist.nvim over nvim-treesitter | Archived upstream. Arborist: auto-install parsers, bundled queries, actively maintained. |
 | fzf-lua over telescope             | Telescope unmaintained (452 issues). fzf-lua: fastest, 8 issues, leverages system fzf.   |
 | conform.nvim for formatting        | Sequencing (ruff: organize + fix + format), external tools + LSP fallback, minimal-diff. |
@@ -85,6 +85,7 @@ Core principles:
 | postgres_lsp | SQL            | PostgreSQL-native parser (libpg_query)                                    |
 | dockerls     | Dockerfile     | Containerfile support via filetype mapping                                |
 | bashls       | Bash/Shell/Zsh | Diagnostics, completion (no ShellCheck installed)                         |
+| qmlls        | QML            | Quickshell config: root exposed as `qs` import path, reads `.qmllint.ini` |
 | harper_ls    | All code files | Grammar + spell checking in comments/strings                              |
 | typos_lsp    | All files      | Common misspelling detection in identifiers                               |
 
@@ -219,7 +220,7 @@ Leader key: `Space`
 - **tree-sitter** CLI - parser compilation (used by arborist)
 - **JetBrains Mono Nerd Font** - glyphs for diagnostics, git signs, icons
 
-All LSP servers and formatters are managed by Mason - no manual installation needed.
+All LSP servers and formatters are managed by Mason - no manual installation needed. The one exception is qmlls, which comes with `qt6-declarative` (a quickshell dependency) as `qmlls6`.
 
 ## Installation
 

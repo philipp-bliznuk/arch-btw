@@ -15,11 +15,9 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 ln -s "$here" "$tmp/qs"
 
-# Known noise from Quickshell qmltypes, not config bugs:
-#   uncreatable-type   PanelWindow flagged uncreatable in quickshell-core.qmltypes
-#   missing-type       anchor.edges group type missing
-#   unresolved-type    DBusMenuHandle not exposed declaratively
-# Still printed (14 lines, same cause): missing-property on
+# .qmllint.ini next to this script disables three categories of known noise
+# from Quickshell's qmltypes; qmlls reads the same file, so nvim hides the
+# same three. Still printed (14 lines, same cause): missing-property on
 # QuickshellScreenInfo.width/height, PopupAnchor.item/edges/gravity/adjustment,
 # anchors top/right on layer windows, UntypedObjectModel.values; unqualified
 # PopupAnchor.margins; incompatible-type DBusMenuHandle vs QsMenuHandle.
@@ -28,7 +26,4 @@ mapfile -d '' files < <(find "$here" -name '*.qml' -print0 | sort -z)
 "$qmllint" \
 	-I "$tmp" -I "$here" \
 	-W 0 \
-	--uncreatable-type disable \
-	--missing-type disable \
-	--unresolved-type disable \
 	"$@" "${files[@]}"
