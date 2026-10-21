@@ -37,6 +37,7 @@ Core principles:
 | Mason only (no mason-lspconfig)    | One plugin for install + registry API for auto-install. No middleware.                   |
 | Inline `vim.lsp.config[]`          | All 16 server configs in one file. No lspconfig plugin needed.                           |
 | arborist.nvim over nvim-treesitter | Archived upstream. Arborist: auto-install parsers, bundled queries, actively maintained. |
+| Pinned parsers, no popular set     | 14 parsers compile at first start, the rest on first open; revisions move with the plugin's lock, `:ArboristUpdate` by hand. |
 | fzf-lua over telescope             | Telescope unmaintained (452 issues). fzf-lua: fastest, 8 issues, leverages system fzf.   |
 | conform.nvim for formatting        | Sequencing (ruff: organize + fix + format), external tools + LSP fallback, minimal-diff. |
 | blink.cmp v1 over nvim-cmp         | Rust fuzzy matcher, built-in cmdline, 0.5-4ms async, community standard.                 |

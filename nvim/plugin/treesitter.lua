@@ -6,8 +6,28 @@ local util = require("util")
 pack.add("https://github.com/arborist-ts/arborist.nvim", function()
   require("arborist").setup({
     prefer_wasm = false,
-    update_cadence = "weekly",
-    install_popular = true,
+    -- parsers are pinned in the plugin's registry/pins.toml and move with the
+    -- plugin's rev in nvim-pack-lock.json, not with a background fetch
+    update_cadence = "manual",
+    -- the popular set is 28 grammars cloned and compiled at first start;
+    -- anything not listed here installs on first open
+    install_popular = false,
+    ensure_installed = {
+      "python",
+      "javascript",
+      "typescript",
+      "tsx",
+      "css",
+      "html",
+      "go",
+      "bash",
+      "json",
+      "yaml",
+      "toml",
+      "qmljs",
+      "regex", -- injected into strings and literals, never a filetype of its own
+      "diff",
+    },
     disable = {
       indent = { "python", "lua" }, -- TS indent broken for single-line nodes; built-in is reliable
     },
