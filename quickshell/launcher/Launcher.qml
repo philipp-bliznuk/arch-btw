@@ -506,17 +506,25 @@ Scope {
         }
     }
 
+    // An empty allowedApps shows every entry, so a failed or empty list must
+    // not replace a good one: the last list stays, the failure is logged.
     Process {
         id: appsProbe
         command: [Util.bin("qs-apps"), "list"]
         stdout: StdioCollector {
             onStreamFinished: {
+                const ids = root.listed(appsProbe, "qs-apps", text, [])
+                if (!Array.isArray(ids) || ids.length === 0)
+                    return
                 const set = {}
-                for (const id of JSON.parse(text || "[]"))
+                for (const id of ids)
                     set[id] = true
                 root.allowedApps = set
-                appsProbe.command = [Util.bin("qs-apps"), "list"]
             }
+        }
+        onExited: (code, status) => {
+            if (code !== 0)
+                console.warn("qs-apps: exit " + code)
         }
     }
     Process {
