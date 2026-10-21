@@ -21,7 +21,7 @@ pack.add("https://github.com/stevearc/conform.nvim", function()
       css = { "prettierd" },
       scss = { "prettierd" },
       toml = { lsp_format = "prefer" }, -- taplo LSP formatting is excellent
-      sql = { "pgformatter" },
+      sql = { "pg_format" },
       sh = { "shfmt" },
       bash = { "shfmt" },
       markdown = { "prettierd" },
