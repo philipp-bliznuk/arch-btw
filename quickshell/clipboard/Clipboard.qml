@@ -3,8 +3,9 @@ import Quickshell
 import Quickshell.Io
 import qs.core
 
-// Clipboard history owner. Two wl-paste watchers feed bin/qs-clipboard-capture,
-// which maintains ~/.local/state/qs/clipboard.json and pings `clipboard refresh`.
+// Clipboard history reader. bin/qs-clipboard owns ~/.local/state/qs/clipboard.json:
+// two wl-paste watchers feed it, remove and clear go through it, and it pings
+// `clipboard refresh` after every write, so one lock orders them all.
 // Watchers outlive a crashed shell; qs-session kills them before relaunching.
 Scope {
     id: root
@@ -16,16 +17,11 @@ Scope {
     }
 
     function remove(entry) {
-        entries = entries.filter(e => !(e.kind === entry.kind && (e.text === entry.text && e.file === entry.file)));
-        store.setText(JSON.stringify(entries));
-        if (entry.kind === "image" && entry.file)
-            Quickshell.execDetached(["rm", "-f", entry.file]);
+        Quickshell.execDetached([Util.bin("qs-clipboard"), "remove", entry.kind, String(entry.time)]);
     }
 
     function clear() {
-        entries = [];
-        store.setText("[]");
-        Quickshell.execDetached(["bash", "-c", 'rm -f "$1"/*', "bash", Util.stateDir + "/clipboard-images"]);
+        Quickshell.execDetached([Util.bin("qs-clipboard"), "clear"]);
     }
 
     function copy(entry) {
@@ -38,7 +34,6 @@ Scope {
     FileView {
         id: store
         path: Util.stateDir + "/clipboard.json"
-        atomicWrites: true
         onLoaded: {
             try {
                 const parsed = JSON.parse(text());
@@ -51,12 +46,12 @@ Scope {
     }
 
     Process {
-        command: ["wl-paste", "--type", "text", "--watch", Util.bin("qs-clipboard-capture"), "text"]
+        command: ["wl-paste", "--type", "text", "--watch", Util.bin("qs-clipboard"), "text"]
         running: true
     }
 
     Process {
-        command: ["wl-paste", "--type", "image/png", "--watch", Util.bin("qs-clipboard-capture"), "image"]
+        command: ["wl-paste", "--type", "image/png", "--watch", Util.bin("qs-clipboard"), "image"]
         running: true
     }
 

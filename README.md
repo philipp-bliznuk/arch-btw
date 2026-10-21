@@ -157,7 +157,7 @@ quickshell/
 ├── notifications/     org.freedesktop.Notifications daemon (popups + history)
 ├── polkit/            polkit authentication agent
 ├── osd/               volume / mic / brightness OSD
-├── clipboard/         clipboard history (wl-paste watchers → bin/qs-clipboard-capture)
+├── clipboard/         clipboard history (wl-paste watchers → bin/qs-clipboard)
 ├── lock/              Locker (ext-session-lock + PAM), Surface (per-output lock screen), Idle (screensaver / lock / suspend ladder)
 └── background/        wallpaper layer (symlink ~/.local/state/qs/background)
 ```
@@ -220,7 +220,7 @@ Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage
 | `qs-weather`           | `refresh` `set CITY` `clear` - open-meteo → `weather.json`                 |
 | `qs-battery`           | `status` `limit [on\|off]` - UPower charge thresholds (JSON)              |
 | `qs-network-status`    | internal, JSON for the network popup (ip/gateway/ping/traffic)             |
-| `qs-clipboard-capture` | internal, `wl-paste --watch` target                                       |
+| `qs-clipboard`         | internal: `text`/`image` are the `wl-paste --watch` targets, `remove`/`clear` come from the launcher; the one writer of `clipboard.json`, under a lock |
 | `qs-apps`              | `list` `hide ID` - explicitly installed desktop ids minus `apps-hide`; pacman hook touches `/run/qs-apps-changed` to re-list |
 | `qs-task CMD…`         | run CMD in a floating kitty window, `Done!`/`Failed` + Enter to close |
 | `qs-pkg MODE`          | `install` `aur` `remove` `update` `pacdiff` `pkgbuild PKG` - fzf package pickers; `update` prints Arch news (`yay -Pw`) and runs under `systemd-inhibit --what=sleep` (idle ladder, power key; the lid ignores sleep inhibitors); `pacdiff` merges pending `.pacnew` files (`pacdiff --sudo`) and rebuilds `/var/lib/pacnew-pending` |
@@ -228,7 +228,7 @@ Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage
 | `yay-git PKG…`         | build AUR packages from git (AUR, GitHub mirror fallback), AUR deps recursive |
 | `snap-restore`         | `list` `last` `N` `undo` `rebuild`, `--device DEV` from the ISO - root rollback to a snapper snapshot, UKIs rebuilt inside it (Recovery below) |
 
-State: `~/.local/state/qs/` (`toggles/`, `settings.json`, `notifications.json`, `clipboard.json`, `clipboard-images/`, `weather.json`, `weather-location.json`, `launcher-usage.json`, `background`). Clipboard history skips `x-kde-passwordManagerHint` sources (1Password) - the file is still plaintext, rely on LUKS.
+State: `~/.local/state/qs/` (`toggles/`, `settings.json`, `notifications.json`, `clipboard.json`, `clipboard-images/`, `weather.json`, `weather-location.json`, `launcher-usage.json`, `background`). Clipboard history skips `x-kde-passwordManagerHint` sources (1Password) - the file is still plaintext, rely on LUKS. `bin/qs-clipboard` is its only writer and holds a lock on the state dir for each write: the text and image watchers fire together for one offer, and a `d` in the launcher lands between them; an image file no entry names any more is deleted on the same pass.
 
 IPC targets (`qs-shell T FN`): `launcher` (toggle/open) · `popups` (toggle/open) · `lock` (lock, sleep → `ok`/`already`/`fallback`, status JSON) · `media` (toggle/next/previous) · `notifications` (dismissLatest/actionLatest; sway `$mod+Shift+d` / `$mod+Shift+a`) · `clipboard` (refresh) · `osd` (brightness PCT) · `background` (refresh) · `toggles` (refresh) · `polkit` (status JSON, a diagnostic: registered/active/responseRequired) · `shell` (ping/resume).
 

@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# qs-clipboard <text | image | remove KIND TIME | clear>
+# The one writer of ~/.local/state/qs/clipboard.json (newest first, cap 200)
+# and of clipboard-images/ (PNG by sha256). `text` and `image` are the
+# `wl-paste --watch` targets and read the offer on stdin; the shell sends
+# `remove` and `clear`. Every verb runs under one lock: the two watchers fire
+# for one offer, and the launcher's keys land between them. Skips
+# password-manager and oversized payloads. An image file no entry names any
+# more is deleted.
+set -Eeuo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+	sed -n '2p' "$0" >&2
+	exit 2
+}
+
+verb="${1:-}"
+state="${XDG_STATE_HOME:-$HOME/.local/state}/qs"
+db="$state/clipboard.json"
+imgdir="$state/clipboard-images"
+max_bytes=$((256 * 1024))
+cap=200
+umask 077
+mkdir -p "$imgdir"
+
+trap 'rm -f "${payload:-}" "${tmp:-}"' EXIT
+case "$verb" in
+text | image)
+	[[ $# -eq 1 ]] || usage
+	# wl-paste sets CLIPBOARD_STATE=sensitive when the source offers x-kde-passwordManagerHint (1Password etc.)
+	[[ "${CLIPBOARD_STATE:-}" != "sensitive" ]] || exit 0
+	payload="$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/qs-clip.XXXXXX")"
+	cat >"$payload"
+	size=$(stat -c %s "$payload")
+	((size > 0)) || exit 0
+	;;
+remove) [[ $# -eq 3 && "$2" =~ ^(text|image)$ && "$3" =~ ^[0-9]+$ ]] || usage ;;
+clear) [[ $# -eq 1 ]] || usage ;;
+*) usage ;;
+esac
+
+exec 9<"$state"
+flock 9
+[[ -s "$db" ]] || echo '[]' >"$db"
+now=$(date +%s%3N)
+tmp="$(mktemp "$state/clipboard.XXXXXX")"
+case "$verb" in
+text)
+	((size <= max_bytes)) || exit 0
+	text="$(tr -d '\0' <"$payload")"
+	[[ -n "${text//[[:space:]]/}" ]] || exit 0
+	jq --arg t "$text" --argjson now "$now" --argjson cap "$cap" \
+		'[{kind:"text", text:$t, time:$now}] + map(select(.kind != "text" or .text != $t)) | .[:$cap]' \
+		"$db" >"$tmp"
+	;;
+image)
+	sha="$(sha256sum "$payload" | cut -c1-32)"
+	file="$imgdir/$sha.png"
+	[[ -e "$file" ]] || cp "$payload" "$file"
+	jq --arg f "$file" --argjson now "$now" --argjson cap "$cap" --argjson size "$size" \
+		'[{kind:"image", file:$f, size:$size, time:$now}] + map(select(.kind != "image" or .file != $f)) | .[:$cap]' \
+		"$db" >"$tmp"
+	;;
+remove)
+	jq --arg k "$2" --argjson t "$3" 'map(select(.kind != $k or .time != $t))' "$db" >"$tmp"
+	;;
+clear)
+	echo '[]' >"$tmp"
+	;;
+esac
+mv -f "$tmp" "$db"
+
+# image files no entry names any more: past the cap, removed, cleared
+comm -23 <(find "$imgdir" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort) \
+	<(jq -r '.[] | select(.kind == "image") | .file | sub(".*/"; "")' "$db" | sort) \
+	| while read -r f; do rm -f "$imgdir/$f"; done
+"$here"/qs-shell -q clipboard refresh
