@@ -476,9 +476,9 @@ step_lid() {
 	sudo install -D -o root -g root -m 644 /dev/stdin /etc/systemd/logind.conf.d/00-lid.conf <<-'EOF'
 		# Written by post-install.sh (lid).
 		[Login]
-		HandleLidSwitch=suspend-then-hibernate
-		# external display attached: lock only (swayidle relays the Lock signal to qs-lock)
-		HandleLidSwitchDocked=lock
+		# sway's bindswitch feeds the shell (pause players, lock, sleep 15 min later)
+		HandleLidSwitch=ignore
+		HandleLidSwitchDocked=ignore
 		HandlePowerKey=suspend-then-hibernate
 		HandlePowerKeyLongPress=poweroff
 	EOF

@@ -93,6 +93,14 @@ Singleton {
             player.togglePlaying();
     }
 
+    // Every playing player, not just the chosen one (lid close). Returns how
+    // many were asked to pause.
+    function pauseAll() {
+        const playing = players.filter(p => p.isPlaying && p.canPause);
+        playing.forEach(p => p.pause());
+        return playing.length;
+    }
+
     function next() {
         if (player && player.canGoNext)
             player.next();

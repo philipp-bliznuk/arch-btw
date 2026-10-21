@@ -33,16 +33,24 @@ output HDMI-A-2 mode 2560x1440@60Hz scale 1 position 1366 0
 # qs-session: import env into systemd --user, start quickshell, wait for IPC, re-apply toggles
 exec qs-session start
 
-# Idle ladder (screensaver / lock / blank / suspend) and the lock screen live
-# in Quickshell (lock/). swayidle only bridges logind: lock on its Lock signal
-# (lid closed while docked, loginctl lock-session), lock before sleep with the
-# touch path held back and the outputs off (qs-lock --sleep, swaylock
-# fallback), and after resume relight, refresh clock-bound state and start the
-# touch path on the rescanned token.
+# Idle ladder (screensaver / lock / blank / suspend), the lid policy and the
+# lock screen live in Quickshell (lock/). swayidle only bridges logind: lock
+# on its Lock signal (loginctl lock-session), lock before sleep with the touch
+# path held back and the outputs off (qs-lock --sleep, swaylock fallback), and
+# after resume relight, refresh clock-bound state and start the touch path on
+# the rescanned token.
 exec swayidle -w \
     lock 'qs-lock' \
     before-sleep 'qs-lock --sleep' \
     after-resume 'swaymsg -q "output * power on"; qs-shell -q shell resume'
+
+# Lid (logind ignores the switch, post-install step lid): the shell pauses
+# every player, locks and sleeps 15 min later unless opened or unlocked
+# (lock/Idle.qml). --locked: an idle-locked session must still see it. No
+# --reload: that would lock on every reload while docked with the lid shut.
+# No shell answering: sleep at once, what logind did before.
+bindswitch --locked lid:on exec 'qs-shell lid closed || systemctl suspend-then-hibernate'
+bindswitch --locked lid:off exec qs-shell -q lid opened
 
 ### Basics
 bindsym $mod+Return exec $term

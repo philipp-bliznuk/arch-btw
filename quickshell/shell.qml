@@ -25,7 +25,9 @@ ShellRoot {
         wallpaper: background.current
     }
 
-    Idle {}
+    Idle {
+        id: idle
+    }
 
     Service {
         id: notificationService
@@ -132,6 +134,19 @@ ShellRoot {
 
         function status(): string {
             return locker.statusJson();
+        }
+    }
+
+    // sway bindswitch lid:on / lid:off (lock/Idle.qml)
+    IpcHandler {
+        target: "lid"
+
+        function closed(): void {
+            idle.lidClosed();
+        }
+
+        function opened(): void {
+            idle.lidOpened();
         }
     }
 
