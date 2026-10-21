@@ -5,8 +5,8 @@
 # `wl-paste --watch` targets and read the offer on stdin; the shell sends
 # `remove` and `clear`. Every verb runs under one lock: the two watchers fire
 # for one offer, and the launcher's keys land between them. Skips
-# password-manager and oversized payloads. An image file no entry names any
-# more is deleted.
+# password-manager sources, text over 256 KiB and images over 16 MiB. An
+# image file no entry names any more is deleted.
 set -Eeuo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -20,6 +20,7 @@ state="${XDG_STATE_HOME:-$HOME/.local/state}/qs"
 db="$state/clipboard.json"
 imgdir="$state/clipboard-images"
 max_bytes=$((256 * 1024))
+max_image_bytes=$((16 * 1024 * 1024))
 cap=200
 umask 077
 mkdir -p "$imgdir"
@@ -30,10 +31,15 @@ text | image)
 	[[ $# -eq 1 ]] || usage
 	# wl-paste sets CLIPBOARD_STATE=sensitive when the source offers x-kde-passwordManagerHint (1Password etc.)
 	[[ "${CLIPBOARD_STATE:-}" != "sensitive" ]] || exit 0
+	max=$max_bytes
+	[[ "$verb" == image ]] && max=$max_image_bytes
 	payload="$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/qs-clip.XXXXXX")"
-	cat >"$payload"
+	# one byte past the cap is all the size check needs; the rest is drained
+	# so wl-paste does not see a closed pipe
+	head -c $((max + 1)) >"$payload"
+	cat >/dev/null
 	size=$(stat -c %s "$payload")
-	((size > 0)) || exit 0
+	((size > 0 && size <= max)) || exit 0
 	;;
 remove) [[ $# -eq 3 && "$2" =~ ^(text|image)$ && "$3" =~ ^[0-9]+$ ]] || usage ;;
 clear) [[ $# -eq 1 ]] || usage ;;
@@ -47,7 +53,6 @@ now=$(date +%s%3N)
 tmp="$(mktemp "$state/clipboard.XXXXXX")"
 case "$verb" in
 text)
-	((size <= max_bytes)) || exit 0
 	text="$(tr -d '\0' <"$payload")"
 	[[ -n "${text//[[:space:]]/}" ]] || exit 0
 	jq --arg t "$text" --argjson now "$now" --argjson cap "$cap" \
