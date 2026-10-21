@@ -14,6 +14,8 @@ state="${XDG_STATE_HOME:-$HOME/.local/state}/qs"
 runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/qs"
 pidfile="$runtime/supervise.pid"
 mkdir -p "$state/toggles" "$runtime"
+# The shell writes 644 files there (notification bodies, launcher usage); the dir guards them.
+chmod 700 "$state"
 
 import_env() {
 	systemctl --user import-environment WAYLAND_DISPLAY SWAYSOCK XDG_CURRENT_DESKTOP XDG_SESSION_TYPE QT_QPA_PLATFORMTHEME 2>/dev/null || true
