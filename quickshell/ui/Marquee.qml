@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import qs.core
 
 // Label capped at `maxWidth`. When the text overflows it scrolls once every
@@ -15,6 +16,12 @@ Item {
     property int pause: 1500
     readonly property real overflow: Math.max(0, label.implicitWidth - width)
     readonly property int duration: overflow / speed * 1000
+    // Scrolling only when someone could see it. The item reads visible inside
+    // a hidden window (bar hidden, fullscreen), so the window is asked too.
+    // Not while locked: the bar sits unexposed under the lock surface and the
+    // scroll would make the lock surface repaint every vsync (README, Idle CPU).
+    readonly property var ownerWindow: QsWindow.window
+    readonly property bool shown: visible && (ownerWindow ? ownerWindow.visible : true) && !Lock.locked
 
     clip: true
     implicitWidth: Math.min(maxWidth, label.implicitWidth)
@@ -22,13 +29,14 @@ Item {
 
     onTextChanged: rewind()
     onOverflowChanged: rewind()
+    onShownChanged: rewind()
 
-    // restart() would force the timer on and override its `running` binding,
-    // so only re-arm it while there is something to scroll.
+    // restart() forces the timer on over its `running` binding until that
+    // re-evaluates, so re-arm it under the binding's own condition only.
     function rewind() {
         scroll.stop();
         label.x = 0;
-        if (root.overflow > 0 && root.visible)
+        if (root.overflow > 0 && root.shown)
             tick.restart();
         else
             tick.stop();
@@ -45,12 +53,10 @@ Item {
     }
 
     // Never restart mid-scroll: a long title needs duration + pause to finish.
-    // Not while locked: the bar sits unexposed under the lock surface and the
-    // scroll would make the lock surface repaint every vsync (README, Idle CPU).
     Timer {
         id: tick
         interval: Math.max(root.interval, root.duration + root.pause + 1000)
-        running: root.overflow > 0 && root.visible && !Lock.locked
+        running: root.overflow > 0 && root.shown
         repeat: true
         onTriggered: scroll.restart()
     }
