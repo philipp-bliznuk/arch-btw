@@ -59,9 +59,15 @@ Singleton {
         runner.running = true;
     }
 
+    // set() flipped active ahead of the run; a qs-toggle that failed (unknown
+    // name, wlsunset missing) never sent its refresh, so relist to undo it.
     Process {
         id: runner
-        onExited: root.drain() // qmllint disable signal-handler-parameters
+        onExited: (code, status) => {
+            if (code !== 0)
+                root.refresh();
+            root.drain();
+        }
     }
 
     Process {
