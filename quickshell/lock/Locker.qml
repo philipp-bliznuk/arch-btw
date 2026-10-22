@@ -82,10 +82,16 @@ Scope {
     }
 
     // swayidle's before-sleep. A touch request started now would wait on a
-    // host that systemd-sleep freezes within the second and that resets the
-    // bus on the way back, and a touch landing before the freeze would put an
-    // unlocked session to sleep. So none until resume(); the password path is
-    // untouched. Set after lock(): engage() clears the per-lock state.
+    // host that systemd-sleep freezes within the second, and a touch landing
+    // before the freeze would put an unlocked session to sleep. So none until
+    // resume(), and a request already in flight (idle-locked, key blinking,
+    // then the lid) has its success dropped (u2f.onCompleted): the ~0.5 s
+    // between this call and the freeze is exactly when a hand shutting the
+    // lid brushes the key. Not aborted: no CTAP cancel would reach the token,
+    // and a stale assertion blocks new ones with fast "busy" failures after
+    // the wake; a request that survived S3 completes on the next touch. The
+    // password path is untouched. Set after lock(): engage() clears the
+    // per-lock state.
     function sleep(): string {
         const result = lock();
         if (result !== "fallback")
@@ -380,6 +386,10 @@ Scope {
             if (!root.requested)
                 return;
             if (result === PamResult.Success) {
+                if (root.sleeping) {
+                    console.info("lock: touch landed as the sleep starts, dropped");
+                    return;
+                }
                 root.unlock("yubikey");
                 return;
             }
