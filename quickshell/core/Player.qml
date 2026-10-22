@@ -6,8 +6,7 @@ import Quickshell.Services.Pipewire
 
 // Which MPRIS player the shell talks to. Feishin (navidrome client) wins when
 // present, then a playing player that owns a live PipeWire stream, then any
-// playing player, then one with track metadata, then the first. playerctld's
-// proxy is skipped: it mirrors another player and would show up twice. Browser
+// playing player, then one with track metadata, then the first. Browser
 // videos therefore never hijack the widget while music is merely paused.
 //
 // Volume goes through the player's PipeWire output streams, not MPRIS:
@@ -18,7 +17,7 @@ import Quickshell.Services.Pipewire
 Singleton {
     id: root
 
-    readonly property var players: Mpris.players.values.filter(p => !isProxy(p))
+    readonly property var players: Mpris.players.values
     readonly property var outStreams: Pipewire.nodes.values.filter(n => n.type === PwNodeType.AudioOutStream)
     readonly property var player: {
         const ps = players;
@@ -55,10 +54,6 @@ Singleton {
     function isPreferred(p) {
         const id = ((p.identity || "") + " " + (p.desktopEntry || "")).toLowerCase();
         return id.includes("feishin");
-    }
-
-    function isProxy(p) {
-        return (p.dbusName || "").includes("playerctld") || p.desktopEntry === "playerctld";
     }
 
     function hasTrack(p) {
