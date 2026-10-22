@@ -25,9 +25,7 @@ ShellRoot {
         wallpaper: background.current
     }
 
-    Idle {
-        id: idle
-    }
+    Idle {}
 
     Service {
         id: notificationService
@@ -127,26 +125,17 @@ ShellRoot {
             return locker.lock();
         }
 
-        // swayidle before-sleep (qs-lock --sleep): lock, touch path held until resume
+        // swayidle before-sleep (qs-lock --sleep): pause every player (a resumed
+        // PipeWire plays on from the bag), lock, touch path held until resume
         function sleep(): string {
+            const paused = Player.pauseAll();
+            if (paused > 0)
+                console.info(`lock: sleep, ${paused} player(s) paused`);
             return locker.sleep();
         }
 
         function status(): string {
             return locker.statusJson();
-        }
-    }
-
-    // sway bindswitch lid:on / lid:off (lock/Idle.qml)
-    IpcHandler {
-        target: "lid"
-
-        function closed(): void {
-            idle.lidClosed();
-        }
-
-        function opened(): void {
-            idle.lidOpened();
         }
     }
 

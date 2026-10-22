@@ -112,9 +112,11 @@ remove_pkgs() {
 }
 
 update() {
-	# the idle ladder (lock/Idle.qml) and the power key sleep through logind,
-	# which honours the inhibitor; the lid does not (LidSwitchIgnoreInhibited=yes)
-	local inhibit=(systemd-inhibit --what=sleep --who=qs-pkg --why="package upgrade in progress")
+	# sleep: the idle ladder (lock/Idle.qml) and the power key go through logind,
+	# which honours it. handle-lid-switch: the lid skips sleep inhibitors
+	# (LidSwitchIgnoreInhibited=yes) but not this one, and logind sleeps a lid
+	# still shut the moment the upgrade ends.
+	local inhibit=(systemd-inhibit --what=sleep:handle-lid-switch --who=qs-pkg --why="package upgrade in progress")
 	# Arch news newer than the newest installed package: manual interventions
 	# are announced there and nowhere else
 	yay -Pw || true

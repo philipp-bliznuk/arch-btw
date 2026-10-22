@@ -17,7 +17,6 @@ Singleton {
             idleScreensaver: 900,
             idleLock: 1800,
             idleSuspend: 3600,
-            lidSuspend: 900,
             lockBlank: 10
         })
     property var data: ({})

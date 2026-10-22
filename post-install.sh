@@ -465,18 +465,21 @@ step_lock_pam() {
 	success "PAM services qs-lock-password and qs-lock-u2f written, faillock tally file created."
 }
 
-# Lid and power key. Closing the lid suspends, then hibernates, on battery and
-# on AC alike. With an external display attached logind counts the laptop as
-# docked, and then the lid only locks: swayidle relays logind's Lock signal to
-# qs-lock. The power key does what the lid does (logind's default is poweroff,
-# sway binds nothing, so one accidental press ended the session); a 5 s hold
-# powers off cleanly, the way out of a hung session (logind's default: ignore).
+# Lid and power key. logind owns the lid: shut and undocked it suspends, then
+# hibernates (HibernateDelaySec=1h, install.sh), on battery and on AC alike;
+# swayidle's before-sleep locks on the way down. Docked (an external display
+# connected and enabled, or a dock reporting its switch) it does nothing and
+# the idle ladder alone applies; logind re-checks that after every event while
+# the lid stays shut, so undocking a shut laptop sleeps it. The power key does
+# what the lid does (logind's default is poweroff, sway binds nothing, so one
+# accidental press ended the session); a 5 s hold powers off cleanly, the way
+# out of a hung session (logind's default: ignore).
 step_lid() {
 	sudo install -D -o root -g root -m 644 /dev/stdin /etc/systemd/logind.conf.d/00-lid.conf <<-'EOF'
 		# Written by post-install.sh (lid).
 		[Login]
-		# sway's bindswitch feeds the shell (pause players, lock, sleep 15 min later)
-		HandleLidSwitch=ignore
+		# undocked: sleep at once; docked (external display up): nothing
+		HandleLidSwitch=suspend-then-hibernate
 		HandleLidSwitchDocked=ignore
 		HandlePowerKey=suspend-then-hibernate
 		HandlePowerKeyLongPress=poweroff

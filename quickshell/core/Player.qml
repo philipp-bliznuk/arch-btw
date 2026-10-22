@@ -93,7 +93,7 @@ Singleton {
             player.togglePlaying();
     }
 
-    // Every playing player, not just the chosen one (lid close). Returns how
+    // Every playing player, not just the chosen one (before sleep). Returns how
     // many were asked to pause.
     function pauseAll() {
         const playing = players.filter(p => p.isPlaying && p.canPause);
