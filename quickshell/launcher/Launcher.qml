@@ -554,7 +554,6 @@ Scope {
     // ---- window -----------------------------------------------------------
 
     PanelWindow {
-        id: win
         visible: root.shown
         screen: SwayState.focusedScreen
         anchors { top: true; bottom: true; left: true; right: true }

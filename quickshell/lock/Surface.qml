@@ -74,7 +74,6 @@ WlSessionLockSurface {
         }
 
         Rectangle {
-            id: card
             anchors.horizontalCenter: parent.horizontalCenter
             width: 360
             height: Style.rowHeight + 4

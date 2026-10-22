@@ -12,7 +12,6 @@ Variants {
     model: Quickshell.screens
 
     PanelWindow {
-        id: host
         required property var modelData
         readonly property bool open: Popups.current !== "" && Popups.sameScreen(Popups.screen, modelData)
 

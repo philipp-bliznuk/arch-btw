@@ -14,8 +14,6 @@ import qs.core
 import qs.ui
 
 ShellRoot {
-    id: root
-
     Background {
         id: background
     }

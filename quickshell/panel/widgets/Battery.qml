@@ -115,7 +115,6 @@ Segment {
             // Lithium cells age fastest sitting at 100 %; 80 % roughly doubles
             // cycle life. Turn it off before travel to top up.
             Rectangle {
-                id: limitRow
                 visible: Power.limit.supported === true
                 width: parent.width
                 height: Style.rowHeight

@@ -75,7 +75,6 @@ Singleton {
     }
 
     Process {
-        id: inputProbe
         running: true
         command: ["swaymsg", "-t", "get_inputs"]
         stdout: StdioCollector {

@@ -91,7 +91,6 @@ Singleton {
     }
 
     Process {
-        id: gpuPmu
         command: ["/usr/local/bin/qs-gpu-busy", "5"]
         running: true
         stdout: SplitParser {

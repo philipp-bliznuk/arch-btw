@@ -28,7 +28,6 @@ Singleton {
     property var pacnew: []
 
     FileView {
-        id: flag
         path: "/run/reboot-required"
         watchChanges: true
         printErrors: false
@@ -38,7 +37,6 @@ Singleton {
     }
 
     FileView {
-        id: pacnewFlag
         path: "/var/lib/pacnew-pending"
         watchChanges: true
         printErrors: false

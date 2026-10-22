@@ -164,7 +164,6 @@ Singleton {
     }
 
     Process {
-        id: ppdProbe
         running: true
         command: ["busctl", "--system", "--no-pager", "status", "org.freedesktop.UPower.PowerProfiles"]
         onExited: (code, status) => root.profilesAvailable = code === 0 // qmllint disable signal-handler-parameters

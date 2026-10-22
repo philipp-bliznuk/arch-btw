@@ -72,7 +72,6 @@ Segment {
             spacing: Style.spaceSm
 
             Item {
-                id: hero
                 width: parent.width
                 height: 40
 

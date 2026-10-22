@@ -465,7 +465,6 @@ Scope {
     // here is readable. Only runs while locked; stopping it flushes a stray
     // line (SplitParser skips back-to-back newlines), hence the guards.
     Process {
-        id: fidoWatch
         running: root.requested
         command: ["udevadm", "monitor", "--udev", "--subsystem-match=hidraw"]
         stdout: SplitParser {

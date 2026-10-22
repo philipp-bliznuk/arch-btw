@@ -225,7 +225,6 @@ PopupCard {
     }
 
     component DeviceRow: ListRow {
-        id: dr
         required property var modelData
         property string kind: "device"
         readonly property bool current: kind === "device" ? modelData === root.sink : modelData === root.source
