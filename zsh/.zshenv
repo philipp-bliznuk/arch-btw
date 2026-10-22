@@ -10,10 +10,12 @@ export ZDOTDIR=${ZDOTDIR:-$XDG_CONFIG_HOME/zsh}
 # Set the list of directories that zsh searches for commands. go install
 # (install.sh ships go) puts binaries in the second to last one, uv tool
 # install in the one before (UV_TOOL_BIN_DIR: ~/.local/bin is the repo's bin/).
+# /usr/local/bin is in PATH already; listed so firecfg's wrappers there stay
+# ahead of anything uv or go install.
 export UV_TOOL_BIN_DIR=${UV_TOOL_BIN_DIR:-$XDG_DATA_HOME/uv/bin}
 path=(
-  $HOME/.local/{,s}bin(N)
-  /usr/local/{,s}bin(N)
+  $HOME/.local/bin(N)
+  /usr/local/bin(N)
   $UV_TOOL_BIN_DIR(N)
   $HOME/go/bin(N)
   $path
@@ -40,7 +42,3 @@ export SSH_AUTH_SOCK="${XDG_RUNTIME_DIR:-/run/user/$UID}/gnupg/S.gpg-agent.ssh"
 
 # Evalcache
 export ZSH_EVALCACHE_DIR="$XDG_CACHE_HOME/zsh/.zsh-evalcache"
-
-# Opencode
-export OPENCODE_ENABLE_EXA=1
-export OPENCODE_EXPERIMENTAL_LSP_TOOL=true

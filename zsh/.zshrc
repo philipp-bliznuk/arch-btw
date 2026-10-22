@@ -20,7 +20,6 @@ setopt hist_expire_dups_first hist_find_no_dups extended_history
 # zsh-vi-mode config (must be set before plugin loads)
 function zvm_config() {
   ZVM_KEYTIMEOUT=0.2
-  ZVM_ESCAPE_KEYTIMEOUT=0.03
 }
 
 # Clone antidote if missing.
