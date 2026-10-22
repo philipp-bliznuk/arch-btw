@@ -1,8 +1,10 @@
 '$schema' = 'https://jj-vcs.github.io/jj/latest/config-schema.json'
 
-[user]
-name = "Philipp Bliznuk"
-email = "philipp.bliznuk@gmail.com"
+# No [user] here: jj-identity copies the identity git resolves per remote into
+# each repo (jj clone, jj init), and a repo set up another way warns on every
+# command and cannot push until it is run there. signing.key stays global: an
+# empty key makes gpg fail (-u ""), which would abort a clone at its first
+# commit, before jj-identity can set the repo's own.
 
 [ui]
 default-command = "log"
@@ -31,3 +33,5 @@ auto-track-bookmarks = "*"
 [aliases]
 d = ["diff"]
 lg = ["log", "--limit", "20"]
+clone = ["util", "exec", "--", "jj-identity", "clone"]
+init = ["util", "exec", "--", "jj-identity", "init"]

@@ -118,7 +118,7 @@ keys/ssh/id_ed25519_pb   keys/ssh/id_ed25519_pb.pub
 keys/ssh/id_ed25519_gx   keys/ssh/id_ed25519_gx.pub
 ```
 
-`ic` = card identity (SSH key exported from card). `pb`/`gx` = on-disk. Git signing config comes from dotfiles `git/{pb,ic,gx}`, not the script.
+`ic` = card identity (SSH key exported from card). `pb`/`gx` = on-disk. Git signing config comes from dotfiles `git/{pb,ic,gx}`, not the script: `git/config` includes one of them per remote (`includeIf "hasconfig:remote.*.url:git@pb:**/**"` and so on), so a repo's identity follows where it pushes. jj has no such condition and no hooks, so `jj clone` and `jj init` (aliases in `jj/config.toml` over `jj util exec`) run `jj-identity`, which copies the three values git resolves into jj's per-repo config (`~/.config/jj/repos/<id>/config.toml`, keyed by `.jj/repo/config-id`; jj keeps it outside the repo since 0.38) and re-authors a fresh working-copy commit; `jj/config.toml` carries no `[user]` on purpose, so a repo set up any other way warns on every command and cannot push until `jj-identity` is run in it (`signing.key` stays global: an empty key makes gpg fail and would abort the clone at its first commit).
 
 ---
 
@@ -224,6 +224,7 @@ Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage
 | `qs-task CMD…`         | run CMD in a floating kitty window, `Done!`/`Failed` + Enter to close |
 | `qs-pkg MODE`          | `install` `aur` `remove` `update` `pacdiff` `pkgbuild PKG` - fzf package pickers; `update` prints Arch news (`yay -Pw`) and runs under `systemd-inhibit --what=sleep:handle-lid-switch` (the lid ignores plain sleep inhibitors, `LidSwitchIgnoreInhibited=yes`; logind sleeps a lid still shut once the upgrade ends); `pacdiff` merges pending `.pacnew` files (`pacdiff --sudo`) and rebuilds `/var/lib/pacnew-pending` |
 | `qs-wifi-prefer SSID`  | autoconnect-priority 10 for SSID's profile, 0 for other Wi-Fi profiles    |
+| `jj-identity`          | `clone SOURCE [DEST]` `init [DEST]`, or bare inside a repo - copies the identity git resolves for the remote (`user.name` `user.email` `user.signingkey`) into jj's per-repo config (`jj config path --repo`, `~/.config/jj/repos/<id>/config.toml`); behind the `jj clone` and `jj init` aliases, positional args only; a fresh `init` has no remote yet and says so |
 | `yay-git PKG…`         | build AUR packages from git (AUR, GitHub mirror fallback), AUR deps recursive |
 | `snap-restore`         | `list` `last` `N` `undo` `rebuild`, `--device DEV` from the ISO - root rollback to a snapper snapshot, UKIs rebuilt inside it (Recovery below) |
 
