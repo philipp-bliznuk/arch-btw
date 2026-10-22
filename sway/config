@@ -51,6 +51,14 @@ exec swayidle -w \
     before-sleep 'qs-lock --sleep' \
     after-resume 'swaymsg -q "output * power on"; qs-shell -q shell resume'
 
+# Lid: logind owns the switch (step lid), sway only folds the panel away.
+# Shut: eDP-1 off, its workspaces move to the external display (clamshell);
+# open: back, and the assignments below bring 1 and 4 home. Undocked the
+# panel is off for the second before sleep and back on wake. --reload
+# re-applies the state on a config reload, --locked works at the lock screen.
+bindswitch --reload --locked lid:on output eDP-1 disable
+bindswitch --reload --locked lid:off output eDP-1 enable
+
 ### Basics
 bindsym $mod+Return exec $term
 bindsym $mod+d exec $menu

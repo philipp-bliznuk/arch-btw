@@ -468,12 +468,13 @@ step_lock_pam() {
 # Lid and power key. logind owns the lid: shut and undocked it suspends, then
 # hibernates (HibernateDelaySec=1h, install.sh), on battery and on AC alike;
 # swayidle's before-sleep locks on the way down. Docked (an external display
-# connected and enabled, or a dock reporting its switch) it does nothing and
-# the idle ladder alone applies; logind re-checks that after every event while
-# the lid stays shut, so undocking a shut laptop sleeps it. The power key does
-# what the lid does (logind's default is poweroff, sway binds nothing, so one
-# accidental press ended the session); a 5 s hold powers off cleanly, the way
-# out of a hung session (logind's default: ignore).
+# connected and enabled, or a dock reporting its switch) it does nothing but
+# sway folds the panel away (sway/config bindswitch) and the idle ladder alone
+# applies; logind re-checks that after every event while the lid stays shut,
+# so undocking a shut laptop sleeps it. The power key does what the lid does
+# (logind's default is poweroff, sway binds nothing, so one accidental press
+# ended the session); a 5 s hold powers off cleanly, the way out of a hung
+# session (logind's default: ignore).
 step_lid() {
 	sudo install -D -o root -g root -m 644 /dev/stdin /etc/systemd/logind.conf.d/00-lid.conf <<-'EOF'
 		# Written by post-install.sh (lid).
