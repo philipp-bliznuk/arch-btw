@@ -159,7 +159,7 @@ function M.on_keys(spec, opts)
           vim.api.nvim_feedkeys(keys_to_feed, "m", false)
         end
       end)
-    end, { desc = desc, noremap = true, silent = true })
+    end, { desc = desc, silent = true })
   end
 end
 
@@ -169,6 +169,6 @@ vim.api.nvim_create_user_command("PackUpdate", function()
   vim.pack.update()
 end, { desc = "Update all vim.pack plugins" })
 
-vim.keymap.set("n", "<leader>pu", "<cmd>PackUpdate<CR>", { noremap = true, silent = true, desc = "Update plugins" })
+vim.keymap.set("n", "<leader>pu", "<cmd>PackUpdate<CR>", { silent = true, desc = "Update plugins" })
 
 return M
