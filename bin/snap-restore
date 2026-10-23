@@ -9,6 +9,8 @@
 #   undo     swap back the root replaced by the previous restore
 #   rebuild  only rebuild the UKIs from @ (after a failed restore or undo, or a broken initramfs)
 # The replaced root stays as @_replaced until the next restore (undo window).
+# Secure Boot on: a root without the key the firmware trusts (older than the
+# keys, or re-keyed since) is refused, its UKIs would not boot.
 # Live ISO: cryptsetup open /dev/<luks-part> cryptroot, then
 #   snap-restore --device /dev/mapper/cryptroot N
 set -Eeuo pipefail
@@ -123,6 +125,22 @@ rebuild_ukis() {
 # after the exchange in restore and undo alike: the ESP matches the other root
 readonly SWAPPED="Root swapped, the UKIs still match @_replaced: fix the cause, then snap-restore rebuild (undo swaps back)."
 
+# sb_ready ROOT NAME: with Secure Boot enforcing, the UKIs rebuilt inside ROOT
+# are signed by ROOT's own sbctl key (its mkinitcpio post hook), so that key
+# must be the one in the firmware's db, or nothing boots afterwards.
+hex() { od -An -tx1 -v "$@" | tr -d ' \n'; } # efivars: 4 attribute bytes, then the value
+sb_ready() {
+	local efivars=/sys/firmware/efi/efivars der
+	[[ "$(hex "$efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c" 2>/dev/null)" == ????????01 ]] || return 0
+	local pem="$1/var/lib/sbctl/keys/db/db.pem"
+	[[ -f $pem && -f $1/usr/lib/initcpio/post/sbctl ]] ||
+		die "$2 predates the Secure Boot keys: its UKIs would come out unsigned. Secure Boot off in firmware first, or a newer snapshot."
+	der="$(openssl x509 -in "$pem" -outform DER 2>/dev/null | hex)" && [[ -n $der ]] ||
+		die "$2: $pem is not a certificate, sbctl could not sign its UKIs. Secure Boot off in firmware first, or a newer snapshot."
+	hex "$efivars/db-d719b2cb-3d3a-4596-a3bc-dad00e67656f" | grep -qF "$der" ||
+		die "$2 holds a db key the firmware does not trust (re-keyed since?): its UKIs would not boot. Secure Boot off in firmware first, or a newer snapshot."
+}
+
 reboot_prompt() {
 	local ans
 	read -rp "Reboot now? [Y/n] " ans </dev/tty
@@ -138,6 +156,7 @@ restore() {
 		running_is "$top/@_replaced" && die "the running root is @_replaced (restore pending): reboot first, or undo"
 		echo "Also deletes the existing @_replaced (the previous restore's undo, or a copy left by an interrupted one)."
 	fi
+	sb_ready "$snap" "snapshot #$n"
 	confirm "Replace root (@) with snapshot #$n? The current root is kept as @_replaced."
 	if [[ -e $top/@_replaced ]]; then
 		btrfs subvolume delete --recursive "$top/@_replaced"
@@ -154,6 +173,7 @@ restore() {
 undo() {
 	[[ -e $top/@_replaced ]] || die "nothing to undo: no @_replaced"
 	echo "@_replaced is the root from before the last restore, or the unused copy of an interrupted one."
+	sb_ready "$top/@_replaced" "@_replaced"
 	confirm "Swap @ and @_replaced?"
 	mv -T --exchange "$top/@" "$top/@_replaced"
 	rebuild_ukis "$SWAPPED"
@@ -169,6 +189,7 @@ last)
 	;;
 undo) undo ;;
 rebuild)
+	sb_ready "$top/@" "@"
 	rebuild_ukis "UKIs unchanged."
 	echo "UKIs rebuilt from @."
 	;;

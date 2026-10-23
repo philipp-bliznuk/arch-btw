@@ -30,7 +30,7 @@ PACKAGES=(
 	mkinitcpio dbus-broker-units crun pipewire-jack          # explicit providers: initramfs, dbus-units, oci-runtime, jack
 	git openssh btrfs-progs dosfstools neovim networkmanager # openssh: client use, sshd.service never enabled
 	pipewire pipewire-pulse wireplumber
-	sudo zsh efibootmgr snapper snap-pac arch-install-scripts # arch-chroot: bin/snap-restore rebuilds the UKIs inside the restored root
+	sudo zsh efibootmgr sbctl snapper snap-pac arch-install-scripts # sbctl: Secure Boot keys, its mkinitcpio post hook signs every UKI built; arch-chroot: bin/snap-restore rebuilds the UKIs inside the restored root
 	apparmor chrony firejail xdg-dbus-proxy earlyoom ufw # xdg-dbus-proxy: without it firejail downgrades every dbus-user filter to allow
 	pacman-contrib
 	polkit mesa sway swaylock swayidle quickshell upower cmatrix
@@ -90,6 +90,14 @@ quiet_x() {
 }
 restore_x() { ((XTRACE_WAS_ON)) && set -x || true; }
 
+# SetupMode: 4 attribute bytes, then 1 = no Platform Key, so the firmware takes
+# new keys and verifies nothing yet (README, Step 0). Readable on the ISO and
+# inside the chroot (/sys is bind-mounted).
+_setup_mode() {
+	local v=/sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c
+	[[ -r $v && "$(od -An -tu1 -j4 -N1 "$v" | tr -d ' ')" == 1 ]]
+}
+
 on_error() {
 	local ec=$?
 	err "FAILED in step: ${CURRENT_STEP:-unknown} (exit $ec)"
@@ -119,7 +127,7 @@ step_preflight() {
 	# Captured, not piped: bootctl exits 1 on the ISO (no ESP yet) and pipefail
 	# would turn a matching grep into a pass.
 	if [[ "$(bootctl status 2>/dev/null || true)" == *"Secure Boot: enabled"* ]]; then
-		err "Secure Boot is enabled. Disable it in firmware (leave it off), then reboot the ISO."
+		err "Secure Boot is enforcing. Reset to Setup Mode in firmware (README, Step 0), then reboot the ISO."
 		exit 1
 	fi
 
@@ -230,6 +238,7 @@ _summary() {
    User pass   : $mask
    Root pass   : $mask
    FIDO2       : $( ((SKIP_FIDO2)) && echo 'skipped (--skip-fido2)' || echo 'enroll 2 keys')
+   Secure Boot : $(_setup_mode && echo 'Setup Mode - own keys enrolled' || echo 'not in Setup Mode - UKIs signed, enroll later')
   ---------------------------------------------
 
 EOF
@@ -383,6 +392,18 @@ step_chroot() {
 	success "Passwords set."
 }
 
+# Firmware entries straight to the UKIs (efibootmgr is on the ISO, sbctl is
+# not, so this is the one Secure Boot piece outside the chroot). Each new
+# entry goes to the head of BootOrder, so the LTS one is created first and
+# "Arch Linux" boots by default; F12 offers the other.
+step_boot_entries() {
+	if ! { efibootmgr -q -c -d "$DISK" -p 1 -L "Arch Linux LTS" -l '\EFI\BOOT\BOOTX64.EFI' &&
+		efibootmgr -q -c -d "$DISK" -p 1 -L "Arch Linux" -l '\EFI\Linux\arch-linux.efi' &&
+		efibootmgr | grep -E '^Boot(Order|[0-9A-F]{4}\* Arch Linux)'; }; then
+		warn "Boot entries not written (NVRAM full, or the firmware refused). Without them the firmware falls back to EFI/BOOT/BOOTX64.EFI, the LTS UKI; post-install step bootloader recreates both."
+	fi
+}
+
 step_dotfiles_clone() {
 	# runuser keeps HOME=/root → git EACCES on /root/.gitconfig; set HOME explicitly.
 	local home="/home/$USERNAME"
@@ -522,14 +543,11 @@ EOF
 	_write_system_config
 
 	rm -f /boot/initramfs-*.img # pacstrap built classic images with the stock preset
-	bootctl install
-	cat >/boot/efi/loader/loader.conf <<'EOF'
-default arch-linux.efi
-timeout 0
-EOF
-	mkdir -p /boot/efi/EFI/Linux
+	# No boot loader: the firmware runs the UKIs itself (entries: step_boot_entries).
+	mkdir -p /boot/efi/EFI/BOOT /boot/efi/EFI/Linux
 	mkinitcpio -p linux
 	mkinitcpio -p linux-lts
+	_secure_boot
 
 	sed -i 's/^ENABLED=no/ENABLED=yes/' /etc/ufw/ufw.conf # policies: /etc/default/ufw (INPUT DROP, OUTPUT ACCEPT)
 	grep -q '^ENABLED=yes' /etc/ufw/ufw.conf || {
@@ -539,7 +557,6 @@ EOF
 	systemctl enable NetworkManager apparmor earlyoom chronyd systemd-resolved upower power-profiles-daemon ufw
 	systemctl enable linux-modules-cleanup.service # drops the modules kernel-modules-hook kept for the previous kernel
 	systemctl mask sshd-unix-local.socket # systemd-ssh-generator starts it on every boot once sshd is installed (AF_UNIX, password stack)
-	systemctl enable systemd-boot-update.service # no pacman hook for systemd-boot on Arch
 	systemctl enable snapper-timeline.timer snapper-cleanup.timer
 	systemctl enable fstrim.timer paccache.timer
 
@@ -568,7 +585,10 @@ EOF
 }
 
 _write_presets() {
+	# The LTS UKI sits at the removable-media path a firmware tries with no
+	# entry at all (F12 picks it by name otherwise); the main one is the default entry.
 	local k
+	local -A uki=([linux]="/boot/efi/EFI/Linux/arch-linux.efi" [linux-lts]="/boot/efi/EFI/BOOT/BOOTX64.EFI")
 	for k in linux linux-lts; do
 		cat >"/etc/mkinitcpio.d/${k}.preset" <<EOF
 ALL_config="/etc/mkinitcpio.conf"
@@ -576,9 +596,28 @@ ALL_kver="/boot/vmlinuz-${k}"
 
 PRESETS=('default')
 
-default_uki="/boot/efi/EFI/Linux/arch-${k}.efi"
+default_uki="${uki[$k]}"
 EOF
 	done
+}
+
+# Keys for this machine alone: the firmware will trust nothing else, Microsoft's
+# included. Created after the builds so `sign -s` records both UKIs in sbctl's
+# database (an already signed file is skipped before the database write); from
+# here on the mkinitcpio post hook signs every rebuild. Enrolling needs Setup
+# Mode; without it the system boots with Secure Boot off until enrolled.
+_secure_boot() {
+	sbctl create-keys
+	sbctl sign -s /boot/efi/EFI/Linux/arch-linux.efi
+	sbctl sign -s /boot/efi/EFI/BOOT/BOOTX64.EFI
+	ESP_PATH=/boot/efi sbctl verify || warn "sbctl verify failed to list the ESP; run sbctl verify after the first boot."
+	_setup_mode || {
+		warn "Firmware not in Setup Mode: keys not enrolled. Later: Reset to Setup Mode, boot, sudo sbctl enroll-keys -i (README, Recovery)."
+		return 0
+	}
+	# Never --microsoft (the point) and never --yes-this-might-brick-my-machine:
+	# sbctl stops when the TPM event log shows an option ROM the keys would lock out.
+	sbctl enroll-keys -i || warn "Keys not enrolled (see above): Secure Boot stays off until sudo sbctl enroll-keys -i succeeds; an option ROM in the TPM event log takes -i --tpm-eventlog (README, Recovery)."
 }
 
 _write_system_config() {
@@ -706,6 +745,7 @@ main_live() {
 	step_fido2 # interactive - outside run_step
 	run_step step_pacstrap
 	run_step step_chroot
+	run_step step_boot_entries
 	run_step step_dotfiles_clone
 	step_finish # interactive - outside run_step
 }

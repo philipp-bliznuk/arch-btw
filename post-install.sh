@@ -159,33 +159,71 @@ trap on_error ERR
 step_bootloader() {
 	sudo bootctl status || true
 
-	# Stale NVRAM entries = "Linux Boot Manager" entries whose partuuid ≠ the mounted ESP.
 	local esp_uuid
 	esp_uuid="$(findmnt -no PARTUUID /boot/efi || true)"
-
-	if [[ -n "$esp_uuid" ]]; then
-		info "Current ESP partuuid: $esp_uuid"
-		local line id part have_current=0
-		while IFS= read -r line; do
-			id="$(grep -oE 'Boot[0-9A-Fa-f]{4}' <<<"$line" | sed 's/Boot//' || true)"
-			part="$(grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' <<<"$line" | head -1 || true)"
-			[[ -n "$id" && -n "$part" ]] || continue
-			if [[ "${part,,}" != "${esp_uuid,,}" ]]; then
-				warn "Stale entry $id (partuuid $part):"
-				printf '  %s\n' "$line"
-				confirm "Delete boot entry $id?" && sudo efibootmgr -b "$id" -B
-			else
-				have_current=1
-			fi
-		done < <(sudo efibootmgr -v | grep -iE 'Linux Boot Manager|Fallback' || true)
-
-		if ((! have_current)); then
-			warn "No NVRAM entry points at the current ESP - re-running bootctl install."
-			sudo bootctl install
-		fi
-	else
+	if [[ -z "$esp_uuid" ]]; then
 		warn "Could not read the ESP partuuid - inspect \`efibootmgr\` manually."
+	else
+		info "Current ESP partuuid: $esp_uuid"
+		_sync_boot_entries "$esp_uuid"
 	fi
+	_check_secure_boot
+}
+
+# Stale NVRAM entries = ours whose partuuid ≠ the mounted ESP (a reinstall
+# makes new partitions; the old entries stay in the firmware). The current
+# ones must be the two UKI entries install.sh makes; anything else (one
+# missing after a refused NVRAM write, an old Linux Boot Manager) is replaced
+# in the same order, so Arch Linux stays the default.
+_sync_boot_entries() {
+	local esp_uuid="$1" line id part have_main=0 have_lts=0 current=()
+	while IFS= read -r line; do
+		id="$(grep -oE 'Boot[0-9A-Fa-f]{4}' <<<"$line" | sed 's/Boot//' || true)"
+		part="$(grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' <<<"$line" | head -1 || true)"
+		[[ -n "$id" && -n "$part" ]] || continue
+		if [[ "${part,,}" != "${esp_uuid,,}" ]]; then
+			warn "Stale entry $id (partuuid $part):"
+			printf '  %s\n' "$line"
+			confirm "Delete boot entry $id?" && sudo efibootmgr -b "$id" -B
+			continue
+		fi
+		current+=("$id")
+		case $line in
+			*"* Arch Linux LTS"$'\t'*'\EFI\BOOT\BOOTX64.EFI'*) have_lts=1 ;;
+			*"* Arch Linux"$'\t'*'\EFI\Linux\arch-linux.efi'*) have_main=1 ;;
+		esac
+	done < <(sudo efibootmgr -v | grep -iE 'Arch Linux|Linux Boot Manager' || true)
+
+	((have_main && have_lts)) && return 0
+	warn "NVRAM does not hold both UKI entries for this ESP - recreating them."
+	for id in "${current[@]}"; do sudo efibootmgr -q -b "$id" -B; done
+	_create_boot_entries
+}
+
+_efi_byte() { od -An -tu1 -j4 -N1 "/sys/firmware/efi/efivars/$1-8be4df61-93ca-11d2-aa0d-00e098032b8c" 2>/dev/null | tr -d ' '; }
+
+# install.sh enrolls the keys only when the firmware is in Setup Mode; any
+# other state at first boot means signed UKIs that nothing verifies yet.
+_check_secure_boot() {
+	if [[ "$(_efi_byte SetupMode)" == 1 ]]; then
+		warn "Firmware in Setup Mode, keys not enrolled: sudo sbctl enroll-keys -i, then reboot."
+	elif [[ "$(_efi_byte SecureBoot)" != 1 ]]; then
+		warn "Secure Boot is off: F1 → Security → Secure Boot → On. A Secure Boot Violation after that means the keys are not in: Reset to Setup Mode, boot, sudo sbctl enroll-keys -i (README, Recovery)."
+	else
+		success "Secure Boot enforcing."
+	fi
+}
+
+# The firmware boots the UKIs directly; same two entries, same order as
+# install.sh (the last one created boots by default).
+_create_boot_entries() {
+	local esp disk partno
+	esp="$(findmnt -no SOURCE /boot/efi)"
+	disk="/dev/$(lsblk -no PKNAME "$esp")"
+	partno="$(cat "/sys/class/block/${esp##*/}/partition")"
+	sudo efibootmgr -q -c -d "$disk" -p "$partno" -L "Arch Linux LTS" -l '\EFI\BOOT\BOOTX64.EFI'
+	sudo efibootmgr -q -c -d "$disk" -p "$partno" -L "Arch Linux" -l '\EFI\Linux\arch-linux.efi'
+	efibootmgr | grep -E '^Boot(Order|[0-9A-F]{4}\* Arch Linux)'
 }
 
 step_network() {
