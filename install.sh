@@ -22,6 +22,7 @@ readonly KEYMAP="us"
 readonly TIMEZONE_ROOT="/usr/share/zoneinfo"
 readonly DOTFILES_HTTPS="https://github.com/philipp-bliznuk/arch-btw.git"
 readonly LOG_FILE="/root/arch-install.log"
+readonly TPM_EVENTLOG="/sys/kernel/security/tpm0/binary_bios_measurements"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 
@@ -98,6 +99,13 @@ _setup_mode() {
 	[[ -r $v && "$(od -An -tu1 -j4 -N1 "$v" | tr -d ' ')" == 1 ]]
 }
 
+# What _secure_boot will get to, for the summary.
+_sb_plan() {
+	_setup_mode || { echo 'not in Setup Mode - UKIs signed, enroll later'; return 0; }
+	[[ -e $TPM_EVENTLOG ]] || { echo 'no TPM event log - UKIs signed, enroll later'; return 0; }
+	echo 'Setup Mode - own keys enrolled'
+}
+
 on_error() {
 	local ec=$?
 	err "FAILED in step: ${CURRENT_STEP:-unknown} (exit $ec)"
@@ -130,6 +138,11 @@ step_preflight() {
 		err "Secure Boot is enforcing. Reset to Setup Mode in firmware (README, Step 0), then reboot the ISO."
 		exit 1
 	fi
+	# sbctl enroll-keys reads the TPM event log for option ROMs the keys would
+	# lock out and refuses without one (TPM off in firmware): keys and signed
+	# UKIs still happen, enrollment does not.
+	[[ -e $TPM_EVENTLOG ]] ||
+		warn "No TPM event log: the Secure Boot keys will not be enrolled. TPM on in firmware (README, Step 0) for an enforcing install."
 
 	timedatectl set-ntp true
 
@@ -239,7 +252,7 @@ _summary() {
    User pass   : $mask
    Root pass   : $mask
    FIDO2       : $( ((SKIP_FIDO2)) && echo 'skipped (--skip-fido2)' || echo 'enroll 2 keys')
-   Secure Boot : $(_setup_mode && echo 'Setup Mode - own keys enrolled' || echo 'not in Setup Mode - UKIs signed, enroll later')
+   Secure Boot : $(_sb_plan)
   ---------------------------------------------
 
 EOF
@@ -618,7 +631,7 @@ _secure_boot() {
 	}
 	# Never --microsoft (the point) and never --yes-this-might-brick-my-machine:
 	# sbctl stops when the TPM event log shows an option ROM the keys would lock out.
-	sbctl enroll-keys -i || warn "Keys not enrolled (see above): Secure Boot stays off until sudo sbctl enroll-keys -i succeeds; an option ROM in the TPM event log takes -i --tpm-eventlog (README, Recovery)."
+	sbctl enroll-keys -i || warn "Keys not enrolled (see above): Secure Boot stays off until sudo sbctl enroll-keys -i succeeds. No TPM event log means the chip is off (README, Step 0); an option ROM in it takes -i --tpm-eventlog (README, Recovery)."
 }
 
 _write_system_config() {

@@ -17,6 +17,7 @@ Firmware setup, once (F1 at power-on on a ThinkPad), in this order:
 
 1. **Security → Password → Supervisor Password**: set one, store it in the password manager. It is what keeps someone with the device from turning Secure Boot off or resetting its keys. It survives BIOS flashes; lost, the firmware setup is shut for good while the machine keeps booting.
 2. **Security → Secure Boot**: `Secure Boot` **On**, then **Reset to Setup Mode** (not Clear All Secure Boot Keys, not Restore Factory Keys). Setup Mode means no Platform Key: the firmware takes new keys and verifies nothing until it has them, so the unsigned ISO boots and `install.sh` enrolls the machine's own keys (Step 1). With the toggle already On, the first boot after enrollment enforces.
+3. **Security → Security Chip**: on (the default). `sbctl enroll-keys` reads the TPM's event log for the option ROMs the firmware ran (hardware the new keys would lock out) and refuses without one: keys made, UKIs signed, nothing enrolled until the chip is on and `sudo sbctl enroll-keys -i` runs. `install.sh` says so before its prompts.
 
 Download ISO + `sha256sums.txt` from [archlinux.org/download](https://archlinux.org/download/).
 
@@ -64,7 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/philipp-bliznuk/arch-btw/master/ins
 bash install.sh                         # not curl | bash - needs a tty for prompts
 ```
 
-Prompts, in order: disk (wiped), timezone (`Europe/Berlin`), username, LUKS passphrase, user password, root password (each twice). Summary → type `YES`. Its `Secure Boot` line reads the firmware: `Setup Mode - own keys enrolled`, or `not in Setup Mode - UKIs signed, enroll later` (the command is under Recovery). An enforcing firmware stops the script before the prompts: the new keys could never get in.
+Prompts, in order: disk (wiped), timezone (`Europe/Berlin`), username, LUKS passphrase, user password, root password (each twice). Summary → type `YES`. Its `Secure Boot` line reads the firmware: `Setup Mode - own keys enrolled`, `not in Setup Mode - UKIs signed, enroll later`, or `no TPM event log - UKIs signed, enroll later` (Step 0, item 3; the command is under Recovery). An enforcing firmware stops the script before the prompts: the new keys could never get in.
 
 FIDO2 enrollment pauses twice, right after `YES` (disk wiped and LUKS formatted, before pacstrap): `Insert YubiKey #1 ONLY (remove the other), then Enter`, then key #2.
 
