@@ -156,11 +156,12 @@ prompt_inputs() {
 	CURRENT_STEP="prompt_inputs"
 	info "Available disks:"
 	# Hide loop and sr devices, the stick the ISO runs from, and empty card
-	# readers (0B). For a partition PKNAME,NAME yields the disk first, for a
-	# whole-disk source PKNAME is empty and NAME takes the slot.
+	# readers (0B). bootmnt is that stick, one of its partitions, or Ventoy's
+	# device-mapper image of the ISO on it: the inverse tree ends at the disk
+	# in every case.
 	local iso_src iso_disk=""
 	iso_src="$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null || true)"
-	[[ -b "$iso_src" ]] && iso_disk="/dev/$(lsblk -no PKNAME,NAME "$iso_src" | awk '{print $1; exit}')"
+	[[ -b "$iso_src" ]] && iso_disk="$(lsblk -slpno NAME "$iso_src" | tail -1)"
 	mapfile -t _disks < <(lsblk -dpno NAME,SIZE,MODEL -e 7,11 | awk -v skip="$iso_disk" '$1 != skip && $2 != "0B"')
 	[[ ${#_disks[@]} -gt 0 ]] || {
 		err "No target disk found."
