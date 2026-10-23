@@ -36,22 +36,23 @@ fzf_pick() {
 }
 
 aur_up() {
-	curl -sf --connect-timeout 5 --retry 1 \
+	curl -sf --connect-timeout 5 --max-time 15 --retry 1 \
 		'https://aur.archlinux.org/rpc/?v=5&type=info&arg=base' >/dev/null
 }
 
 fetch_pkgbuild() {
 	# $1 = pkgbase, $2 = destination. GitLab answers 302 (login page) for
-	# unknown repos, which curl -f lets through, so check the status code.
+	# unknown repos, which curl -f lets through, so check the status code. A
+	# transfer cut by --max-time has written part of $2: remove it as well.
 	local code
-	code="$(curl -s --connect-timeout 5 -o "$2" -w '%{http_code}' \
-		"https://gitlab.archlinux.org/archlinux/packaging/packages/$1/-/raw/main/PKGBUILD")" || return 1
+	code="$(curl -s --connect-timeout 5 --max-time 15 -o "$2" -w '%{http_code}' \
+		"https://gitlab.archlinux.org/archlinux/packaging/packages/$1/-/raw/main/PKGBUILD")" || { rm -f "$2"; return 1; }
 	[[ "$code" == 200 ]] || { rm -f "$2"; return 1; }
 }
 
 pkgbase_of() {
 	# pacman -Sii has no pkgbase field; ask archlinux.org (only hit on a miss)
-	curl -sf --connect-timeout 5 "https://archlinux.org/packages/search/json/?name=$1" |
+	curl -sf --connect-timeout 5 --max-time 15 "https://archlinux.org/packages/search/json/?name=$1" |
 		jq -r '.results[0].pkgbase // empty' 2>/dev/null
 }
 

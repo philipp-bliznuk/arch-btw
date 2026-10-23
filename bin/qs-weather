@@ -15,7 +15,7 @@ rm -f "$out".?????? # tmp files orphaned by a kill mid-fetch
 tmp=""
 trap '[[ -n "$tmp" ]] && rm -f "$tmp"' EXIT # failed fetch must not leave a partial file
 
-fetch() { curl -fsSL --max-time 10 --retry 2 "$@"; }
+fetch() { curl -fsS --max-time 10 --retry 2 "$@"; } # no -L: none of the APIs redirects
 
 geocode() { # NAME → {name,latitude,longitude} or empty
 	fetch "https://geocoding-api.open-meteo.com/v1/search?name=$(jq -rn --arg q "$1" '$q|@uri')&count=1&language=en" |
