@@ -523,12 +523,9 @@ chroot_phase() {
 	locale-gen
 	echo "LANG=$LOCALE" >/etc/locale.conf
 
+	# No /etc/hosts entries: nss-myhostname and resolved answer for localhost
+	# and the hostname (nsswitch: resolve [!UNAVAIL=return] files myhostname).
 	echo "$HOSTNAME" >/etc/hostname
-	cat >/etc/hosts <<EOF
-127.0.0.1   localhost
-::1         localhost
-127.0.1.1   ${HOSTNAME}.localdomain ${HOSTNAME}
-EOF
 
 	# No swapon here - active swap would block the final umount.
 	btrfs filesystem mkswapfile --uuid clear --size "${SWAP_GB}G" /swap/swapfile
@@ -705,7 +702,8 @@ EOF
 HibernateDelaySec=1h
 EOF
 
-	# Non-Mono variant on purpose - Mono clips icons.
+	# Non-Mono variant on purpose - Mono clips icons. sans-serif and serif
+	# already resolve to Noto Sans and Noto Serif (fontconfig's 60-latin.conf).
 	cat >/etc/fonts/local.conf <<'EOF'
 <?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
@@ -713,14 +711,6 @@ EOF
   <alias>
     <family>monospace</family>
     <prefer><family>JetBrainsMono Nerd Font</family></prefer>
-  </alias>
-  <alias>
-    <family>sans-serif</family>
-    <prefer><family>Noto Sans</family></prefer>
-  </alias>
-  <alias>
-    <family>serif</family>
-    <prefer><family>Noto Serif</family></prefer>
   </alias>
 </fontconfig>
 EOF
