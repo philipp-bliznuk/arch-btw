@@ -675,10 +675,14 @@ polkit.addRule(function (action, subject) {
 });
 EOF
 
+	# Both Quad9 addresses (one operator, one anycast prefix failing is still
+	# covered). ~. routes every name there; the link's resolver is asked only
+	# for names under a DHCP search domain, and over TLS as well. The
+	# captive-portal cost and its hatch are in the README (Baked in).
 	mkdir -p /etc/systemd/resolved.conf.d
 	cat >/etc/systemd/resolved.conf.d/00-quad9.conf <<'EOF'
 [Resolve]
-DNS=9.9.9.9#dns.quad9.net
+DNS=9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net
 DNSOverTLS=yes
 Domains=~.
 LLMNR=no
