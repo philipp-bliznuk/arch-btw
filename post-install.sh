@@ -517,9 +517,9 @@ step_lid() {
 	sudo install -D -o root -g root -m 644 /dev/stdin /etc/systemd/logind.conf.d/00-lid.conf <<-'EOF'
 		# Written by post-install.sh (lid).
 		[Login]
-		# undocked: sleep at once; docked (external display up): nothing
+		# undocked: sleep at once; docked (external display up): nothing,
+		# logind's default for HandleLidSwitchDocked
 		HandleLidSwitch=suspend-then-hibernate
-		HandleLidSwitchDocked=ignore
 		HandlePowerKey=suspend-then-hibernate
 		HandlePowerKeyLongPress=poweroff
 	EOF
@@ -597,6 +597,9 @@ EOF
 defaultPref("dom.security.https_only_mode.upgrade_local", false);
 defaultPref("network.http.referer.XOriginPolicy", 2);
 defaultPref("media.autoplay.blocking_policy", 2);
+// LibreWolf's compiled default (StaticPrefs, lw-staticprefs.patch) is true:
+// a site asking for WebGL gets only the URL-bar icon and stays blocked until
+// that is clicked. false shows the doorhanger, so the question is visible.
 defaultPref("librewolf.webgl.prompt.hide", false);
 // Hardware video decode via VA-API (intel-media-driver / libva-mesa-driver).
 // AV1 off: pre-Tiger-Lake iGPUs lack an AV1 decoder, and sites pick AV1 when
@@ -698,8 +701,6 @@ step_theme() {
 	gsettings set "$iface" color-scheme prefer-dark
 	gsettings set "$iface" font-name 'Adwaita Sans 10'
 	gsettings set "$iface" monospace-font-name 'JetBrainsMono Nerd Font Mono 10'
-	gsettings set "$iface" icon-theme Adwaita
-	gsettings set "$iface" cursor-theme Adwaita
 	success "GTK theme set (adw-gtk3-dark, prefer-dark); Qt follows via QT_QPA_PLATFORMTHEME=qt6ct from .zprofile."
 }
 
