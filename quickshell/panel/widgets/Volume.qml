@@ -27,8 +27,8 @@ Segment {
         objects: root.node ? [root.node] : []
     }
 
-    onClicked: m => {
-        if (m.button === Qt.RightButton && node && node.audio)
+    onRightClicked: {
+        if (node && node.audio)
             node.audio.muted = !node.audio.muted;
     }
 

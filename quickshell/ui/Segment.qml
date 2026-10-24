@@ -28,7 +28,9 @@ Rectangle {
     property alias content: extra.data
     readonly property bool hovered: hover.hovered
 
-    signal clicked(var mouse)
+    // Left button only; right-click is opt-in via rightClicked.
+    signal clicked
+    signal rightClicked
 
     implicitHeight: Style.segmentHeight
     implicitWidth: row.implicitWidth + Style.segmentPadX * 2
@@ -49,8 +51,8 @@ Rectangle {
     MouseArea {
         z: -1
         anchors.fill: parent
-        acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
-        onClicked: m => root.clicked(m)
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onClicked: m => m.button === Qt.RightButton ? root.rightClicked() : root.clicked()
     }
 
     HoverHandler {

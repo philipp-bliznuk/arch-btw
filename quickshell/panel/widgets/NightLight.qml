@@ -9,10 +9,6 @@ Segment {
     icon: Icons.nightlight
     iconColor: on ? Theme.peach : Theme.overlay1
     tooltip: "right-click: auto " + (Sun.auto ? "off" : "on")
-    onClicked: m => {
-        if (m.button === Qt.RightButton)
-            Settings.set("nightLightAuto", !Sun.auto);
-        else
-            Toggles.flip("nightlight");
-    }
+    onClicked: Toggles.flip("nightlight")
+    onRightClicked: Settings.set("nightLightAuto", !Sun.auto)
 }

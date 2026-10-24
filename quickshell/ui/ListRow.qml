@@ -22,7 +22,7 @@ Rectangle {
     property bool dim: false
     readonly property bool hovered: hover.hovered
 
-    signal clicked(var mouse)
+    signal clicked
 
     width: parent ? parent.width : implicitWidth
     implicitWidth: layout.implicitWidth + Style.spaceMd * 2
@@ -38,8 +38,8 @@ Rectangle {
     MouseArea {
         z: -1
         anchors.fill: parent
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
-        onClicked: m => root.clicked(m)
+        acceptedButtons: Qt.LeftButton
+        onClicked: root.clicked()
     }
 
     RowLayout {
