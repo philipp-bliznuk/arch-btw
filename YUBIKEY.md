@@ -4,7 +4,7 @@ Two YubiKey 5-series, wiped and rebuilt so **either works everywhere**. Done on 
 
 - FIDO2 is non-cloneable → register **both** keys on **every** account.
 - GPG/SSH is cloned → **same** subkeys on both cards → zero reconfiguration on swap. Can't revoke one without the other.
-- OATH-TOTP is per-key → enroll the same seed on each (~32 slots per key).
+- OATH-TOTP is per-key → enroll the same seed on each (32 slots per key, 64 from firmware 5.7).
 
 Order: Part 0 extract → Part A key #1 → Part B key #2 → Part C register. No account touched until both keys are built.
 
@@ -37,7 +37,7 @@ Linux asks for two unrelated PINs. Typing one at the other's prompt burns a retr
 | Prompt                                                            | PIN                       | Retries                                                          | Exhausted                                                             |
 | ----------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------- |
 | Boot (LUKS), `install.sh` enrollment, `pamu2fcfg`, WebAuthn       | FIDO2 PIN (#4)            | 8 in total; 3 wrong in a row block the applet until replug       | FIDO2 applet wiped → `ykman fido reset`, [Recovery](#recovery)        |
-| `gpg`, `ssh` (pinentry), `keytocard`, `gpg --card-edit` admin     | OpenPGP User / Admin (#2, #3) | 8 each after A4 (`set-retries 8 8 8`; factory 3)             | User: `ykman openpgp access unblock-pin` (Admin PIN). Admin: applet wiped |
+| `gpg`, `ssh` (pinentry), `keytocard`, `gpg --card-edit` admin     | OpenPGP User / Admin (#2, #3) | 8 each after A4 (`set-retries 8 8 8`; factory 3)             | User: `ykman openpgp access unblock-pin -a -` (Admin PIN). Admin: applet wiped |
 
 Counters: `fido2-token -I $(fido2-token -L | head -1 | cut -d: -f1)` → `pin retries`; `ykman openpgp info` → `PIN tries remaining`. A correct entry resets its counter.
 
@@ -153,7 +153,7 @@ max-cache-ttl 604800       # absolute
 
 `~/.gnupg/scdaemon.conf`: `disable-ccid` and `pcsc-shared` (scdaemon goes through pcscd and leaves the reader to ykman).
 
-- pinentry only gates **on-disk** key passphrases; the card enforces its own PIN + touch.
+- pinentry asks for on-disk key passphrases and for the card PIN; the card verifies the PIN and wants the touch itself.
 - PIN cache lives in gpg-agent RAM, cleared on reboot / logout / `gpgconf --kill gpg-agent` / unplug.
 - The agent's sockets are static (`gpg-agent.socket`, `gpg-agent-ssh.socket`, under `$XDG_RUNTIME_DIR/gnupg`): `zsh/.zshenv` sets `SSH_AUTH_SOCK` to that path, `.zshrc` exports `GPG_TTY`.
 
@@ -245,11 +245,12 @@ ykman openpgp access change-pin              # SAME as key #1
 ## B3 - Clone subkeys
 
 ```zsh
-gpg --delete-secret-keys <key-id>            # drops on-disk stubs only; key #1 untouched
+gpg --delete-secret-keys <key-id>            # drops the stubs and the on-disk primary (kept in primary-and-subkeys.asc); key #1 untouched
 gpg --import subkeys-only.asc
 gpg --list-secret-keys --keyid-format long   # plain ssb, not ssb# / ssb>
 gpg --expert --edit-key <key-id>
-# key 1 → keytocard → 1 ; key 2 → keytocard → 2 ; key 3 → keytocard → 3 ; save
+# key 1 → keytocard → 1 → key 1 ; key 2 → keytocard → 2 → key 2 ; key 3 → keytocard → 3 → key 3 ; save
+# (key N toggles the selection; keytocard wants exactly one selected, as in A5)
 ykman openpgp keys set-touch sig cached
 ykman openpgp keys set-touch dec cached
 ykman openpgp keys set-touch aut cached
@@ -275,7 +276,7 @@ echo test | gpg --clearsign
 # Part C - Register
 
 - **C1 FIDO2**: every security-key account (GitHub, AWS, Google, Auth0, password manager) - add key #1, then key #2. Name them `yubikey-1` / `yubikey-2`.
-- **C2 Card TOTP**: top-value TOTP-only accounts → `ykman oath accounts uri '<otpauth URI>'`, same seed on both keys, one sitting. ~32 slots.
+- **C2 Card TOTP**: top-value TOTP-only accounts → `ykman oath accounts uri '<otpauth URI>'`, same seed on both keys, one sitting. 32 slots, 64 from firmware 5.7.
 - **C3 App TOTP**: everything else → authenticator app. Not the password manager.
 - **C4 Recovery codes**: fresh set per account, printed, offline.
 - Remove the temporary 2FA from Part 0.
@@ -286,7 +287,7 @@ echo test | gpg --clearsign
 
 - FIDO2 PIN blocked (3 wrong in a row): replug, the remaining retries continue.
 - FIDO2 applet wiped (8 wrong) or a key lost: boot with the LUKS passphrase (keyslot 0, prompted 30 s after boot with no key). On the key: `ykman fido reset` (ykman says when to replug and touch), `ykman fido access change-pin` (same PIN as the other key). LUKS: `sudo systemd-cryptenroll --wipe-slot=fido2 --fido2-device=auto --fido2-with-client-pin=yes /dev/<luks-partition>` with the first key plugged (drops every FIDO2 slot, enrolls this key), then the same without `--wipe-slot` for the second key. login / sudo / polkit / lock screen: `post-install.sh --redo yubikey_pam` re-enrolls both keys into `/etc/u2f_mappings`. WebAuthn registrations of a reset key are gone: Part C again for that key.
-- OpenPGP User PIN blocked: `ykman openpgp access unblock-pin` (Admin PIN). Admin PIN blocked: applet wiped; A4 + A5 again from the offline primary (the other card keeps working meanwhile).
+- OpenPGP User PIN blocked: `ykman openpgp access unblock-pin -a -` (Admin PIN; without `-a` it asks for the unset Reset Code). Admin PIN blocked: applet wiped; `ykman openpgp reset`, then A4 and B3 again from `subkeys-only.asc` with only that key plugged (the same subkeys, so both cards stay interchangeable; the other card keeps working meanwhile).
 - `/etc/u2f_mappings` or PAM broken: `login`, `sudo` and polkit fall through to the password (`sufficient`), `su` never had `pam_u2f`.
 
 ---
