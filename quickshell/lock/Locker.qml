@@ -17,10 +17,12 @@ import qs.core
 // Never bind on sessionLock.locked: unlock() does not emit its change signal.
 //
 // A pending pam_u2f child is never killed: the token keeps the assertion
-// it was asked for until its own ~29 s touch timeout and answers "busy"
-// meanwhile, so an unlock by password leaves the child waiting (a lock
-// within that window reuses it, a touch then unlocks at once) and failures
-// only slow the retries down, never stop them.
+// it was asked for until its own ~29 s touch timeout, queues later requests
+// behind it and gives the next touch to the oldest (measured), so a killed
+// child would only turn into a touch that goes nowhere. An unlock by
+// password leaves the child waiting (a lock within that window reuses it,
+// a touch then unlocks at once) and failures only slow the retries down,
+// never stop them.
 Scope {
     id: root
 
@@ -59,7 +61,7 @@ Scope {
         if (u2fFastFails >= 6)
             return "YubiKey not accepted, still retrying";
         if (u2fFastFails > 0)
-            return "YubiKey busy, retrying";
+            return "YubiKey not ready, retrying";
         return fidoPresent ? "Touch YubiKey or enter password" : "Enter password";
     }
 
@@ -88,8 +90,8 @@ Scope {
     // then the lid) has its success dropped (u2f.onCompleted): the ~0.5 s
     // between this call and the freeze is exactly when a hand shutting the
     // lid brushes the key. Not aborted: no CTAP cancel would reach the token,
-    // and a stale assertion blocks new ones with fast "busy" failures after
-    // the wake; a request that survived S3 completes on the next touch. The
+    // and a stale assertion would take the next touch after the wake; a
+    // request that survived S3 completes on the next touch. The
     // password path is untouched. Set after lock(): engage() clears the
     // per-lock state.
     function sleep(): string {
@@ -176,7 +178,8 @@ Scope {
     }
 
     // Only the password context is ever aborted: a killed pam_u2f child
-    // leaves the token busy with the assertion it was asked for.
+    // leaves the token holding the assertion it was asked for, and the next
+    // touch would go to it.
     function abortPassword() {
         if (password.active)
             password.abort();
@@ -258,9 +261,10 @@ Scope {
             u2fEnded(PamResult.Error);
     }
 
-    // A fast failure means the token answered without waiting for a touch:
-    // busy with an earlier assertion, not yet readable (uaccess ACL), or a
-    // token that is not enrolled. Retries slow down to 5 s but never stop.
+    // A fast failure means pam_u2f gave up without waiting for a touch: the
+    // token not yet readable (uaccess ACL) or not enrolled. One holding an
+    // earlier assertion queues the request instead (measured), so that is not
+    // among the causes. Retries slow down to 5 s but never stop.
     function u2fEnded(result: int) {
         const elapsed = Date.now() - u2fStartedAt;
         const fast = elapsed < 2000;
@@ -373,10 +377,11 @@ Scope {
 
     // pam_u2f blocks until the key is touched or the token's own ~29 s
     // timeout passes, then fails; start it again while a token is plugged in.
-    // Failures double the pause between runs (750 ms, capped at 5 s) and never
-    // stop them: a token that answers "busy" (still holding an earlier
-    // assertion), one the uaccess ACL has not reached yet or a foreign one all
-    // fail within a second. The child is kept across a password unlock, so a
+    // Fast failures double the pause between runs (750 ms after a slow one,
+    // capped at 5 s) and never stop them: a token the uaccess ACL has not
+    // reached yet or a foreign one fails within a second; one still holding
+    // an earlier assertion queues the request and the next touch completes
+    // the older one first. The child is kept across a password unlock, so a
     // completion must check that the lock is still wanted. Run times are wall
     // clock: a sleep in between logs as a run of hours, nothing hung.
     PamContext {
