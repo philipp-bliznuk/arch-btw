@@ -32,7 +32,7 @@ seat seat0 fallback true
 
 ### Output
 # No `output * bg` - swaybg not installed; Quickshell paints the wallpaper.
-# Laptop panel is primary (workspace 1, tray); externals sit to its right.
+# Laptop panel is primary (workspaces 1 and 4); externals sit to its right.
 output eDP-1 position 0 0
 output HDMI-A-2 position 1366 0
 
