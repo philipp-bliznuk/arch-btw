@@ -692,7 +692,7 @@ step_dotfiles() {
 	mkdir -p "$HOME/.local/state/qs/toggles"
 
 	rm -f "$HOME/.zshrc" # install-time placeholder
-	# xdg-user-dirs 0.19+ defaults PROJECTS to ~/Projects; repos live in
+	# xdg-user-dirs 0.20+ defaults PROJECTS to ~/Projects; repos live in
 	# ~/projects (install.sh clones there), so register that and drop the stray.
 	xdg-user-dirs-update --set PROJECTS "$HOME/projects"
 	xdg-user-dirs-update
