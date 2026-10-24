@@ -449,6 +449,11 @@ _harvest_wifi() {
 		else
 			ssid="$base"
 		fi
+		# Copied as iwd wrote it: iwd escapes a passphrase the way GKeyFile
+		# does (\s \n \t \r \\), so NM reads back what iwd stored. An SSID
+		# with a backslash, a control character or a leading space is outside
+		# this; NM may refuse that keyfile or read another SSID, and
+		# post-install.sh step_network asks instead.
 		psk="$(awk -F= '/^Passphrase=/{sub(/^Passphrase=/,""); print; exit}' "$f")"
 		[[ -n "$psk" ]] || psk="$(awk -F= '/^PreSharedKey=/{sub(/^PreSharedKey=/,""); print; exit}' "$f")"
 		[[ -n "$psk" ]] || continue
@@ -616,11 +621,14 @@ EOF
 # included. Created after the builds so `sign -s` records both UKIs in sbctl's
 # database (an already signed file is skipped before the database write); from
 # here on the mkinitcpio post hook signs every rebuild. Enrolling needs Setup
-# Mode; without it the system boots with Secure Boot off until enrolled.
+# Mode; without it the system boots with Secure Boot off until enrolled. A key
+# or signing failure is not the install's end: the system boots unsigned with
+# nothing enrolled, and enrolling now would lock the unsigned UKIs out.
 _secure_boot() {
-	sbctl create-keys
-	sbctl sign -s /boot/efi/EFI/Linux/arch-linux.efi
-	sbctl sign -s /boot/efi/EFI/BOOT/BOOTX64.EFI
+	if ! { sbctl create-keys && sbctl sign -s /boot/efi/EFI/Linux/arch-linux.efi && sbctl sign -s /boot/efi/EFI/BOOT/BOOTX64.EFI; }; then
+		warn "Keys or signatures failed (see above): nothing enrolled, Secure Boot stays off. After the first boot: Fresh keys (README, Recovery); post-install.sh step 1 repeats this."
+		return 0
+	fi
 	ESP_PATH=/boot/efi sbctl verify || warn "sbctl verify failed to list the ESP; run sbctl verify after the first boot."
 	_setup_mode || {
 		warn "Firmware not in Setup Mode: keys not enrolled. Later: Reset to Setup Mode, boot, sudo sbctl enroll-keys -i (README, Recovery)."
