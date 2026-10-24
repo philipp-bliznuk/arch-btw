@@ -95,7 +95,7 @@ Runs as user, `sudo` where needed. Markers: `~/.local/state/arch-btw/done/`. Log
 
 | #   | Step            | Hands-on |
 | --- | --------------- | -------- |
-| 1   | bootloader      | Confirm deleting stale EFI entries (`Arch Linux` and `Linux Boot Manager` entries whose partuuid ≠ current ESP, left by an earlier install); unless the current ESP holds both UKI entries as `install.sh` made them, its entries are replaced by the two (one missing after a refused NVRAM write, an old `Linux Boot Manager`); warns when Secure Boot is not enforcing (keys never enrolled, or the toggle Off). |
+| 1   | bootloader      | Confirm deleting stale EFI entries (`Arch Linux` and `Linux Boot Manager` entries whose partuuid ≠ current ESP, left by an earlier install); unless the current ESP holds both UKI entries as `install.sh` made them, its entries are replaced by the two (one missing after a refused NVRAM write, an old `Linux Boot Manager`); warns when keys or signatures are missing (Recovery, Fresh keys) or when Secure Boot is not enforcing (keys never enrolled, or the toggle Off). |
 | 2   | network         | Only if offline - `nmcli … --ask`. |
 | 3   | nm_connectivity | `/etc/NetworkManager/conf.d/connectivity.conf`: NM re-checks reachability every 60 s (stock 300; the URI is Arch's `20-connectivity.conf`). The bar's network widget and the weather fetch read the result (captive portal, limited). |
 | 4   | snapper         | `root`: snap-pac pre/post pairs (20 kept) + 5 hourly / 7 daily timeline; `home`: 5 hourly / 7 daily / 4 weekly. |

@@ -161,12 +161,12 @@ step_bootloader() {
 
 	local esp_uuid
 	esp_uuid="$(findmnt -no PARTUUID /boot/efi || true)"
-	if [[ -z "$esp_uuid" ]]; then
-		warn "Could not read the ESP partuuid - inspect \`efibootmgr\` manually."
-	else
-		info "Current ESP partuuid: $esp_uuid"
-		_sync_boot_entries "$esp_uuid"
-	fi
+	[[ -n "$esp_uuid" ]] || {
+		warn "No ESP mounted at /boot/efi - the entry and Secure Boot checks need it; inspect \`efibootmgr\` and \`sudo sbctl verify\` by hand."
+		return 0
+	}
+	info "Current ESP partuuid: $esp_uuid"
+	_sync_boot_entries "$esp_uuid"
 	_check_secure_boot
 }
 
@@ -203,9 +203,18 @@ _sync_boot_entries() {
 _efi_byte() { od -An -tu1 -j4 -N1 "/sys/firmware/efi/efivars/$1-8be4df61-93ca-11d2-aa0d-00e098032b8c" 2>/dev/null | tr -d ' '; }
 
 # install.sh enrolls the keys only when the firmware is in Setup Mode; any
-# other state at first boot means signed UKIs that nothing verifies yet.
+# other state at first boot means signed UKIs that nothing verifies yet,
+# unless install.sh warned that keys or signing failed: enroll-keys then
+# fails (no keys) or locks the UKIs out (keys, unsigned UKI). Exit code for
+# a key hierarchy that fails to load, text for an unsigned, absent or
+# truncated UKI: sbctl verify exits 0 for those.
 _check_secure_boot() {
-	if [[ "$(_efi_byte SetupMode)" == 1 ]]; then
+	local verify rc=0 bad='is not signed|does not exist|is not a valid EFI binary'
+	verify="$(sudo sbctl verify /boot/efi/EFI/Linux/arch-linux.efi /boot/efi/EFI/BOOT/BOOTX64.EFI 2>&1)" || rc=$?
+	if [[ $rc -ne 0 || "$verify" =~ $bad ]]; then
+		printf '%s\n' "$verify"
+		warn "Keys or signatures missing (sbctl verify above): Fresh keys (README, Recovery) before anything enrolls; with the keys already in the firmware, sudo mkinitcpio -P re-signs."
+	elif [[ "$(_efi_byte SetupMode)" == 1 ]]; then
 		warn "Firmware in Setup Mode, keys not enrolled: sudo sbctl enroll-keys -i, then reboot."
 	elif [[ "$(_efi_byte SecureBoot)" != 1 ]]; then
 		warn "Secure Boot is off: F1 → Security → Secure Boot → On. A Secure Boot Violation after that means the keys are not in: Reset to Setup Mode, boot, sudo sbctl enroll-keys -i (README, Recovery)."
