@@ -51,8 +51,7 @@ QtObject {
         Quickshell.execDetached(["bash", "-c", 'printf %s "$1" | wl-copy', "bash", String(text ?? "")]);
     }
 
-    // The only place besides sway/config and bin/qs-task that names the terminal
-    // (floating: sway rule qs-float; Terminal=true apps above open tiled).
+    // Floating (sway rule qs-float); Terminal=true apps above open tiled.
     function term(argv) {
         return ["kitty", "--class", "qs-float", "--"].concat(argv);
     }
