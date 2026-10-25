@@ -154,7 +154,7 @@ max-cache-ttl 604800       # absolute
 `~/.gnupg/scdaemon.conf`: `disable-ccid` and `pcsc-shared` (scdaemon goes through pcscd and leaves the reader to ykman).
 
 - pinentry asks for on-disk key passphrases and for the card PIN; the card verifies the PIN and wants the touch itself.
-- PIN cache lives in gpg-agent RAM, cleared on reboot / logout / `gpgconf --kill gpg-agent` / unplug.
+- Passphrases of on-disk keys are cached in gpg-agent RAM for the ttl above, cleared on reboot / logout / `gpgconf --kill gpg-agent`. The card PIN is never cached (`pcsc-shared` switches scdaemon's PIN cache off); the card itself stays unlocked until it is unplugged.
 - The agent's sockets are static (`gpg-agent.socket`, `gpg-agent-ssh.socket`, under `$XDG_RUNTIME_DIR/gnupg`): `zsh/.zshenv` sets `SSH_AUTH_SOCK` to that path, `.zshrc` exports `GPG_TTY`.
 
 ```zsh
@@ -214,7 +214,7 @@ ykman info
 ykman openpgp info               # KDF on, 8/8/8, touch cached
 gpg --card-status                # three subkeys
 ssh-add -L
-echo test | gpg --clearsign      # touch + User PIN
+echo test | gpg --clearsign -u <key-id>   # User PIN + touch; without -u gpg takes the first secret key, maybe an on-disk one
 ```
 
 ---
@@ -267,8 +267,7 @@ ssh-add -L                       # identical line to key #1
 Swap keys, then:
 
 ```zsh
-gpg-connect-agent "scd serialno" "learn --force" /bye   # re-point stubs at the inserted card; needed on every swap
-echo test | gpg --clearsign
+echo test | gpg --clearsign -u <key-id>   # no learn needed (gnupg >= 2.3 finds the card by keygrip; the stubs' serial is display only)
 ```
 
 ---
@@ -288,6 +287,7 @@ echo test | gpg --clearsign
 - FIDO2 PIN blocked (3 wrong in a row): replug, the remaining retries continue.
 - FIDO2 applet wiped (8 wrong) or a key lost: boot with the LUKS passphrase (keyslot 0, prompted 30 s after boot with no key). On the key: `ykman fido reset` (ykman says when to replug and touch), `ykman fido access change-pin` (same PIN as the other key). LUKS: `sudo systemd-cryptenroll --wipe-slot=fido2 --fido2-device=auto --fido2-with-client-pin=yes /dev/<luks-partition>` with the first key plugged (drops every FIDO2 slot, enrolls this key), then the same without `--wipe-slot` for the second key. login / sudo / polkit / lock screen: `post-install.sh --redo yubikey_pam` re-enrolls both keys into `/etc/u2f_mappings`. WebAuthn registrations of a reset key are gone: Part C again for that key.
 - OpenPGP User PIN blocked: `ykman openpgp access unblock-pin -a -` (Admin PIN; without `-a` it asks for the unset Reset Code). Admin PIN blocked: applet wiped; `ykman openpgp reset`, then A4 and B3 again from `subkeys-only.asc` with only that key plugged (the same subkeys, so both cards stay interchangeable; the other card keeps working meanwhile).
+- "Please insert the card with serial number ..." while a key is plugged in: scdaemon saw no reader, it does not need that card (the number is the card the stubs were learned from; any card holding the subkeys is accepted, `learn --force` only changes the number). Cause with the stock `pcscd.service`: pcscd quits 60 s after its last client lets go (`--auto-exit`; scdaemon lets go when the key is pulled) and the pcsc-lite client inside the long-running scdaemon chokes on the fresh daemon's smaller reader table (`pcsc_list_readers failed: unsupported feature (0x8010001f)` in the user journal). `gpgconf --kill scdaemon` (gpg-agent and its passphrase cache stay up), retry.
 - `/etc/u2f_mappings` or PAM broken: `login`, `sudo` and polkit fall through to the password (`sufficient`), `su` never had `pam_u2f`.
 
 ---
