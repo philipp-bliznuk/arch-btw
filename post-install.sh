@@ -83,30 +83,34 @@ USB_MNT="/mnt/usb"
 mount_usb() {
 	pause "Insert the USB stick, then press Enter"
 	echo "Removable partitions:" >/dev/tty
-	local line NAME SIZE FSTYPE LABEL HOTPLUG TYPE
+	local line NAME SIZE FSTYPE LABEL HOTPLUG TYPE offered=()
 	while IFS= read -r line; do
 		eval "$line" # lsblk -P: shell-quoted key="value" pairs
 		[[ "$HOTPLUG" == "1" && "$TYPE" == "part" && -n "$FSTYPE" ]] || continue
+		offered+=("$NAME")
 		printf '  %s  %s  %s  %s\n' "$NAME" "$SIZE" "$FSTYPE" "$LABEL" >/dev/tty
 	done < <(lsblk -Ppo NAME,SIZE,FSTYPE,LABEL,HOTPLUG,TYPE)
 
+	# Listed ones only: a typo like /dev/sda1 must not mount the system's own ESP.
 	local part
 	while :; do
 		printf 'USB partition (e.g. /dev/sdb1), or "s" to skip: ' >/dev/tty
 		read -r part </dev/tty
 		[[ "$part" == "s" ]] && return 1
-		[[ -b "$part" ]] && break
-		err "Not a block device: $part"
+		[[ -n "$part" && "$part" != *" "* && " ${offered[*]} " == *" $part "* ]] && break
+		err "Not one of the removable partitions above: $part"
 	done
 
 	sudo mkdir -p "$USB_MNT" || return 2
-	local fstype
+	# A run that died with the stick mounted leaves it so; the stale mount goes first.
+	! mountpoint -q "$USB_MNT" || sudo umount "$USB_MNT" || return 2
+	local fstype opts=nosuid,nodev,noexec
 	fstype="$(lsblk -no FSTYPE "$part")"
 	case "$fstype" in
-	vfat | exfat) sudo mount -o "uid=$(id -u),gid=$(id -g)" "$part" "$USB_MNT" || return 2 ;;
+	vfat | exfat) sudo mount -o "$opts,uid=$(id -u),gid=$(id -g)" "$part" "$USB_MNT" || return 2 ;;
 	*)
 		warn "$fstype stick - files may be unreadable as $USER; prefer FAT/exFAT."
-		sudo mount "$part" "$USB_MNT" || return 2
+		sudo mount -o "$opts" "$part" "$USB_MNT" || return 2
 		;;
 	esac
 	printf '%s\n' "$USB_MNT"
@@ -114,8 +118,11 @@ mount_usb() {
 
 umount_usb() {
 	sync
-	sudo umount "$USB_MNT" 2>/dev/null || true
-	success "USB unmounted - safe to remove."
+	if sudo umount "$USB_MNT"; then
+		success "USB unmounted - safe to remove."
+	else
+		warn "USB still mounted at $USB_MNT - sudo umount $USB_MNT before pulling the stick."
+	fi
 }
 
 is_done() { [[ -f "$DONE_DIR/$1" ]]; }
@@ -172,11 +179,12 @@ step_bootloader() {
 
 # Stale NVRAM entries = ours whose partuuid ≠ the mounted ESP (a reinstall
 # makes new partitions; the old entries stay in the firmware). The current
-# ones must be the two UKI entries install.sh makes; anything else (one
-# missing after a refused NVRAM write, an old Linux Boot Manager) is replaced
-# in the same order, so Arch Linux stays the default.
+# ones must be exactly the two UKI entries install.sh makes, Arch Linux first
+# in BootOrder; anything else (one missing after a refused NVRAM write, the
+# LTS one newer after a half-done recreate, an old Linux Boot Manager) is
+# replaced in the same order, so Arch Linux boots by default.
 _sync_boot_entries() {
-	local esp_uuid="$1" line id part have_main=0 have_lts=0 current=()
+	local esp_uuid="$1" line id part main_id="" lts_id="" current=()
 	while IFS= read -r line; do
 		id="$(grep -oE 'Boot[0-9A-Fa-f]{4}' <<<"$line" | sed 's/Boot//' || true)"
 		part="$(grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' <<<"$line" | head -1 || true)"
@@ -189,15 +197,22 @@ _sync_boot_entries() {
 		fi
 		current+=("$id")
 		case $line in
-			*"* Arch Linux LTS"$'\t'*'\EFI\BOOT\BOOTX64.EFI'*) have_lts=1 ;;
-			*"* Arch Linux"$'\t'*'\EFI\Linux\arch-linux.efi'*) have_main=1 ;;
+			*"* Arch Linux LTS"$'\t'*'\EFI\BOOT\BOOTX64.EFI'*) lts_id="$id" ;;
+			*"* Arch Linux"$'\t'*'\EFI\Linux\arch-linux.efi'*) main_id="$id" ;;
 		esac
 	done < <(sudo efibootmgr -v | grep -iE 'Arch Linux|Linux Boot Manager' || true)
 
-	((have_main && have_lts)) && return 0
-	warn "NVRAM does not hold both UKI entries for this ESP - recreating them."
+	local order
+	order="$(efibootmgr | sed -n 's/^BootOrder: //p')"
+	[[ ${#current[@]} -eq 2 && -n "$main_id" && -n "$lts_id" && "$order," == "$main_id,"* ]] && return 0
+	warn "NVRAM does not hold the two UKI entries for this ESP with Arch Linux first - recreating them."
+	# New ones first: a refused write (NVRAM full) then leaves the old entries.
+	_create_boot_entries || {
+		err "The firmware refused the new entry (NVRAM full?); the old entries stay and boot as before. efibootmgr -v lists what else is in there, sudo efibootmgr -b XXXX -B frees one, then post-install.sh --redo bootloader."
+		return 1
+	}
 	for id in "${current[@]}"; do sudo efibootmgr -q -b "$id" -B; done
-	_create_boot_entries
+	efibootmgr | grep -E '^Boot(Order|[0-9A-F]{4}\* Arch Linux)'
 }
 
 _efi_byte() { od -An -tu1 -j4 -N1 "/sys/firmware/efi/efivars/$1-8be4df61-93ca-11d2-aa0d-00e098032b8c" 2>/dev/null | tr -d ' '; }
@@ -224,15 +239,15 @@ _check_secure_boot() {
 }
 
 # The firmware boots the UKIs directly; same two entries, same order as
-# install.sh (the last one created boots by default).
+# install.sh (the last one created boots by default). Chained: the caller
+# runs this on the left of ||, where set -e is off.
 _create_boot_entries() {
 	local esp disk partno
 	esp="$(findmnt -no SOURCE /boot/efi)"
 	disk="/dev/$(lsblk -no PKNAME "$esp")"
 	partno="$(cat "/sys/class/block/${esp##*/}/partition")"
-	sudo efibootmgr -q -c -d "$disk" -p "$partno" -L "Arch Linux LTS" -l '\EFI\BOOT\BOOTX64.EFI'
-	sudo efibootmgr -q -c -d "$disk" -p "$partno" -L "Arch Linux" -l '\EFI\Linux\arch-linux.efi'
-	efibootmgr | grep -E '^Boot(Order|[0-9A-F]{4}\* Arch Linux)'
+	sudo efibootmgr -q -c -d "$disk" -p "$partno" -L "Arch Linux LTS" -l '\EFI\BOOT\BOOTX64.EFI' &&
+		sudo efibootmgr -q -c -d "$disk" -p "$partno" -L "Arch Linux" -l '\EFI\Linux\arch-linux.efi'
 }
 
 step_network() {
@@ -691,7 +706,7 @@ step_dotfiles() {
 	update-desktop-database "$HOME/.local/share/applications"
 	mkdir -p "$HOME/.local/state/qs/toggles"
 
-	rm -f "$HOME/.zshrc" # install-time placeholder
+	[[ -s "$HOME/.zshrc" ]] || rm -f "$HOME/.zshrc" # install.sh's empty placeholder; a file with content stays
 	# xdg-user-dirs 0.20+ defaults PROJECTS to ~/Projects; repos live in
 	# ~/projects (install.sh clones there), so register that and drop the stray.
 	xdg-user-dirs-update --set PROJECTS "$HOME/projects"
@@ -726,8 +741,8 @@ _keys_import() {
 		pub="$usb/keys/gpg/$id/public.asc"
 		if [[ -f "$pub" ]]; then
 			gpg --import "$pub"
-			gpg --with-colons --show-keys "$pub" | # primary fpr only
-				awk -F: '/^fpr:/{print $10":6:"; exit}' | gpg --import-ownertrust
+			gpg --with-colons --show-keys "$pub" | # primary fpr only; read to the end, an early exit is SIGPIPE for gpg under pipefail
+				awk -F: '/^fpr:/ && !f {print $10":6:"; f=1}' | gpg --import-ownertrust
 			success "Imported public key: $id"
 		else
 			warn "No public key for $id at $pub"
@@ -808,12 +823,15 @@ EOF
 	export SSH_AUTH_SOCK
 	gpg-connect-agent updatestartuptty /bye >/dev/null || true
 
-	ssh-add -L 2>/dev/null | grep -i 'cardno:' >"$HOME/.ssh/id_ed25519_ic_yubikey.pub" || true
-	if [[ -s "$HOME/.ssh/id_ed25519_ic_yubikey.pub" ]]; then
+	# Written only when the card answered: a redo without the key must not empty the file.
+	local cardkey
+	cardkey="$(ssh-add -L 2>/dev/null | grep -i 'cardno:' || true)"
+	if [[ -n "$cardkey" ]]; then
+		printf '%s\n' "$cardkey" >"$HOME/.ssh/id_ed25519_ic_yubikey.pub"
 		chmod 644 "$HOME/.ssh/id_ed25519_ic_yubikey.pub"
 		success "Exported YubiKey SSH public key."
 	else
-		warn "No card SSH key - later: ssh-add -L | grep cardno: > ~/.ssh/id_ed25519_ic_yubikey.pub"
+		warn "No card SSH key - later, with the YubiKey in: post-install.sh --redo keys"
 	fi
 
 	cat >"$HOME/.ssh/config" <<'EOF'
@@ -958,6 +976,7 @@ _smb_remove() {
 	sudo rm -f "/etc/systemd/system/$1.mount" "/etc/systemd/system/$1.automount" "/etc/credstore/$2"
 	sudo systemctl daemon-reload
 	sudo systemctl reset-failed "$1.mount" 2>/dev/null || true
+	sudo rmdir --ignore-fail-on-non-empty "$(systemd-escape -pu "$1")" 2>/dev/null || true # the mount point made above, if still empty
 }
 
 do_list() {
@@ -1011,6 +1030,11 @@ redo_one() {
 		fi
 	done
 	err "Unknown step: $target (see --list)"
+	exit 1
+}
+
+[[ $EUID -ne 0 ]] || {
+	err "Run as your user, not root: the steps write into \$HOME and call sudo where needed."
 	exit 1
 }
 
