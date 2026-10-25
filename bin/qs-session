@@ -30,7 +30,9 @@ start_qs() {
 
 # One restart policy: quickshell's own crash relauncher is off (it ignores a
 # plain exit 255, which is what losing the last output while locked does).
-# A clean exit (quickshell kill) ends the loop; three deaths within 60 s too.
+# A clean exit (quickshell kill) ends the loop; three deaths within 60 s too,
+# behind qs-lock: with no shell there is no idle ladder, and a lock that died
+# is a red screen without a prompt, so swaylock takes the screen.
 # Children of a dead instance (swaymsg -m, udevadm, wl-paste --watch, a PAM
 # fork) outlive it inside this process group and keep its D-Bus sockets open,
 # which blocks the relaunched shell from registering the notification server
@@ -62,6 +64,11 @@ supervise() {
 		((${#deaths[@]} > 3)) && deaths=("${deaths[@]:1}")
 		if ((${#deaths[@]} == 3 && now - deaths[0] < 60)); then
 			logger -t qs-session "quickshell died 3 times within 60 s (last rc $rc), giving up" || true
+			# compositor gone: nothing left to lock (sway exited, quickshell with it)
+			if swaymsg -q -t get_version >/dev/null 2>&1; then
+				logger -t qs-session "no shell left: qs-lock holds the session" || true
+				"$here"/qs-lock || true
+			fi
 			rm -f "$pidfile"
 			return 1
 		fi
