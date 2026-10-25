@@ -40,19 +40,27 @@ aur_up() {
 		'https://aur.archlinux.org/rpc/?v=5&type=info&arg=base' >/dev/null
 }
 
+# devtools' gitlab_project_convert_name: GitLab takes no + in a path and
+# reserves "tree", so libsigc++ lives at libsigcplusplus and tree at unix-tree.
+gitlab_path() {
+	sed -E -e 's/([[:alnum:]]+)\+([[:alpha:]]+)/\1-\2/g' -e 's/\+/plus/g' \
+		-e 's/[^[:alnum:]_.-]/-/g' -e 's/[_-]{2,}/-/g' -e 's/^tree$/unix-tree/' <<<"$1"
+}
+
 fetch_pkgbuild() {
 	# $1 = pkgbase, $2 = destination. GitLab answers 302 (login page) for
 	# unknown repos, which curl -f lets through, so check the status code. A
 	# transfer cut by --max-time has written part of $2: remove it as well.
 	local code
 	code="$(curl -s --connect-timeout 5 --max-time 15 -o "$2" -w '%{http_code}' \
-		"https://gitlab.archlinux.org/archlinux/packaging/packages/$1/-/raw/main/PKGBUILD")" || { rm -f "$2"; return 1; }
+		"https://gitlab.archlinux.org/archlinux/packaging/packages/$(gitlab_path "$1")/-/raw/main/PKGBUILD")" || { rm -f "$2"; return 1; }
 	[[ "$code" == 200 ]] || { rm -f "$2"; return 1; }
 }
 
 pkgbase_of() {
-	# pacman -Sii has no pkgbase field; ask archlinux.org (only hit on a miss)
-	curl -sf --connect-timeout 5 --max-time 15 "https://archlinux.org/packages/search/json/?name=$1" |
+	# pacman -Sii has no pkgbase field; ask archlinux.org (only hit on a miss).
+	# @uri: a + in the name would arrive as a space.
+	curl -sf --connect-timeout 5 --max-time 15 "https://archlinux.org/packages/search/json/?name=$(jq -rn --arg n "$1" '$n|@uri')" |
 		jq -r '.results[0].pkgbase // empty' 2>/dev/null
 }
 
@@ -127,6 +135,21 @@ update() {
 		printf '\033[33m●\033[0m AUR unreachable - updating official repositories only.\n'
 		"${inhibit[@]}" yay -Syu --repo
 	fi
+	verify_ukis
+}
+
+# The sbctl post hook signs every UKI mkinitcpio builds, and pacman drops a
+# hook's failure once the transaction is done: an unsigned UKI is a Secure
+# Boot Violation at the next boot, so both are checked after every update.
+# sbctl verify exits 0 for an unsigned, absent or truncated file (text
+# matched) and non-zero when the key hierarchy fails to load.
+verify_ukis() {
+	local out rc=0 bad='is not signed|does not exist|is not a valid EFI binary'
+	out="$(sudo sbctl verify /boot/efi/EFI/Linux/arch-linux.efi /boot/efi/EFI/BOOT/BOOTX64.EFI 2>&1)" || rc=$?
+	printf '%s\n' "$out"
+	[[ $rc -eq 0 && ! "$out" =~ $bad ]] && return 0
+	printf '\033[31m●\033[0m sbctl verify failed or a UKI is unsigned (above): do not reboot before sudo sbctl sign-all (or sudo mkinitcpio -P) shows both signed; keys gone: README, Recovery (Fresh keys).\n'
+	return 1
 }
 
 pacnew() {

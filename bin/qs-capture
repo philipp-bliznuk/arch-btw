@@ -6,7 +6,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots"
 mkdir -p "$dir"
-out="$dir/shot-$(date +%Y%m%d-%H%M%S).png"
+out="$dir/shot-$(date +%Y%m%d-%H%M%S-%3N).png" # ms: two shots within a second must not overwrite
 
 focused_rect() {
 	swaymsg -t get_tree | jq -r '.. | select(.focused? == true) | .rect | "\(.x),\(.y) \(.width)x\(.height)"'

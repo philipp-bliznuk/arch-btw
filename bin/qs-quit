@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 # qs-quit
 # Quit the focused application: SIGTERM to the focused window's process, so
-# apps that only hide to the tray on window close actually exit.
+# apps that only hide to the tray on window close actually exit. A qs-task
+# window gets sway's close request instead: kitty then asks while the command
+# runs (confirm_os_window_close), where a SIGTERM hangs it up unasked.
 set -Eeuo pipefail
 
-pid=$(swaymsg -t get_tree | jq -r '.. | select(.focused? == true) | .pid // empty' | head -1)
-[[ -n "$pid" ]] || exit 0
-kill -TERM "$pid"
+IFS='|' read -r pid app_id < <(swaymsg -t get_tree | jq -r '.. | select(.focused? == true) | "\(.pid // "")|\(.app_id // "")"' | head -1) || true
+[[ -n "${pid:-}" ]] || exit 0 # nothing focused
+if [[ "$app_id" == qs-task ]]; then
+	swaymsg -q kill
+else
+	kill -TERM "$pid"
+fi

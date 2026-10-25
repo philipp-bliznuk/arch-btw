@@ -10,15 +10,14 @@ set -Eeuo pipefail
 (( $# == 1 )) || { sed -n '2p' "$0" >&2; exit 64; }
 want="$1"
 
-while IFS= read -r line; do
-	type="${line##*:}"
-	name="${line%:*}"
-	name="${name//\\:/:}"
+# Profiles by UUID: terse nmcli escapes : and \ in names, and a name may hold
+# either. The SSID is read unescaped (-e no) to compare with the raw one given.
+while IFS=: read -r uuid type; do
 	[[ "$type" == "802-11-wireless" ]] || continue
-	ssid="$(nmcli -g 802-11-wireless.ssid connection show "$name" 2>/dev/null || true)"
+	ssid="$(nmcli -e no -g 802-11-wireless.ssid connection show "$uuid" 2>/dev/null || true)"
 	prio=0
 	[[ "$ssid" == "$want" ]] && prio=10
 	# one profile refusing (not ours to edit) must not leave the rest unranked
-	nmcli connection modify "$name" connection.autoconnect-priority "$prio" \
-		|| echo "qs-wifi-prefer: $name: priority not set" >&2
-done < <(nmcli -t -f NAME,TYPE connection show)
+	nmcli connection modify "$uuid" connection.autoconnect-priority "$prio" \
+		|| echo "qs-wifi-prefer: $uuid: priority not set" >&2
+done < <(nmcli -t -f UUID,TYPE connection show)

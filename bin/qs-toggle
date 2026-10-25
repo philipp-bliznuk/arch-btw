@@ -11,6 +11,13 @@ mkdir -p "$dir"
 
 name="${1:?usage: qs-toggle <name> [on|off]}"
 mode="${2:-}"
+case "$mode" in
+'' | on | off) ;;
+*)
+	echo "qs-toggle: mode must be on or off, not '$mode'" >&2
+	exit 2
+	;;
+esac
 flag="$dir/$name"
 
 if [[ -z "$mode" ]]; then

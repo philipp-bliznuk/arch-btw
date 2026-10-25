@@ -6,7 +6,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 state="${XDG_STATE_HOME:-$HOME/.local/state}/qs"
 link="$state/background"
-dir="$HOME/.config/wallpapers"
+dir="${XDG_CONFIG_HOME:-$HOME/.config}/wallpapers"
 mkdir -p "$state"
 
 list() { # resolved paths, comparable with current

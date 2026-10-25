@@ -8,8 +8,13 @@
 # silently - the user already said no.
 set -Eeuo pipefail
 
+# confirm_os_window_close -1 (kitty.conf has 0): a close from sway asks while
+# the command runs. The Press Enter line is marked a prompt (OSC 133 A), which
+# kitty counts as nothing running, so a finished window closes without the
+# question; kitty finds no prompt on the alternate screen or under a hidden
+# cursor, so a command that died mid-TUI is cleaned up first.
 term=(kitty --class qs-task --title "qs-task"
-	-o background=#181825 -o window_padding_width=12)
+	-o background=#181825 -o window_padding_width=12 -o confirm_os_window_close=-1)
 
 usage() {
 	sed -n '2,4p' "$0" >&2
@@ -42,9 +47,9 @@ run() {
 	(( code == 130 )) && exit 130
 	drain_tty
 	if (( code == 0 )); then
-		printf '\n\033[32m●\033[0m Done! Press Enter to close...'
+		printf '\033[?1049l\033[?25h\n\033]133;A\033\\\033[32m●\033[0m Done! Press Enter to close...'
 	else
-		printf '\n\033[31m●\033[0m Failed (exit %d)! Press Enter to close...' "$code"
+		printf '\033[?1049l\033[?25h\n\033]133;A\033\\\033[31m●\033[0m Failed (exit %d)! Press Enter to close...' "$code"
 	fi
 	read -r _ </dev/tty
 	exit "$code"
