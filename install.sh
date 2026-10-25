@@ -376,15 +376,24 @@ step_fido2() {
 		return 0
 	fi
 
-	local k
+	local k a enrolled=0
 	for k in 1 2; do
 		pause "Insert YubiKey #$k ONLY (remove the other), then Enter"
 		until _fido2_pin_notice && _enroll_fido2; do
 			warn "Enrollment of key #$k failed."
-			pause "Check the key is inserted (and the other removed), then Enter to retry"
+			printf '%s>>>%s Check the key is inserted (and the other removed): Enter to retry, s to go on without key #%d ' "$(_c 5)" "$(_r)" "$k" >/dev/tty
+			read -r a </dev/tty
+			[[ "$a" == s ]] || continue
+			warn "Key #$k skipped. Later, with that key in: sudo systemd-cryptenroll --fido2-device=auto --fido2-with-client-pin=yes $PART_LUKS (YUBIKEY.md, Recovery)."
+			continue 2
 		done
 		success "Key #$k enrolled."
+		enrolled=$((enrolled + 1))
 	done
+	if ((enrolled == 0)); then
+		warn "No FIDO2 key enrolled: the passphrase unlocks (keyslot 0)."
+		return 0
+	fi
 	if cryptsetup luksDump "$PART_LUKS" | grep -q 'fido2'; then
 		success "FIDO2 keyslots present."
 	else

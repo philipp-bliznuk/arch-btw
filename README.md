@@ -72,7 +72,7 @@ FIDO2 enrollment pauses twice, right after `YES` (disk wiped and LUKS formatted,
 - Exactly one key inserted per pause (`--fido2-device=auto`).
 - Each key asks **FIDO2 PIN + touch**. That is the PIN from `ykman fido access change-pin`, not the OpenPGP PIN; the prompt prints the retries left. Three wrong in a row block the applet until replug, eight in total wipe it ([YUBIKEY.md](./YUBIKEY.md#pins)).
 - Every boot asks the same PIN + touch (`--fido2-with-client-pin=yes`): laptop and key stolen together stay shut.
-- Enrollment failure → retry prompt, not abort.
+- Enrollment failure → retry prompt, not abort; `s` at that prompt goes on without that key (a key that will not enroll, or only one at hand). With no key enrolled the passphrase unlocks and the script says how to enroll later (YUBIKEY.md, Recovery).
 - Boot with no key inserted → passphrase prompt after 30 s. Keyslot 0 always works.
 
 Flags: `--skip-fido2` (VM), `DEBUG=1 bash install.sh` (trace). Re-run after failure re-wipes the disk (after unmounting `/mnt` and closing `cryptroot` from the last run; a mapping that stays open, a shell left inside `/mnt` say, stops the script before the wipe); the Secure Boot keys are enrolled as the installer's last act, after every step that can ask for a re-run, so the firmware is still in Setup Mode for it (once the keys are in, the ISO boots with Secure Boot Off for that boot, and a re-run needs another Reset to Setup Mode: Recovery).
