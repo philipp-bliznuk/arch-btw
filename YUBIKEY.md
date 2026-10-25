@@ -155,7 +155,7 @@ max-cache-ttl 604800       # absolute
 
 - pinentry asks for on-disk key passphrases and for the card PIN; the card verifies the PIN and wants the touch itself.
 - Passphrases of on-disk keys are cached in gpg-agent RAM for the ttl above, cleared on reboot / logout / `gpgconf --kill gpg-agent`. The card PIN is never cached (`pcsc-shared` switches scdaemon's PIN cache off); the card itself stays unlocked until it is unplugged.
-- The agent's sockets are static (`gpg-agent.socket`, `gpg-agent-ssh.socket`, under `$XDG_RUNTIME_DIR/gnupg`): `zsh/.zshenv` sets `SSH_AUTH_SOCK` to that path, `.zshrc` exports `GPG_TTY`.
+- The agent's sockets are static (`gpg-agent.socket`, `gpg-agent-ssh.socket`, under `$XDG_RUNTIME_DIR/gnupg`): `zsh/.zshenv` sets `SSH_AUTH_SOCK` to that path unless the environment already has one (a forwarded agent over `ssh -A` keeps its socket), `.zshrc` exports `GPG_TTY`.
 
 ```zsh
 gpgconf --kill gpg-agent

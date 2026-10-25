@@ -29,9 +29,16 @@ function precmd() {
 function _prompt_git_branch() {
   local branch head_file dir=$PWD
 
-  # Walk up to find .git
+  # Walk up to find .git: a directory, or in a worktree a file naming the gitdir
+  local gitdir
   while [[ -n "$dir" ]]; do
     [[ -f "$dir/.git/HEAD" ]] && { head_file="$dir/.git/HEAD"; break }
+    if [[ -f "$dir/.git" ]]; then
+      read -r gitdir < "$dir/.git"
+      gitdir="${gitdir#gitdir: }"
+      [[ "$gitdir" == /* ]] || gitdir="$dir/$gitdir"
+      [[ -f "$gitdir/HEAD" ]] && { head_file="$gitdir/HEAD"; break }
+    fi
     dir="${dir%/*}"
   done
   [[ -z "$head_file" ]] && return

@@ -25,17 +25,23 @@ function zvm_config() {
 # Clone antidote if missing.
 [[ -d $ANTIDOTE_HOME ]] || git clone --depth 1 --quiet https://github.com/mattmc3/antidote.git $ANTIDOTE_HOME
 
-# Generate static file whenever .zplugins is updated.
+# Generate static file whenever .zplugins is updated. Moved into place only
+# when every bundle cloned (antidote bundle exits 1 otherwise): a partial file
+# would be newer than .zplugins and never regenerated.
 zplugins=${ZDOTDIR}/.zplugins
 if [[ ! ${zplugins}.zsh -nt ${zplugins} ]] || [[ ! -e $ANTIDOTE_HOME/.lastupdated ]]; then
   fpath=($ANTIDOTE_HOME/functions $fpath)
   autoload -Uz antidote
-  antidote bundle <${zplugins} >|${zplugins}.zsh
-  date +%Y-%m-%dT%H:%M:%S%z >| $ANTIDOTE_HOME/.lastupdated
+  if antidote bundle <${zplugins} >|${zplugins}.zsh.new; then
+    mv -f ${zplugins}.zsh.new ${zplugins}.zsh
+    date +%Y-%m-%dT%H:%M:%S%z >| $ANTIDOTE_HOME/.lastupdated
+  else
+    rm -f ${zplugins}.zsh.new
+  fi
 fi
 
-# Source the static file.
-source ${zplugins}.zsh
+# Source the static file (absent until the first bundle run succeeds).
+[[ -f ${zplugins}.zsh ]] && source ${zplugins}.zsh
 
 # Load aliases
 [[ -f ${ZDOTDIR}/.zalias ]] && source ${ZDOTDIR}/.zalias

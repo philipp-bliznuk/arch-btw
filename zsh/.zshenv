@@ -37,8 +37,9 @@ export EDITOR="nvim"
 export VISUAL="nvim"
 export PAGER="less -FX"
 
-# SSH through the GPG agent (systemd user unit gpg-agent-ssh.socket, static path)
-export SSH_AUTH_SOCK="${XDG_RUNTIME_DIR:-/run/user/$UID}/gnupg/S.gpg-agent.ssh"
+# SSH through the GPG agent (systemd user unit gpg-agent-ssh.socket, static
+# path); a socket already set wins, that is a forwarded agent (ssh -A)
+export SSH_AUTH_SOCK="${SSH_AUTH_SOCK:-${XDG_RUNTIME_DIR:-/run/user/$UID}/gnupg/S.gpg-agent.ssh}"
 
 # Evalcache
 export ZSH_EVALCACHE_DIR="$XDG_CACHE_HOME/zsh/.zsh-evalcache"
