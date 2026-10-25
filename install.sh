@@ -69,6 +69,7 @@ pause() {
 }
 
 CURRENT_STEP=""
+ENROLLED=0 # set by _enroll_keys, read by on_error
 
 # Subshell: failure can't leave the parent half-applied; unexported vars stay visible.
 run_step() {
@@ -92,14 +93,13 @@ quiet_x() {
 restore_x() { ((XTRACE_WAS_ON)) && set -x || true; }
 
 # SetupMode: 4 attribute bytes, then 1 = no Platform Key, so the firmware takes
-# new keys and verifies nothing yet (README, Step 0). Readable on the ISO and
-# inside the chroot (/sys is bind-mounted).
+# new keys and verifies nothing yet (README, Step 0).
 _setup_mode() {
 	local v=/sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c
 	[[ -r $v && "$(od -An -tu1 -j4 -N1 "$v" | tr -d ' ')" == 1 ]]
 }
 
-# What _secure_boot will get to, for the summary.
+# What _enroll_keys will get to, for the summary.
 _sb_plan() {
 	_setup_mode || { echo 'not in Setup Mode - UKIs signed, enroll later'; return 0; }
 	[[ -e $TPM_EVENTLOG ]] || { echo 'no TPM event log - UKIs signed, enroll later'; return 0; }
@@ -113,7 +113,11 @@ on_error() {
 		err "last 20 log lines ($LOG_FILE):"
 		tail -20 "$LOG_FILE" >&2 || true
 	fi
-	if [[ "${PHASE:-live}" == "live" && "${CURRENT_STEP:-}" != "step_finish" ]]; then
+	if [[ "${PHASE:-live}" != "live" ]]; then
+		: # the live side reports the failed chroot step
+	elif ((ENROLLED)); then
+		err "The Secure Boot keys are enrolled; what was left: ln -sf ../run/systemd/resolve/stub-resolv.conf /mnt/etc/resolv.conf; umount -R /mnt; cryptsetup close cryptroot; reboot. The ISO now needs Secure Boot Off for its boot (keys kept) or Reset to Setup Mode (keys gone; what a re-run of install.sh needs) (README, Recovery)."
+	else
 		err "Fix the cause and re-run install.sh. Re-running RE-WIPES ${DISK:-the target disk}."
 	fi
 	exit "$ec"
@@ -489,15 +493,52 @@ EOF
 	shopt -u nullglob
 }
 
+# Last of all: once the firmware holds the keys the ISO no longer boots as is
+# (Secure Boot Violation), and every step before this one can fail and ask for
+# a re-run. Both UKIs are verified first: keys on disk next to an unsigned UKI
+# (the chroot phase warned) would lock that UKI out. sbctl verify exits 0 for
+# an unsigned, absent or truncated file, so the text is matched; it exits
+# non-zero when the key hierarchy fails to load. Outside run_step, so sbctl's
+# output and the verdicts go to the log by hand.
+warn_log() { warn "$@"; printf '==> %s\n' "$*" >>"$LOG_FILE"; }
+success_log() { success "$@"; printf '==> %s\n' "$*" >>"$LOG_FILE"; }
+_enroll_keys() {
+	local uki out rc=0
+	for uki in /boot/efi/EFI/Linux/arch-linux.efi /boot/efi/EFI/BOOT/BOOTX64.EFI; do
+		out="$(arch-chroot -S /mnt env ESP_PATH=/boot/efi sbctl verify "$uki" 2>&1)" || true
+		printf '%s\n' "$out" | tee -a "$LOG_FILE" || true
+		[[ "$out" == *"$uki is signed"* ]] || {
+			warn_log "$uki is not verified as signed by the keys in /var/lib/sbctl (above): nothing enrolled, Secure Boot stays off. After the first boot: Fresh keys (README, Recovery)."
+			return 0
+		}
+	done
+	_setup_mode || {
+		warn_log "Firmware not in Setup Mode: keys not enrolled. Later: Reset to Setup Mode, boot, sudo sbctl enroll-keys -i (README, Recovery)."
+		return 0
+	}
+	# Never --microsoft (the point) and never --yes-this-might-brick-my-machine:
+	# sbctl stops when the TPM event log shows an option ROM the keys would lock
+	# out. -S: MountAPIVFS binds the host's /sys with efivarfs and the event log.
+	out="$(arch-chroot -S /mnt sbctl enroll-keys -i 2>&1)" || rc=$?
+	((rc == 0)) && ENROLLED=1 # before anything else can fail: on_error keys its hint on it
+	printf '%s\n' "$out" | tee -a "$LOG_FILE" || true
+	((rc == 0)) || {
+		warn_log "Keys not enrolled (above): Secure Boot stays off until sudo sbctl enroll-keys -i succeeds. No TPM event log means the chip is off (README, Step 0); an option ROM in it takes -i --tpm-eventlog (README, Recovery)."
+		return 0
+	}
+	success_log "Secure Boot keys enrolled."
+}
+
 step_finish() {
 	CURRENT_STEP="step_finish"
 	_harvest_wifi
-	ln -sf ../run/systemd/resolve/stub-resolv.conf /mnt/etc/resolv.conf # impossible inside arch-chroot (bind mount)
+	_enroll_keys
+	# After the last arch-chroot: it bind-mounts the ISO's resolv.conf over this path.
+	ln -sf ../run/systemd/resolve/stub-resolv.conf /mnt/etc/resolv.conf
 
 	install -m 600 "$LOG_FILE" /mnt/var/log/arch-install.log 2>/dev/null || true
 	rm -f /mnt/root/install.sh
 
-	arch-chroot /mnt swapoff -a 2>/dev/null || true # kernel records chroot-relative swap path
 	umount -R /mnt
 	cryptsetup close cryptroot
 
@@ -620,23 +661,15 @@ EOF
 # Keys for this machine alone: the firmware will trust nothing else, Microsoft's
 # included. Created after the builds so `sign -s` records both UKIs in sbctl's
 # database (an already signed file is skipped before the database write); from
-# here on the mkinitcpio post hook signs every rebuild. Enrolling needs Setup
-# Mode; without it the system boots with Secure Boot off until enrolled. A key
-# or signing failure is not the install's end: the system boots unsigned with
-# nothing enrolled, and enrolling now would lock the unsigned UKIs out.
+# here on the mkinitcpio post hook signs every rebuild. A key or signing
+# failure is not the install's end: the system boots with Secure Boot off and
+# nothing enrolled. Enrolment is the live phase's last act (_enroll_keys).
 _secure_boot() {
 	if ! { sbctl create-keys && sbctl sign -s /boot/efi/EFI/Linux/arch-linux.efi && sbctl sign -s /boot/efi/EFI/BOOT/BOOTX64.EFI; }; then
-		warn "Keys or signatures failed (see above): nothing enrolled, Secure Boot stays off. After the first boot: Fresh keys (README, Recovery); post-install.sh step 1 repeats this."
+		warn "Keys or signatures failed (see above): nothing enrolled, Secure Boot stays off. After the first boot: Fresh keys (README, Recovery); post-install.sh step 1 checks the signatures again."
 		return 0
 	fi
 	ESP_PATH=/boot/efi sbctl verify || warn "sbctl verify failed to list the ESP; run sbctl verify after the first boot."
-	_setup_mode || {
-		warn "Firmware not in Setup Mode: keys not enrolled. Later: Reset to Setup Mode, boot, sudo sbctl enroll-keys -i (README, Recovery)."
-		return 0
-	}
-	# Never --microsoft (the point) and never --yes-this-might-brick-my-machine:
-	# sbctl stops when the TPM event log shows an option ROM the keys would lock out.
-	sbctl enroll-keys -i || warn "Keys not enrolled (see above): Secure Boot stays off until sudo sbctl enroll-keys -i succeeds. No TPM event log means the chip is off (README, Step 0); an option ROM in it takes -i --tpm-eventlog (README, Recovery)."
 }
 
 _write_system_config() {
