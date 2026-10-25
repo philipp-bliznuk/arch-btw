@@ -21,6 +21,3 @@ alias dotf='cd "$HOME/projects/dotfiles/" && ${VISUAL:-${EDITOR:-nvim}}'
 alias cp="cp -i"
 alias mv="mv -i"
 alias rm="rm -I"
-
-# Yubikey resync
-alias yksync='gpg-connect-agent "scd serialno" "learn --force" /bye'
