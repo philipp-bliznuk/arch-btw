@@ -65,7 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/philipp-bliznuk/arch-btw/master/ins
 bash install.sh                         # not curl | bash - needs a tty for prompts
 ```
 
-Prompts, in order: disk (wiped), timezone (`Europe/Berlin`), username, LUKS passphrase, user password, root password (each twice). Summary → type `YES`. Its `Secure Boot` line reads the firmware: `Setup Mode - own keys enrolled`, `not in Setup Mode - UKIs signed, enroll later`, or `no TPM event log - UKIs signed, enroll later` (Step 0, item 3; the command is under Recovery). An enforcing firmware stops the script before the prompts: the new keys could never get in.
+Before any prompt the script waits for the ISO's keyring (`pacman-init.service`, which waits for the clock to sync; 5 min at most), refreshes it and resolves the whole package list against the repositories (`pacman -Sp`), so a stale ISO or a renamed package fails here, with nothing wiped yet. Prompts, in order: disk (wiped), timezone (`Europe/Berlin`), username, LUKS passphrase, user password, root password (each twice). Summary → type `YES`. Its `Secure Boot` line reads the firmware: `Setup Mode - own keys enrolled`, `not in Setup Mode - UKIs signed, enroll later`, or `no TPM event log - UKIs signed, enroll later` (Step 0, item 3; the command is under Recovery). An enforcing firmware stops the script before the prompts: the new keys could never get in.
 
 FIDO2 enrollment pauses twice, right after `YES` (disk wiped and LUKS formatted, before pacstrap): `Insert YubiKey #1 ONLY (remove the other), then Enter`, then key #2.
 

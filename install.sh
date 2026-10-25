@@ -117,8 +117,10 @@ on_error() {
 		: # the live side reports the failed chroot step
 	elif ((ENROLLED)); then
 		err "The Secure Boot keys are enrolled; what was left: ln -sf ../run/systemd/resolve/stub-resolv.conf /mnt/etc/resolv.conf; umount -R /mnt; cryptsetup close cryptroot; reboot. The ISO now needs Secure Boot Off for its boot (keys kept) or Reset to Setup Mode (keys gone; what a re-run of install.sh needs) (README, Recovery)."
+	elif [[ -z "${DISK:-}" ]]; then
+		err "Nothing was written yet. Fix the cause and re-run install.sh."
 	else
-		err "Fix the cause and re-run install.sh. Re-running RE-WIPES ${DISK:-the target disk}."
+		err "Fix the cause and re-run install.sh. Re-running RE-WIPES $DISK."
 	fi
 	exit "$ec"
 }
@@ -280,6 +282,29 @@ detect_ucode() {
 	info "Microcode: $UCODE · VA-API: $VAAPI"
 }
 
+# Before the wipe: pacstrap runs after the disk is gone, and a stale ISO
+# keyring (signature failures) or a package renamed since this list was
+# written would stop it there. -Sy refreshes keyring and sync databases, -Sp
+# resolves every name without installing anything.
+step_repos() {
+	# The ISO fills its keyring in pacman-init.service, which waits for the clock
+	# (After=time-sync.target): on Wi-Fi that is about when this script is
+	# fetched, and -Sy against a half-populated keyring fails on signatures.
+	# start returns at once when the oneshot has run, waits while it is queued
+	# or running.
+	if [[ -d /run/archiso ]]; then
+		info "Waiting for the ISO keyring (pacman-init.service, after the clock sync)"
+		timeout 300 systemctl start pacman-init.service || {
+			err "pacman-init.service did not finish in 5 min: the clock has not synced (timedatectl). Fix that, then re-run."
+			exit 1
+		}
+	fi
+	pacman -Sy --noconfirm archlinux-keyring
+	local pkgs=("${PACKAGES[@]/<ucode>/$UCODE}")
+	pkgs=("${pkgs[@]/<vaapi>/$VAAPI}")
+	pacman -Sp "${pkgs[@]}" >/dev/null
+}
+
 detect_swap_gb() {
 	# >= RAM for hibernation; rounded up to GiB.
 	local kb
@@ -380,7 +405,6 @@ _enroll_fido2() {
 }
 
 step_pacstrap() {
-	pacman -Sy --noconfirm archlinux-keyring # stale ISO keyring → signature failures
 	local pkgs=("${PACKAGES[@]/<ucode>/$UCODE}")
 	pkgs=("${pkgs[@]/<vaapi>/$VAAPI}")
 	# vconsole.conf before pacstrap: sd-vconsole needs it, and the stock image
@@ -784,6 +808,7 @@ main_live() {
 	run_step step_preflight
 	run_step step_network
 	detect_ucode
+	run_step step_repos
 	detect_swap_gb
 	prompt_inputs # interactive - outside run_step
 	derive_parts
