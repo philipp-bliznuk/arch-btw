@@ -96,9 +96,11 @@ Scope {
     }
 
     // Hint set by qs-notify: qs-glyph, a Nerd glyph shown when there is no icon.
+    // One glyph, modifiers included, is a few UTF-16 units; anything longer is
+    // not a glyph and would be laid out across the card.
     function glyph(n) {
         const g = n.hints["qs-glyph"];
-        return typeof g === "string" ? g : "";
+        return typeof g === "string" && g.length <= 8 ? g : "";
     }
 
     function activate(n) {

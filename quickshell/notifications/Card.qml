@@ -145,7 +145,8 @@ Rectangle {
             Text {
                 width: parent.width
                 visible: text !== ""
-                text: Body.styled(card.notification.body, card.notification.appName, card.notification.appIcon)
+                // cut before the sanitiser walks it: four lines show, D-Bus allows 128 MiB
+                text: Body.styled(Util.truncate(card.notification.body, 8192), card.notification.appName, card.notification.appIcon)
                 textFormat: Text.StyledText
                 color: Theme.subtext0
                 font.family: Style.fontFamily
