@@ -76,7 +76,8 @@ opt.foldmethod = "expr"
 opt.foldexpr = "v:lua.vim.treesitter.foldexpr()"
 opt.foldlevelstart = 99 -- start with all folds open
 
--- Grep (use ripgrep if available)
+-- Grep: nvim picks rg on its own, but with -uu (ignored and hidden files
+-- too); this one respects .gitignore and is smart-case
 if vim.fn.executable("rg") == 1 then
   opt.grepprg = "rg --vimgrep --smart-case"
 end

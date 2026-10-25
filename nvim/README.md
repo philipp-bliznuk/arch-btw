@@ -106,7 +106,6 @@ Leader key: `Space`
 | `J` / `K`         | v    | Move selection down/up            |
 | `<A-j>` / `<A-k>` | n    | Move line down/up                 |
 | `<` / `>`         | v    | Indent (stay in visual mode)      |
-| `Q`               | n    | Disabled                          |
 
 ### Leader
 

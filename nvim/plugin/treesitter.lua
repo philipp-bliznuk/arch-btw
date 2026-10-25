@@ -130,8 +130,6 @@ pack.on_ft("https://github.com/windwp/nvim-ts-autotag", {
     "vue",
     "svelte",
     "astro",
-    "tsx",
-    "jsx",
   },
   config = function()
     require("nvim-ts-autotag").setup()

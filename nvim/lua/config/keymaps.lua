@@ -34,9 +34,6 @@ map({ "n", "v" }, "<leader>y", '"+y', { desc = "Yank to system clipboard" })
 map("n", "<leader>Y", '"+Y', { desc = "Yank line to system clipboard" })
 map({ "n", "v" }, "<leader>P", '"+p', { desc = "Paste from system clipboard" })
 
--- Disable Ex mode
-map("n", "Q", "<nop>", { desc = "Disabled" })
-
 -- Search and replace word under cursor
 map("n", "<leader>sr", [[:%s/\<<C-r><C-w>\>/<C-r><C-w>/gI<Left><Left><Left>]], { desc = "Replace word under cursor" })
 map("x", "<leader>sr", [["zy:%s/<C-r>z/<C-r>z/gI<Left><Left><Left>]], { desc = "Replace selection" })
@@ -69,9 +66,9 @@ map("n", "<leader>bo", function()
 end, { desc = "Close other buffers" })
 map("n", "<leader>bl", "<cmd>buffer #<CR>", { desc = "Last buffer" })
 
--- Quickfix navigation
-map("n", "[q", "<cmd>cprev<CR>zz", { desc = "Previous quickfix" })
-map("n", "]q", "<cmd>cnext<CR>zz", { desc = "Next quickfix" })
+-- Quickfix navigation: the default commands plus zz ([q ]q keep their count)
+map("n", "[q", "<cmd>execute v:count1 .. 'cprevious'<CR>zz", { desc = "Previous quickfix" })
+map("n", "]q", "<cmd>execute v:count1 .. 'cnext'<CR>zz", { desc = "Next quickfix" })
 map("n", "[Q", "<cmd>cfirst<CR>zz", { desc = "First quickfix" })
 map("n", "]Q", "<cmd>clast<CR>zz", { desc = "Last quickfix" })
 

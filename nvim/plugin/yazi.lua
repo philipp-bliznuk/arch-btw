@@ -11,9 +11,12 @@ pack.add("https://github.com/mikavilpas/yazi.nvim", function()
     integrations = {
       grep_in_directory = "fzf-lua",
       grep_in_selected_files = "fzf-lua",
-      replace_in_directory = nil,
-      replace_in_selected_files = nil,
-      pick_window_implementation = nil,
+    },
+    -- the replace (grug-far) and pick-window (snacks) integrations have no
+    -- plugin here: their keys stay unmapped instead of erroring
+    keymaps = {
+      replace_in_directory = false,
+      open_and_pick_window = false,
     },
   })
 end)

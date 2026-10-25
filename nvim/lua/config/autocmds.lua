@@ -74,21 +74,6 @@ autocmd("FileType", {
   end,
 })
 
--- LspProgress echo (native 0.12)
-autocmd("LspProgress", {
-  group = augroup("config_lsp_progress"),
-  callback = function(event)
-    local client = vim.lsp.get_clients({ id = event.data.client_id })[1]
-    if not client then
-      return
-    end
-    local value = event.data.params and event.data.params.value
-    if value and value.kind == "begin" then
-      vim.cmd.redrawstatus()
-    end
-  end,
-})
-
 -- Formatoptions: disable comment continuation, enable useful flags
 autocmd("FileType", {
   group = augroup("config_formatoptions"),

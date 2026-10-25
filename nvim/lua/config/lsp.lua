@@ -27,8 +27,6 @@ vim.diagnostic.config({
     prefix = "",
     spacing = 4,
   },
-  underline = true,
-  update_in_insert = false,
 })
 
 -- Completion engine (must load before LSP for capabilities)
@@ -109,7 +107,6 @@ vim.lsp.config["ruff"] = {
   cmd = { "ruff", "server" },
   filetypes = { "python" },
   root_markers = { "pyproject.toml", "ruff.toml", ".ruff.toml", ".git" },
-  settings = {},
   on_attach = function(client)
     client.server_capabilities.documentFormattingProvider = false
     client.server_capabilities.documentRangeFormattingProvider = false
@@ -145,10 +142,8 @@ vim.lsp.config["tsgo"] = {
   filetypes = {
     "javascript",
     "javascriptreact",
-    "javascript.jsx",
     "typescript",
     "typescriptreact",
-    "typescript.tsx",
   },
   root_markers = {
     "package-lock.json",
@@ -210,7 +205,6 @@ vim.lsp.config["gopls"] = {
 vim.lsp.config["jsonls"] = {
   cmd = { "vscode-json-language-server", "--stdio" },
   filetypes = { "json", "jsonc" },
-  root_markers = { ".git" },
   settings = {
     json = {
       validate = { enable = true },
@@ -222,7 +216,6 @@ vim.lsp.config["jsonls"] = {
 vim.lsp.config["yamlls"] = {
   cmd = { "yaml-language-server", "--stdio" },
   filetypes = { "yaml", "yaml.docker-compose" },
-  root_markers = { ".git" },
   settings = {
     yaml = {
       schemaStore = { enable = true },
@@ -278,7 +271,6 @@ vim.lsp.config["dockerls"] = {
 vim.lsp.config["bashls"] = {
   cmd = { "bash-language-server", "start" },
   filetypes = { "sh", "bash", "zsh" },
-  root_markers = { ".git" },
 }
 
 -- QML (quickshell). qmlls comes with qt6-declarative, which quickshell pulls
@@ -318,7 +310,6 @@ vim.lsp.config["harper_ls"] = {
     "toml",
     "yaml",
   },
-  root_markers = { ".git" },
   settings = {
     ["harper-ls"] = {
       linters = {
