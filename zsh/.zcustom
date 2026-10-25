@@ -7,6 +7,10 @@ function zvm_after_init() {
   # FZF widgets (zvm stomps these on init)
   bindkey '^R' fzf-history-widget
   bindkey '^T' fzf-file-widget
+
+  # Shift+Enter arrives as CSI-u (kitty.conf, tmux extended-keys always); unbound,
+  # zvm would leave insert mode and feed "13;2u" to vicmd
+  bindkey '^[[13;2u' accept-line
 }
 
 # Normal/visual-mode keybindings (load lazily on first ESC)
@@ -29,6 +33,8 @@ function zvm_after_lazy_keybindings() {
 
   # U for redo (symmetry with u for undo)
   bindkey -M vicmd 'U' redo
+
+  bindkey -M vicmd '^[[13;2u' accept-line
 }
 
 # FZF configuration (fzf 0.48+ built-in walker, no FZF_DEFAULT_COMMAND needed)
