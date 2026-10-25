@@ -11,8 +11,9 @@ Order: Part 0 extract → Part A key #1 → Part B key #2 → Part C register. N
 ## Prerequisites
 
 ```zsh
-sudo pacman -S --needed yubikey-manager gnupg ccid pinentry   # ykman GUI is EOL; CLI only
-sudo systemctl enable --now pcscd.socket                      # ykman and scdaemon talk PC/SC
+# ykman GUI is EOL, CLI only; pinentry-qt links against the two KF6 libraries
+sudo pacman -S --needed yubikey-manager gnupg ccid pinentry kguiaddons kwindowsystem
+sudo systemctl enable --now pcscd.socket   # ykman and scdaemon talk PC/SC
 ykman list && ykman info
 ```
 
@@ -221,7 +222,7 @@ echo test | gpg --clearsign -u <key-id>   # User PIN + touch; without -u gpg tak
 
 # Part B - Key #2
 
-Remove key #1. Insert **only** key #2.
+Remove key #1, `gpgconf --kill scdaemon` (under the stock `pcscd.service` a pulled key lets pcscd quit 60 s later and the running scdaemon then fails against the fresh one, Recovery), insert **only** key #2.
 
 ## B1 - Reset + interfaces + FIDO2 PIN
 
@@ -264,7 +265,7 @@ gpg --card-status                # same subkeys, different serial
 ssh-add -L                       # identical line to key #1
 ```
 
-Swap keys, then:
+Swap keys, `gpgconf --kill scdaemon`, then:
 
 ```zsh
 echo test | gpg --clearsign -u <key-id>   # no learn needed (gnupg >= 2.3 finds the card by keygrip; the stubs' serial is display only)
