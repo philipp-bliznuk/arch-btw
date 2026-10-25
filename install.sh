@@ -75,9 +75,9 @@ ENROLLED=0 # set by _enroll_keys, read by on_error
 run_step() {
 	local step="$1"
 	CURRENT_STEP="$step"
-	info "$step"
 	(
 		trap - ERR
+		info "$step"
 		[[ "${DEBUG:-0}" == "1" ]] && set -x
 		PS4='+ ${BASH_SOURCE[0]##*/}:${LINENO}:${FUNCNAME[0]:-main}: '
 		"$step"
@@ -129,10 +129,6 @@ trap on_error ERR
 # --- live-ISO steps --------------------------------------------------------
 
 step_preflight() {
-	[[ $EUID -eq 0 ]] || {
-		err "Run as root from the live ISO."
-		exit 1
-	}
 	[[ -d /run/archiso ]] || warn "Not /run/archiso - not the Arch live ISO? Continuing."
 	[[ -d /sys/firmware/efi ]] || {
 		err "Not booted in UEFI mode."
@@ -153,7 +149,6 @@ step_preflight() {
 	timedatectl set-ntp true
 
 	# Rerun safety.
-	[[ -d /mnt/swap ]] && arch-chroot /mnt swapoff -a 2>/dev/null || true
 	umount -R /mnt 2>/dev/null || true
 	cryptsetup close cryptroot 2>/dev/null || true
 	# Still open = something holds it (a shell inside /mnt, a mount umount -R
@@ -218,11 +213,23 @@ prompt_inputs() {
 		warn "$TIMEZONE is an alias (tzdata 'backward' link); use the canonical name from $TIMEZONE_ROOT/zone.tab"
 	done
 
+	local uid
 	while :; do
 		printf 'Username: ' >/dev/tty
 		read -r USERNAME </dev/tty
-		[[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]*$ ]] && break
-		warn "Must match ^[a-z_][a-z0-9_-]*$"
+		[[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || {
+			warn "Must match ^[a-z_][a-z0-9_-]*$, 32 characters at most (what a utmp record holds)"
+			continue
+		}
+		# the ISO's system accounts are the installed system's too (root, nobody,
+		# http...); a human account on a non-ISO host (login.defs' 1000..59999)
+		# is not
+		uid="$(id -u "$USERNAME" 2>/dev/null || echo 1000)"
+		if ((uid < 1000 || uid >= 60000)); then
+			warn "$USERNAME is a system account"
+			continue
+		fi
+		break
 	done
 
 	LUKS_PASS="$(_read_confirmed 'LUKS passphrase')"
@@ -489,7 +496,7 @@ step_dotfiles_clone() {
 # iwd /var/lib/iwd/<SSID>.psk → NetworkManager keyfiles so Wi-Fi works on first
 # boot. WPA-PSK only: iwd keeps 802.1X networks in *.8021x, not carried over.
 _harvest_wifi() {
-	local f base ssid psk nm
+	local f base ssid psk hidden nm
 	shopt -s nullglob
 	local psks=(/var/lib/iwd/*.psk)
 	[[ ${#psks[@]} -gt 0 ]] || warn "No iwd WPA-PSK profile in /var/lib/iwd - Wi-Fi needs setting up on first boot."
@@ -508,6 +515,8 @@ _harvest_wifi() {
 		psk="$(awk -F= '/^Passphrase=/{sub(/^Passphrase=/,""); print; exit}' "$f")"
 		[[ -n "$psk" ]] || psk="$(awk -F= '/^PreSharedKey=/{sub(/^PreSharedKey=/,""); print; exit}' "$f")"
 		[[ -n "$psk" ]] || continue
+		hidden=false # iwd [Settings] Hidden=true: NM must name the SSID in its scans too
+		grep -qx 'Hidden=true' "$f" && hidden=true
 
 		# File named after iwd's encoded form: the decoded SSID may hold "/".
 		nm="/mnt/etc/NetworkManager/system-connections/${base}.nmconnection"
@@ -523,6 +532,7 @@ autoconnect=true
 [wifi]
 mode=infrastructure
 ssid=$ssid
+hidden=$hidden
 
 [wifi-security]
 key-mgmt=wpa-psk
@@ -825,6 +835,10 @@ EOF
 # --- entry -----------------------------------------------------------------
 
 main_live() {
+	[[ $EUID -eq 0 ]] || {
+		err "Run as root from the live ISO."
+		exit 1
+	}
 	: >"$LOG_FILE"
 	info "Arch install - live ISO phase. Log: $LOG_FILE"
 

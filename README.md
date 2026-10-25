@@ -57,7 +57,7 @@ Get online first. Wired = automatic. Wi-Fi:
 iwctl device list                       # station name, e.g. wlan0
 iwctl station wlan0 scan
 iwctl station wlan0 get-networks
-iwctl station wlan0 connect "<SSID>"    # prompts passphrase; install.sh copies WPA-PSK profiles into the installed system, nothing else
+iwctl station wlan0 connect "<SSID>"    # prompts passphrase; install.sh copies WPA-PSK profiles (hidden flag included) into the installed system, nothing else
 ```
 
 ```bash
