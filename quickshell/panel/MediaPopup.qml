@@ -44,7 +44,9 @@ PopupCard {
                 Image {
                     id: art
                     anchors.fill: parent
-                    source: Player.artUrl
+                    // fetched only while the card is open: a player's art URL
+                    // may be remote, and the popup exists on every output
+                    source: root.open ? Player.artUrl : ""
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     sourceSize.width: 144

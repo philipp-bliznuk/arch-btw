@@ -57,9 +57,12 @@ Scope {
 
     // "Authentication is required to run `/usr/bin/x' as the super user" ->
     // "Run /usr/bin/x as the super user": the title already says the rest.
+    // Whitespace collapsed first: the message is the requester's, and a
+    // newline would skip the match and stretch the card.
     function describe(message) {
-        const m = /^Authentication is (?:needed|required) to (.+)$/i.exec(message || "");
-        const s = m ? m[1].replace(/`([^`']+)'/g, "$1") : (message || "");
+        const flat = String(message || "").replace(/\s+/g, " ").trim();
+        const m = /^Authentication is (?:needed|required) to (.+)$/i.exec(flat);
+        const s = m ? m[1].replace(/`([^`']+)'/g, "$1") : flat;
         return s.charAt(0).toUpperCase() + s.slice(1);
     }
 
@@ -80,8 +83,10 @@ Scope {
     // the flow synchronously and the next queued request starts inside the
     // same call.
     function cancelIfLocked() {
-        if (Lock.locked && flow)
+        if (Lock.locked && flow) {
+            field.text = "";
             flow.cancelAuthenticationRequest();
+        }
     }
 
     PolkitAgent {
@@ -232,6 +237,10 @@ Scope {
                                 width: parent.width
                                 text: root.flow ? root.describe(root.flow.message) : ""
                                 textFormat: Text.PlainText
+                                // bounded: the requester writes this, the line
+                                // under it says who asked and must stay on screen
+                                maximumLineCount: 3
+                                elide: Text.ElideRight
                                 color: Theme.subtext0
                                 font.family: Style.fontFamily
                                 font.pixelSize: Style.fontSmall

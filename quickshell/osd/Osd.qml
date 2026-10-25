@@ -183,6 +183,8 @@ Scope {
                     readonly property int slotWidth: Math.ceil(Math.max(pctMetrics.advanceWidth, mutedMetrics.advanceWidth))
                     width: root.text ? parent.width - icon.width - parent.spacing : slotWidth
                     text: root.label
+                    // the MPRIS title lands here, written by the player or a web page
+                    textFormat: Text.PlainText
                     color: Theme.text
                     elide: Text.ElideRight
                     horizontalAlignment: root.text ? Text.AlignLeft : Text.AlignRight

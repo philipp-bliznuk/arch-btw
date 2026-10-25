@@ -69,15 +69,16 @@ Scope {
     // History keeps the content last shown: a replaces_id update rewrites the
     // live object, so the record written at arrival is re-snapshotted. The
     // record's time is the arrival time and doubles as its key (the server
-    // reuses ids across generations).
+    // reuses ids across generations). Strings are cut: D-Bus allows 128 MiB a
+    // message, and the file is parsed on every start.
     function snapshot(n, time) {
         return {
             id: n.id,
-            appName: n.appName,
-            appIcon: n.appIcon,
-            image: n.image,
-            summary: n.summary,
-            body: n.body,
+            appName: Util.truncate(n.appName, 128),
+            appIcon: Util.truncate(n.appIcon, 4096),
+            image: Util.truncate(n.image, 4096),
+            summary: Util.truncate(n.summary, 512),
+            body: Util.truncate(n.body, 4096),
             urgency: n.urgency,
             time
         };
@@ -116,18 +117,12 @@ Scope {
     }
 
     // A sender in a loop would queue without bound, one live Notification
-    // and one Card each. Past maxQueued the oldest waiting non-critical one
-    // expires; it is in the history already.
+    // and one Card each. Past maxQueued the oldest waiting one expires,
+    // critical included (a loop of critical ones is the same loop); it is in
+    // the history already.
     function trim() {
-        if (popups.count <= maxQueued)
-            return;
-        for (let i = maxVisible; i < popups.count; i++) {
-            const n = popups.get(i).notification;
-            if (n.urgency !== NotificationUrgency.Critical) {
-                n.expire();
-                return;
-            }
-        }
+        if (popups.count > maxQueued)
+            popups.get(maxVisible).notification.expire();
     }
 
     function dismissLatest() {

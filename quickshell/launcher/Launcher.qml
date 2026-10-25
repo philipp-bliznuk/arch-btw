@@ -474,6 +474,7 @@ Scope {
         onTriggered: {
             const expr = root.query.slice(1).trim()
             if (!expr) { root.calcResult = ""; return }
+            calc.running = false
             calc.command = ["qalc", "-t", expr]
             calc.running = true
         }
@@ -496,7 +497,7 @@ Scope {
 
     Process {
         id: wallpaperList
-        command: ["bash", "-c", Util.bin("qs-wallpaper") + " list; printf '\\n---\\n'; " + Util.bin("qs-wallpaper") + " current"]
+        command: ["bash", "-c", '"$1" list; printf "\\n---\\n"; "$1" current', "bash", Util.bin("qs-wallpaper")]
         stdout: StdioCollector {
             onStreamFinished: {
                 const parts = text.split("\n---\n")

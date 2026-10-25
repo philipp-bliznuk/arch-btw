@@ -58,6 +58,8 @@ Scope {
     readonly property string hint: {
         if (authenticating)
             return "Checking";
+        if (sleeping)
+            return "Enter password";
         if (u2fFastFails >= 6)
             return "YubiKey not accepted, still retrying";
         if (u2fFastFails > 0)

@@ -50,6 +50,8 @@ Item {
         x: Math.round((parent.width - metrics.tightBoundingRect.width) / 2 - metrics.tightBoundingRect.x)
         anchors.verticalCenter: parent.verticalCenter
         text: root.text
+        // the qs-glyph notification hint lands here, written by any sender
+        textFormat: Text.PlainText
         font.family: Style.fontFamily
         font.pixelSize: root.size
         font.weight: Style.fontWeight
