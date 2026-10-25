@@ -751,7 +751,20 @@ _keys_import() {
 }
 
 step_keys() {
+	# Stock pcscd.service runs --auto-exit: pcscd quits 60 s after its last
+	# client lets go, and the pcsc-lite client inside the still running
+	# scdaemon then fails every reader scan against a fresh daemon whose
+	# reader table is smaller than the one it cached, grows only (YUBIKEY.md,
+	# Recovery). Resident pcscd instead; try-restart for --redo.
+	sudo install -D -o root -g root -m 644 /dev/stdin /etc/systemd/system/pcscd.service.d/override.conf <<-'EOF'
+		# Written by post-install.sh (keys).
+		[Service]
+		ExecStart=
+		ExecStart=/usr/bin/pcscd --foreground $PCSCD_ARGS
+	EOF
+	sudo systemctl daemon-reload
 	sudo systemctl enable --now pcscd.socket
+	sudo systemctl try-restart pcscd.service
 	GPG_TTY="$(tty)"
 	export GPG_TTY # pinentry-qt falls back to curses here, needs the tty
 

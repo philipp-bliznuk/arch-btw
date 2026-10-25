@@ -142,7 +142,7 @@ ykman openpgp keys set-touch aut cached
 
 ## A6 - SSH via gpg-agent
 
-On the installed system `post-install.sh` step `keys` writes all of this (`~/.gnupg/gpg-agent.conf`, `scdaemon.conf`, `~/.ssh/config`, the exported card key). Elsewhere, by hand. `~/.gnupg/gpg-agent.conf`:
+On the installed system `post-install.sh` step `keys` writes all of this (`~/.gnupg/gpg-agent.conf`, `scdaemon.conf`, `~/.ssh/config`, the exported card key) and keeps pcscd resident (see Recovery). Elsewhere, by hand. `~/.gnupg/gpg-agent.conf`:
 
 ```conf
 pinentry-program /usr/bin/pinentry-qt
@@ -287,7 +287,7 @@ echo test | gpg --clearsign -u <key-id>   # no learn needed (gnupg >= 2.3 finds 
 - FIDO2 PIN blocked (3 wrong in a row): replug, the remaining retries continue.
 - FIDO2 applet wiped (8 wrong) or a key lost: boot with the LUKS passphrase (keyslot 0, prompted 30 s after boot with no key). On the key: `ykman fido reset` (ykman says when to replug and touch), `ykman fido access change-pin` (same PIN as the other key). LUKS: `sudo systemd-cryptenroll --wipe-slot=fido2 --fido2-device=auto --fido2-with-client-pin=yes /dev/<luks-partition>` with the first key plugged (drops every FIDO2 slot, enrolls this key), then the same without `--wipe-slot` for the second key. login / sudo / polkit / lock screen: `post-install.sh --redo yubikey_pam` re-enrolls both keys into `/etc/u2f_mappings`. WebAuthn registrations of a reset key are gone: Part C again for that key.
 - OpenPGP User PIN blocked: `ykman openpgp access unblock-pin -a -` (Admin PIN; without `-a` it asks for the unset Reset Code). Admin PIN blocked: applet wiped; `ykman openpgp reset`, then A4 and B3 again from `subkeys-only.asc` with only that key plugged (the same subkeys, so both cards stay interchangeable; the other card keeps working meanwhile).
-- "Please insert the card with serial number ..." while a key is plugged in: scdaemon saw no reader, it does not need that card (the number is the card the stubs were learned from; any card holding the subkeys is accepted, `learn --force` only changes the number). Cause with the stock `pcscd.service`: pcscd quits 60 s after its last client lets go (`--auto-exit`; scdaemon lets go when the key is pulled) and the pcsc-lite client inside the long-running scdaemon chokes on the fresh daemon's smaller reader table (`pcsc_list_readers failed: unsupported feature (0x8010001f)` in the user journal). `gpgconf --kill scdaemon` (gpg-agent and its passphrase cache stay up), retry.
+- "Please insert the card with serial number ..." while a key is plugged in: scdaemon saw no reader, it does not need that card (the number is the card the stubs were learned from; any card holding the subkeys is accepted, `learn --force` only changes the number). Cause: pcscd restarted under the running scdaemon, whose pcsc-lite client chokes on the fresh daemon's smaller reader table (`pcsc_list_readers failed: unsupported feature (0x8010001f)` in the user journal). The stock `pcscd.service` does that by itself (`--auto-exit`: quits 60 s after its last client lets go, and scdaemon lets go when the key is pulled); step `keys` drops the flag, so on the installed system only a manual restart or a crash gets there. `gpgconf --kill scdaemon` (gpg-agent and its passphrase cache stay up), retry.
 - `/etc/u2f_mappings` or PAM broken: `login`, `sudo` and polkit fall through to the password (`sufficient`), `su` never had `pam_u2f`.
 
 ---
