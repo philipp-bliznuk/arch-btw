@@ -463,21 +463,27 @@ step_boot_entries() {
 	fi
 }
 
+# A failure here is a warning, not a re-wipe: the system is installed and the
+# clone can be redone from the first boot. The ISO has no git, so a local
+# checkout (branch testing) is copied with its .git and its origin pointed at
+# GitHub from inside the chroot.
 step_dotfiles_clone() {
 	# runuser keeps HOME=/root → git EACCES on /root/.gitconfig; set HOME explicitly.
-	local home="/home/$USERNAME"
+	local home="/home/$USERNAME" dest="/home/$USERNAME/projects/dotfiles"
+	local as_user=(arch-chroot /mnt runuser -u "$USERNAME" -- env HOME="$home")
+	local hint="after the first boot: rm -rf ~/projects/dotfiles; git clone $DOTFILES_HTTPS ~/projects/dotfiles, then post-install.sh."
+	"${as_user[@]}" mkdir -p "$home/projects"
 	if [[ -f "$SCRIPT_DIR/post-install.sh" && -d "$SCRIPT_DIR/.git" ]]; then
-		# Running from a local checkout (VM/branch testing): install that tree instead of cloning master.
 		info "Using local dotfiles checkout: $SCRIPT_DIR"
-		mkdir -p "/mnt$home/projects"
-		git clone --quiet "$SCRIPT_DIR" "/mnt$home/projects/dotfiles"
-		git -C "/mnt$home/projects/dotfiles" remote set-url origin "$DOTFILES_HTTPS"
-		arch-chroot /mnt chown -R "$USERNAME:$USERNAME" "$home/projects"
+		if ! { cp -a "$SCRIPT_DIR" "/mnt$dest" &&
+			arch-chroot /mnt chown -R "$USERNAME:$USERNAME" "$dest" &&
+			"${as_user[@]}" git -C "$dest" remote set-url origin "$DOTFILES_HTTPS"; }; then
+			warn "Copying the checkout failed; $hint"
+		fi
 	else
-		arch-chroot /mnt runuser -u "$USERNAME" -- env HOME="$home" \
-			git clone "$DOTFILES_HTTPS" "$home/projects/dotfiles"
+		"${as_user[@]}" git clone "$DOTFILES_HTTPS" "$dest" || warn "Clone failed; $hint"
 	fi
-	arch-chroot /mnt runuser -u "$USERNAME" -- env HOME="$home" touch "$home/.zshrc" # silences zsh-newuser-install
+	"${as_user[@]}" touch "$home/.zshrc" # silences zsh-newuser-install
 }
 
 # iwd /var/lib/iwd/<SSID>.psk → NetworkManager keyfiles so Wi-Fi works on first
