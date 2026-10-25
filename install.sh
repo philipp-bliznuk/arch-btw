@@ -156,6 +156,14 @@ step_preflight() {
 	[[ -d /mnt/swap ]] && arch-chroot /mnt swapoff -a 2>/dev/null || true
 	umount -R /mnt 2>/dev/null || true
 	cryptsetup close cryptroot 2>/dev/null || true
+	# Still open = something holds it (a shell inside /mnt, a mount umount -R
+	# could not take down): sgdisk would then relabel a disk with a live
+	# mapping on it, and luksFormat the partition under that mapping.
+	if [[ -e /dev/mapper/cryptroot ]]; then
+		err "/dev/mapper/cryptroot is still open after umount -R /mnt and cryptsetup close: free it (what stayed mounted under /mnt is listed below; a shell inside /mnt counts), then re-run."
+		findmnt -R /mnt >&2 || true
+		exit 1
+	fi
 }
 
 step_network() {
