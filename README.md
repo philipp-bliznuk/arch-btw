@@ -213,7 +213,7 @@ Launcher: command menu - breadcrumb, frecency (`~/.local/state/qs/launcher-usage
 | `qs-shell [-q] T FN`   | `qs ipc call` wrapper; exits 1 on unknown target/function/no instance (`qs ipc` says so with exit 0), 3 s timeout, finds the display from `$XDG_RUNTIME_DIR/wayland-*` when unset |
 | `qs-quit`              | SIGTERM the focused window's process (`$mod+Ctrl+q`; apps that hide to the tray on `kill` actually exit) |
 | `qs-session`           | `start` (sway `exec`), `restart` (`$mod+Shift+r`), `stop`, `supervise` (internal relaunch loop) |
-| `qs-toggle NAME`       | `awake` `nightlight` `dnd` `bar-hidden` - flag files; nightlight also runs `wlsunset` as a transient unit |
+| `qs-toggle NAME`       | `awake` `nightlight` `dnd` `bar-hidden` - flag files; nightlight also runs `wlsunset` as a transient unit at a fixed 4000 K (`-S 00:00 -s 00:00 -d 0`; without fixed times it does its sun maths on `NAN` coordinates, which read as midnight sun from late March to late September: 6500 K, no effect); the sunset/sunrise automation is the shell's (`core/Sun`) |
 | `qs-lock [--sleep]`    | lock via IPC (`swaylock` fallback); `--sleep` (swayidle `before-sleep`) holds the touch path until resume, blocks until the compositor confirms, 4 s max, then outputs off |
 | `qs-screensaver MODE`  | `start` `stop` - fullscreen `cmatrix` kitty per output (`app_id` `qs-screensaver`); no-op without `cmatrix` |
 | `qs-capture MODE`      | `region` `window` `screen` (→ `~/Pictures/Screenshots/shot-<stamp>.png`) `region-clip` `color` |

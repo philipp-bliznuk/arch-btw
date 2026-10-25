@@ -45,7 +45,13 @@ nightlight)
 		# pkill cannot race its is-active check.
 		stop_daemon qs-nightlight
 		pkill -x wlsunset 2>/dev/null || true
-		start_daemon qs-nightlight wlsunset -T 6500 -t 4000
+		# Fixed 4000 K: sunrise and sunset both at midnight with no ramp, so
+		# the whole day is "night". Without fixed times wlsunset runs its sun
+		# maths on NAN coordinates, which signbit() reads as "midnight sun"
+		# while the declination is positive: 6500 K and no effect from late
+		# March to late September. Sunset/sunrise automation is the shell's
+		# (core/Sun).
+		start_daemon qs-nightlight wlsunset -T 6500 -t 4000 -S 00:00 -s 00:00 -d 0
 	else
 		stop_daemon qs-nightlight
 		pkill -x wlsunset 2>/dev/null || true
