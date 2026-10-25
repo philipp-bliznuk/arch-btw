@@ -1,6 +1,9 @@
 [init]
 	defaultBranch = master
 
+[user]
+	useConfigOnly = true
+
 [core]
 	pager = delta
 

@@ -18,7 +18,7 @@ program = "nvim"
 [signing]
 behavior = "own"
 backend = "gpg"
-key = "90FCB72BBEA3C725"
+key = "90FCB72BBEA3C725!"
 
 [remotes.origin]
 auto-track-bookmarks = "*"
