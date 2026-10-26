@@ -269,9 +269,13 @@ Scope {
             keys.forceActiveFocus()
     }
 
+    // Written here, not from onUsageChanged: the initial ({}) binding fires
+    // that before the file has loaded and would empty it on every (re)start.
     function remember(r) {
-        if (r && r.id && section !== "confirm")
+        if (r && r.id && section !== "confirm") {
             usage = Usage.bump(usage, usageKey(r))
+            usageFile.setText(JSON.stringify(usage))
+        }
     }
 
     function activate(r) {
@@ -466,7 +470,6 @@ Scope {
         printErrors: false
         onLoaded: root.usage = Usage.parse(text())
     }
-    onUsageChanged: usageFile.setText(JSON.stringify(usage))
 
     Timer {
         id: calcTimer
