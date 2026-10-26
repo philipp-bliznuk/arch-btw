@@ -30,7 +30,7 @@ PACKAGES=(
 	base linux linux-lts linux-firmware base-devel "<ucode>"
 	mkinitcpio dbus-broker-units crun pipewire-jack          # explicit providers: initramfs, dbus-units, oci-runtime, jack
 	git openssh btrfs-progs dosfstools neovim networkmanager # openssh: client use, sshd.service never enabled
-	pipewire pipewire-pulse wireplumber
+	pipewire pipewire-pulse wireplumber rtkit # rtkit: pipewire's module-rt asks RTKit for realtime scheduling, warns on every start without it
 	sudo zsh efibootmgr sbctl snapper snap-pac arch-install-scripts # sbctl: Secure Boot keys, its mkinitcpio post hook signs every UKI built; arch-chroot: bin/snap-restore rebuilds the UKIs inside the restored root
 	apparmor chrony firejail xdg-dbus-proxy earlyoom ufw # xdg-dbus-proxy: without it firejail downgrades every dbus-user filter to allow
 	pacman-contrib
