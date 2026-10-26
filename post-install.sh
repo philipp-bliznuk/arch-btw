@@ -35,6 +35,7 @@ readonly STEPS=(
 	"aur_helper:step_aur_helper"
 	"librewolf:step_librewolf"
 	"firecfg:step_firecfg"
+	"webapps:step_webapps"
 	"dotfiles:step_dotfiles"
 	"theme:step_theme"
 	"keys:step_keys"
@@ -663,6 +664,51 @@ Depends = firejail
 When = PostTransaction
 Exec = /usr/bin/firecfg
 EOF
+	sudo firecfg
+}
+
+# Web apps (launcher Packages > Add web app, bin/qs-webapp) open in Brave
+# Origin: a chromeless --app window per site, a browser profile per host under
+# ~/.local/share/qs-webapp. LibreWolf has no app mode (Firefox dropped it in
+# 86, --kiosk is fullscreen). brave-origin-bin is AUR; yay-git when the AUR is
+# down, like the pacman step's picker. The browser gets LibreWolf's treatment:
+# firecfg.config knows brave* but not brave-origin, so a redirect profile (the
+# stock brave-browser.profile pattern) and a firecfg.d name make firecfg, now
+# and from its pacman hook, point /usr/local/bin/brave-origin at firejail.
+# brave.profile whitelists ~/.config/BraveSoftware, where Brave Origin's own
+# profile lives; the .local adds the web-app profiles, which the jail's tmpfs
+# home would otherwise drop at exit, and the wrapper's flags file. The icon
+# directory exists before the shell starts: Qt lists an icon theme's base
+# directories once, one created later is not searched until a restart.
+step_webapps() {
+	sudo install -D -o root -g root -m 644 /dev/stdin /etc/firejail/brave-origin.profile <<-'EOF'
+		# Written by post-install.sh (webapps): Brave Origin under the brave profile
+		include brave-origin.local
+		include brave.profile
+	EOF
+	sudo install -D -o root -g root -m 644 /dev/stdin /etc/firejail/brave-origin.local <<-'EOF'
+		# Written by post-install.sh (webapps)
+		# bin/qs-webapp: one browser profile per web-app host
+		noblacklist ${HOME}/.local/share/qs-webapp
+		mkdir ${HOME}/.local/share/qs-webapp
+		whitelist ${HOME}/.local/share/qs-webapp
+		# read by /usr/bin/brave-origin, the package's wrapper
+		noblacklist ${HOME}/.config/brave-origin-flags.conf
+		whitelist ${HOME}/.config/brave-origin-flags.conf
+	EOF
+	sudo install -D -o root -g root -m 644 /dev/stdin /etc/firejail/firecfg.d/10-webapps.conf <<-'EOF'
+		# Written by post-install.sh (webapps): jail Brave Origin, missing from firecfg.config
+		brave-origin
+	EOF
+	mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/256x256/apps"
+	if pacman -Q brave-origin-bin >/dev/null 2>&1; then
+		echo "brave-origin-bin already installed"
+	elif curl -sf --connect-timeout 5 --max-time 15 'https://aur.archlinux.org/rpc/?v=5&type=info&arg=brave-origin-bin' >/dev/null; then
+		yay -S --needed aur/brave-origin-bin
+	else
+		warn "AUR unreachable - building brave-origin-bin from the GitHub mirror."
+		"$DOTFILES/bin/yay-git" brave-origin-bin
+	fi
 	sudo firecfg
 }
 

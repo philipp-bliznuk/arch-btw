@@ -60,7 +60,7 @@ function rootRows(I, reboot, pacnew) {
     row("capture", "Capture", "Screenshots", I.camera, { section: "capture", keywords: ["screenshot", "grim"] }),
     row("toggle", "Toggle", "Stay awake, night light, DND, bar", I.toggle, { section: "toggle" }),
     row("setup", "Setup", "Edit configs, wallpaper, default apps", I.cog, { section: "setup", keywords: ["config", "settings"] }),
-    row("packages", "Packages", packagesNote(reboot, pacnew) || "Install, remove, update", I.pkg, { section: "packages", keywords: ["install", "remove", "update", "pacman", "aur", "yay"], warn: !!reboot || pacnew.length > 0 }),
+    row("packages", "Packages", packagesNote(reboot, pacnew) || "Install, remove, update, web apps", I.pkg, { section: "packages", keywords: ["install", "remove", "update", "pacman", "aur", "yay", "webapp"], warn: !!reboot || pacnew.length > 0 }),
     row("utils", "Utils", "Helper scripts and tools", I.tools, { section: "utils", keywords: ["tools", "helpers", "scripts", "usb"] }),
     row("notifications", "Notifications", "History", I.bell, { section: "notifications", keywords: ["history"] }),
     row("clipboard", "Clipboard", "History · Enter copies", I.clipboard, { section: "clipboard", keywords: ["history", "paste"] }),
@@ -146,6 +146,10 @@ function packageRows(I, reboot, pacnew) {
     extra.task = [BIN + "qs-pkg", id]
     return row(id, name, generic, glyph, extra)
   }
+  function web(sub, name, generic, glyph, extra) {
+    extra.task = [BIN + "qs-webapp", sub]
+    return row("webapp-" + sub, name, generic, glyph, extra)
+  }
   var pending = pacnew.map(function (p) { return p.replace(/^\/etc\//, "") }).join(", ")
   return [
     pkg("install", "Install from pacman", "official repositories · fzf, tab to multi-select", I.arch, { keywords: ["official", "repo", "package"] }),
@@ -153,6 +157,8 @@ function packageRows(I, reboot, pacnew) {
     pkg("remove", "Remove", "pacman -Rns · fzf, tab to multi-select", I.trash, { keywords: ["uninstall", "package"] }),
     pkg("update", "Update", reboot ? "yay -Syu · reboot required: " + reboot : "yay -Syu", I.update, { keywords: ["upgrade", "pacman", "yay", "reboot"], warn: !!reboot }),
     pkg("pacdiff", "Merge pacnew files", pending ? "pacdiff --sudo · " + pending : "pacdiff --sudo · nothing pending", I.document, { keywords: ["pacnew", "pacsave", "config", "merge"], warn: pacnew.length > 0, disabled: pacnew.length === 0 }),
+    web("add", "Add web app", "name + URL → Brave Origin app window, listed under Apps", I.web, { keywords: ["webapp", "pwa", "site", "browser"] }),
+    web("remove", "Remove web app", "fzf, tab to multi-select · entry, icon, browser profile", I.trash, { keywords: ["webapp", "pwa", "site", "uninstall"] }),
   ]
 }
 

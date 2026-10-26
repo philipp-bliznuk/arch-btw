@@ -60,6 +60,10 @@ ShellRoot {
         function open(section: string): void {
             launcher.openSection(section);
         }
+
+        function refresh(): void {
+            launcher.refresh();
+        }
     }
 
     IpcHandler {

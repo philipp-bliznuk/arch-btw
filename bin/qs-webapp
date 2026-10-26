@@ -1,0 +1,268 @@
+#!/usr/bin/env bash
+# qs-webapp add [NAME URL [ICON]]  -> desktop entry + icon for a site, opened in Brave Origin's app mode
+# qs-webapp remove                 -> pick web apps in fzf; deletes entry, icon and the host's browser profile
+# qs-webapp launch URL             -> brave-origin --app=URL with a browser profile per host (the entries' Exec=)
+# qs-webapp list                   -> installed web apps: name, URL, file (tab separated)
+#
+# add and remove run inside qs-task (floating terminal); add asks on the
+# terminal for what the arguments leave out. Esc, Ctrl-C and an empty answer
+# exit 130, which qs-task closes quietly. Entries live in
+# ~/.local/share/applications (qs-apps lists that directory) and carry their
+# URL in X-QsWebApp=; icons go to ~/.local/share/icons/hicolor/256x256/apps
+# under the entry's name. Profiles: ~/.local/share/qs-webapp/<host>, one
+# cookie jar and process per host, so $mod+Ctrl+q ends one web app only.
+set -Eeuo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+apps_dir="$data_home/applications"
+icon_dir="$data_home/icons/hicolor/256x256/apps"
+profile_dir="$data_home/qs-webapp"
+browser=brave-origin
+
+usage() {
+	sed -n '2,5p' "$0" >&2
+	exit 64
+}
+
+die() {
+	printf '\033[31m●\033[0m %s\n' "$*" >&2
+	exit 1
+}
+
+# One-line prompt through fzf: Esc exits 130, Enter with no items exits 1 but
+# still prints the query. fzf clears its lines, so the answer is echoed.
+ask() {
+	local answer
+	answer="$(fzf --disabled --print-query --no-info --height 3 --layout reverse --prompt "$1> " </dev/null)" || (($? != 130)) || exit 130
+	[[ -n "$answer" ]] || exit 130
+	printf '%s: %s\n' "$1" "$answer" >&2
+	printf '%s' "$answer"
+}
+
+normalize_url() {
+	local url="$1"
+	[[ "$url" == *://* ]] || url="https://$url"
+	[[ "$url" =~ ^https?://[^/]+$ ]] && url+="/"
+	printf '%s' "$url"
+}
+
+# RFC 3986 characters minus $ ' " ` \ and space: the URL goes into Exec=
+# with only % doubled (the desktop entry spec's two escape passes make any
+# backslash ambiguous), and Chromium runs a javascript:, data: or file: URL
+# as a document.
+check_url() {
+	local re='^https?://[A-Za-z0-9._~:/?#@!&()*+,;=%-]+$'
+	[[ "$1" =~ $re ]] || die "URL must be http(s) without spaces, quotes or \$: $1"
+}
+
+# Host of a URL: lowercased, no credentials, port, path or query. Names the
+# browser profile directory.
+host_of() {
+	local host="${1#*://}"
+	host="${host%%[/?#]*}"
+	host="${host##*@}"
+	host="${host%%:*}"
+	printf '%s' "${host,,}"
+}
+
+check_host() {
+	[[ "$1" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ && "$1" != *..* ]] || die "no usable host name in the URL: $1"
+}
+
+slugify() {
+	sed -E 's/[^[:alnum:]]+/-/g; s/^-|-$//g' <<<"${1,,}"
+}
+
+# A user entry shadows a system one with the same id (slack.desktop would
+# hide Slack): refuse an id any applications directory already has.
+check_free() {
+	local -a dirs
+	local d
+	IFS=: read -ra dirs <<<"${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+	for d in "$apps_dir" "${dirs[@]/%//applications}"; do
+		[[ -e "$d/$1.desktop" ]] && die "$d/$1.desktop exists already"
+	done
+	return 0
+}
+
+# $1 relative to $2 (page or manifest URL): absolute, scheme-relative,
+# root-relative or relative to the base's directory
+resolve_url() {
+	local ref="$1" base="$2" rest
+	case "$ref" in
+	http://* | https://*) printf '%s' "$ref" ;;
+	//*) printf '%s:%s' "${base%%:*}" "$ref" ;;
+	/*)
+		rest="${base#*://}"
+		printf '%s://%s%s' "${base%%://*}" "${rest%%/*}" "$ref"
+		;;
+	*) printf '%s/%s' "${base%/*}" "${ref#./}" ;;
+	esac
+}
+
+# href of the first <link rel="..."> in $1 whose rel contains $2
+link_href() {
+	grep -oiE "<link[^>]*rel=[\"'][^\"']*$2[^\"']*[\"'][^>]*>" <<<"$1" | grep -oiE "href=[\"'][^\"']+" | head -1 | sed -E "s/^href=[\"']//" || true
+}
+
+# $1 URL to $2, kept only when it is a PNG: curl -f lets an HTML fallback
+# page through (a single-page app answers 200 to any path).
+download_icon() {
+	curl -fsSL --connect-timeout 5 --max-time 15 -o "$2" "$1" 2>/dev/null && [[ "$(file -b --mime-type "$2")" == image/png ]] && return 0
+	rm -f "$2"
+	return 1
+}
+
+# The site's own icon: the largest PNG its web manifest lists (what a web app
+# declares about itself), then the page's apple-touch-icon link, then the
+# well-known /apple-touch-icon.png. No favicon service: the hostnames of
+# home-lab apps are nobody's business.
+fetch_site_icon() {
+	local url="$1" dest="$2" page href manifest icon
+	page="$(curl -fsSL --connect-timeout 5 --max-time 10 "$url" 2>/dev/null | head -c 100000 | tr '\n' ' ')" || true
+	href="$(link_href "$page" manifest)"
+	if [[ -n "$href" ]]; then
+		manifest="$(resolve_url "$href" "$url")"
+		icon="$(curl -fsSL --connect-timeout 5 --max-time 10 "$manifest" 2>/dev/null |
+			jq -r '[.icons[]? | select((.type // "") == "image/png" or ((.src // "") | test("\\.png$"; "i")))
+				| {src, n: ((.sizes // "0") | split(" ")[0] | split("x")[0] | tonumber? // 0)}] | max_by(.n).src // empty' 2>/dev/null)" || true
+		[[ -n "$icon" ]] && download_icon "$(resolve_url "$icon" "$manifest")" "$dest" && return 0
+	fi
+	href="$(link_href "$page" apple-touch-icon)"
+	[[ -n "$href" ]] && download_icon "$(resolve_url "$href" "$url")" "$dest" && return 0
+	download_icon "$(resolve_url /apple-touch-icon.png "$url")" "$dest"
+}
+
+# Icon= value for the entry. Without ICON the site is asked (fetch_site_icon),
+# then the user: a URL or PNG file is installed under the entry's name, any
+# other word is taken as an icon-theme name.
+install_icon() {
+	local url="$1" slug="$2" ref="$3" dest="$icon_dir/$2.png"
+	mkdir -p "$icon_dir"
+	if [[ -z "$ref" ]]; then
+		fetch_site_icon "$url" "$dest" && {
+			printf '%s' "$slug"
+			return 0
+		}
+		printf '\033[33m●\033[0m %s offers no icon\n' "$url" >&2
+		ref="$(ask "Icon (URL, PNG file or icon name)")"
+	fi
+	case "$ref" in
+	http://* | https://*) download_icon "$ref" "$dest" || die "not a PNG: $ref" ;;
+	/* | ~/*)
+		ref="${ref/#\~/$HOME}"
+		[[ "$(file -b --mime-type "$ref")" == image/png ]] || die "not a PNG: $ref"
+		cp "$ref" "$dest"
+		;;
+	*)
+		printf '%s' "$ref"
+		return 0
+		;;
+	esac
+	printf '%s' "$slug"
+}
+
+write_entry() {
+	local file="$1" name="${2//\\/\\\\}" url="$3" icon="$4"
+	cat >"$file" <<-EOF
+		[Desktop Entry]
+		Type=Application
+		Name=$name
+		Comment=Web app · $url
+		Exec=qs-webapp launch "${url//%/%%}"
+		Icon=$icon
+		X-QsWebApp=$url
+	EOF
+}
+
+# The launcher re-runs qs-apps list; the pacman hook's /run/qs-apps-changed
+# belongs to root
+refresh() {
+	"$here"/qs-shell -q launcher refresh || true
+}
+
+add() {
+	local name="${1:-}" url="${2:-}" icon="${3:-}" slug
+	[[ -n "$name" ]] || name="$(ask Name)"
+	[[ "$name" != *[[:cntrl:]/]* ]] || die "a name cannot contain / or control characters"
+	slug="$(slugify "$name")"
+	[[ -n "$slug" ]] || die "a name needs a letter or digit: $name"
+	[[ -n "$url" ]] || url="$(ask URL)"
+	url="$(normalize_url "$url")"
+	check_url "$url"
+	check_host "$(host_of "$url")"
+	check_free "$slug"
+	icon="$(install_icon "$url" "$slug" "$icon")"
+	mkdir -p "$apps_dir"
+	write_entry "$apps_dir/$slug.desktop" "$name" "$url" "$icon"
+	refresh
+	printf '\033[32m●\033[0m %s → %s/%s.desktop\n' "$name" "$apps_dir" "$slug"
+}
+
+list() {
+	local f url
+	for f in "$apps_dir"/*.desktop; do
+		[[ -f "$f" ]] || continue
+		url="$(sed -n 's/^X-QsWebApp=//p' "$f")"
+		[[ -n "$url" ]] || continue
+		printf '%s\t%s\t%s\n' "$(sed -n 's/^Name=//p' "$f")" "$url" "$f"
+	done
+	return 0
+}
+
+# Another installed web app on host $1?
+host_in_use() {
+	local url
+	while IFS=$'\t' read -r _ url _; do
+		[[ "$(host_of "$url")" == "$1" ]] && return 0
+	done < <(list)
+	return 1
+}
+
+remove() {
+	local -a files
+	local f slug url host
+	mapfile -t files < <(list | fzf --multi --layout=reverse --delimiter '\t' --with-nth 1,2 --color 'pointer:red,marker:red' | cut -f3)
+	((${#files[@]})) || exit 130
+	for f in "${files[@]}"; do
+		slug="${f##*/}"
+		slug="${slug%.desktop}"
+		url="$(sed -n 's/^X-QsWebApp=//p' "$f")"
+		[[ "$(sed -n 's/^Icon=//p' "$f")" == "$slug" ]] && rm -f "$icon_dir/$slug.png"
+		rm -f "$f"
+		host="$(host_of "$url")"
+		check_host "$host"
+		host_in_use "$host" || rm -rf "${profile_dir:?}/$host"
+		printf '\033[32m●\033[0m removed %s\n' "$slug"
+	done
+	refresh
+}
+
+launch() {
+	local url="$1" host profile
+	check_url "$url"
+	host="$(host_of "$url")"
+	check_host "$host"
+	profile="$profile_dir/$host"
+	command -v "$browser" >/dev/null || {
+		"$here"/qs-notify -u critical -g '󰖟' "Web apps need Brave Origin" "post-install.sh --redo webapps installs it" || true
+		die "$browser is not installed"
+	}
+	# Brave Origin greets every new user-data-dir with its own welcome page
+	# (--no-first-run does not cover it) until Local State holds this key.
+	# 700 like the directories Chromium makes itself.
+	[[ -d "$profile" ]] || {
+		(umask 077 && mkdir -p "$profile")
+		printf '{"brave":{"origin":{"free_tier_accepted":true}}}\n' >"$profile/Local State"
+	}
+	exec "$browser" --app="$url" --user-data-dir="$profile" --no-first-run --no-default-browser-check
+}
+
+case "${1:-}" in
+	add) add "${2:-}" "${3:-}" "${4:-}" ;;
+	remove) remove ;;
+	launch) launch "${2:?usage: qs-webapp launch URL}" ;;
+	list) list ;;
+	*) usage ;;
+esac
