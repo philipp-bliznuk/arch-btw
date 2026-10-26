@@ -163,8 +163,8 @@ Scope {
         if (calcMode)
             return calcResult ? [{ id: "calc", name: calcResult, genericName: "Enter copies to clipboard", glyph: Icons.calc, copy: calcResult }] : []
         const q = query.trim()
-        if (!q && section !== "apps")
-            return sectionRows(section)
+        if (!q)
+            return section === "apps" ? Search.sorted(sectionRows("apps"), "") : sectionRows(section)
         if (section === "root")
             return Search.sorted(searchIndex, q, frecency)
         return Search.sorted(sectionRows(section), q, frecency)
