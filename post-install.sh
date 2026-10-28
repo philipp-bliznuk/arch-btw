@@ -22,6 +22,7 @@ readonly DONE_DIR="$STATE_DIR/done"
 readonly TODO_DIR="$STATE_DIR/todo"
 readonly LOG_FILE="$STATE_DIR/post-install.log"
 readonly REPO_SSH="git@pb:philipp-bliznuk/arch-btw.git"
+readonly OPENCODE_REPO="git@pb:philipp-bliznuk/opencode-python.git"
 
 readonly STEPS=(
 	"bootloader:step_bootloader"
@@ -42,6 +43,7 @@ readonly STEPS=(
 	"dotfiles:step_dotfiles"
 	"theme:step_theme"
 	"keys:step_keys"
+	"opencode:step_opencode"
 	"smb:step_smb"
 )
 
@@ -928,6 +930,47 @@ _keys_import() {
 	done
 }
 
+# GitHub's host keys as api.github.com/meta lists them: ed25519, pinned here,
+# ecdsa and rsa (ed25519 alone is enough). ssh accepts any known_hosts line
+# that matches, so a github.com key outside these three (one GitHub rotated
+# out, as its RSA key in 2023) goes: ssh-keygen -R drops every plain line
+# naming github.com, other hosts on a shared line or pattern with it, keeps
+# @revoked and @cert-authority lines and the old file as known_hosts.old. It
+# refuses a file with one invalid line for any host, which ssh reads past:
+# the step stops. A @cert-authority line covering github.com is named (every
+# host certificate its CA signs passes as GitHub). With the ed25519 key in
+# (after a newline if a hand edit left the last line open), the first
+# connection, the opencode clone, asks nothing. -f: ssh-keygen takes ~ from
+# passwd, not $HOME. Only this file is checked: ssh also reads
+# ~/.ssh/known_hosts2 and /etc/ssh/ssh_known_hosts{,2}, which a fresh install
+# lacks.
+_pin_github_host_key() {
+	local kh="$HOME/.ssh/known_hosts" fp fps unknown=()
+	local ed=SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU
+	mapfile -t fps < <(ssh-keygen -l -F github.com -f "$kh" 2>/dev/null | awk '/^#/ {m = $7; next} (m == "" || m == "CA") && !seen[m $3]++ {print (m == "CA" ? "CA:" : "") $3}')
+	for fp in "${fps[@]}"; do
+		case "$fp" in
+		"$ed" | SHA256:p2QAMXNIC1TJYWeIOttrVc98/R1BUFWu3/LiyKgUfQM | SHA256:uNiVztksCsDhcc0u9e8BujQXVUpKZIDTMczCvj3tD2s) ;;
+		CA:*) warn "A @cert-authority line in ~/.ssh/known_hosts covers github.com (${fp#CA:}): every host certificate that CA signs passes as GitHub, pin or not. Delete the line unless you put it there for that." ;;
+		*) unknown+=("$fp") ;;
+		esac
+	done
+	if ((${#unknown[@]})); then
+		warn "~/.ssh/known_hosts trusts keys for github.com that GitHub does not publish (api.github.com/meta): ${unknown[*]}. Removing every plain line naming github.com (ssh-keygen -R; other hosts on a shared line or pattern go with it; the old file stays as ~/.ssh/known_hosts.old)."
+		if ! ssh-keygen -q -R github.com -f "$kh" >/dev/null; then
+			err "ssh-keygen -R refused ~/.ssh/known_hosts, nothing changed: it rejects the whole file over one invalid line for any host (named above; an ssh-dss key on OpenSSH 10, a cut-off line), which ssh itself reads past. Delete that line, then post-install.sh --redo keys."
+			return 1
+		fi
+		fps=()
+	fi
+	if [[ " ${fps[*]} " == *" $ed "* ]]; then
+		return 0
+	fi
+	if [[ -s "$kh" && -n "$(tail -c1 "$kh")" ]]; then echo >>"$kh"; fi
+	printf '%s\n' 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' >>"$kh"
+	success "Pinned GitHub's host key in ~/.ssh/known_hosts."
+}
+
 step_keys() {
 	# Stock pcscd.service runs --auto-exit: pcscd quits 60 s after its last
 	# client lets go, and the pcsc-lite client inside the still running
@@ -1018,9 +1061,51 @@ Host gx
 EOF
 	chmod 600 "$HOME/.ssh/config"
 	success "Wrote ~/.ssh/config (pb / ic / gx)."
+	_pin_github_host_key
 
 	git -C "$DOTFILES" remote set-url origin "$REPO_SSH" || true
 	success "Keys wired."
+}
+
+# OpenCode from its v2 installer (the 1.x one at /install refuses 2.x) into
+# ~/.opencode/bin, which .zshenv puts on PATH in every shell started after:
+# --no-modify-path, or the installer appends a PATH line to the first zsh
+# startup file it finds, here always one of the repo's. Downloaded, then run,
+# so a cut-off script never runs half. The config comes first: the
+# opencode-python repo, cloned over SSH with the pb key (keys step) as the
+# real ~/.config/opencode (its file watching does not follow symlinks) and
+# linked as ~/projects/opencode. Every opencode start creates that directory
+# (--version an empty one, removed here; the TUI puts service.json in it, and
+# git clones into an empty directory only), so nothing installs before the
+# clone: no clone (no pb key yet), no install, and the step stays open.
+step_opencode() {
+	local oc="$HOME/.opencode/bin/opencode" cfg="$XDG_CONFIG_HOME/opencode" origin tmp
+	rmdir "$cfg" 2>/dev/null || true
+	if [[ -d "$cfg/.git" && ! -L "$cfg" ]]; then
+		origin="$(git -C "$cfg" remote get-url origin 2>/dev/null || true)"
+		if [[ "$origin" != "$OPENCODE_REPO" ]]; then
+			warn "$cfg is a checkout of ${origin:-a repo without origin}, not $OPENCODE_REPO - kept as it is."
+		fi
+		success "$cfg is a checkout already."
+	elif [[ -e "$cfg" || -L "$cfg" ]]; then
+		err "$cfg is in the way (no checkout, or a symlink where OpenCode wants the real directory) - move it away first, then post-install.sh --redo opencode"
+		return 1
+	elif ! git clone "$OPENCODE_REPO" "$cfg"; then
+		rm -rf -- "$cfg" # nothing was there before: a failed checkout leaves .git and half a tree
+		todo "opencode config not cloned (git's error above; usually the pb SSH key from the keys step is missing), so opencode is not installed yet: post-install.sh again, or --redo opencode."
+		return 0
+	fi
+	link "$cfg" "$HOME/projects/opencode"
+
+	if [[ -x "$oc" ]]; then
+		echo "opencode already installed"
+		return 0
+	fi
+	tmp="$(mktemp)"
+	curl --proto '=https' --tlsv1.2 -fsSL -o "$tmp" https://opencode.ai/v2/install
+	bash "$tmp" --no-modify-path
+	rm -f "$tmp"
+	info "opencode is on PATH in every shell started from now on (.zshenv); exec zsh in one already open."
 }
 
 # One SMB share as a pair of systemd units, mounted on first access and
