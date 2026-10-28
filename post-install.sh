@@ -23,6 +23,8 @@ readonly TODO_DIR="$STATE_DIR/todo"
 readonly LOG_FILE="$STATE_DIR/post-install.log"
 readonly REPO_SSH="git@pb:philipp-bliznuk/arch-btw.git"
 readonly OPENCODE_REPO="git@pb:philipp-bliznuk/opencode-python.git"
+readonly VENTOY_VERSION="1.1.18" # README, Recovery stick: the version tested there
+readonly VENTOY_SHA256="d86ff9de63d94c8b8f1f6b14d23c55af4b88e8207bf2893890892a6a97b1ad54"
 
 readonly STEPS=(
 	"bootloader:step_bootloader"
@@ -45,6 +47,7 @@ readonly STEPS=(
 	"keys:step_keys"
 	"opencode:step_opencode"
 	"smb:step_smb"
+	"ventoy:step_ventoy"
 )
 
 # --- helpers ---------------------------------------------------------------
@@ -105,13 +108,13 @@ mount_usb() {
 }
 
 # Echoes the partition picked by number or path from a list made fresh each
-# round, so a stick plugged in after the prompt shows up on Enter; returns 1
-# on "s". Listed ones only: a typo like /dev/sda1 must not mount the system's
-# own ESP.
+# round (_usb_list, or the lister named), so a stick plugged in after the
+# prompt shows up on Enter; returns 1 on "s". Listed ones only: a typo like
+# /dev/sda1 must not mount the system's own ESP.
 _usb_pick() {
-	local ans p offered=()
+	local lister="${1:-_usb_list}" ans p offered=()
 	while :; do
-		mapfile -t offered < <(_usb_list)
+		mapfile -t offered < <("$lister")
 		printf 'Number or path (Enter rescans, s skips): ' >/dev/tty
 		read -r ans </dev/tty || return 1
 		case "$ans" in
@@ -1227,6 +1230,115 @@ _smb_remove() {
 	sudo rmdir --ignore-fail-on-non-empty "$(systemd-escape -pu "$1")" 2>/dev/null || true # the mount point made above, if still empty
 }
 
+# Recovery stick (README, Recovery stick): a Ventoy stick signed with this
+# machine's db key boots with Secure Boot on. A reinstall makes new keys, so
+# the stick signed for the last install fails Secure Boot afterwards: its
+# VTOYEFI partition is written again from Ventoy's stock image (one signature
+# on top of the old would be a fourth) and the two files shim reads get this
+# key's signature. The ISOs on the first partition stay. Optional like smb; a
+# stick skipped at the prompt leaves the step open. The download comes first,
+# before anyone has to hold a stick for a connection that may be down.
+step_ventoy() {
+	confirm "Sign the Ventoy recovery stick with this install's Secure Boot key?" || {
+		info "Skipped - post-install.sh --redo ventoy signs it later."
+		return 0
+	}
+	_ventoy_fetch
+	local part
+	printf '%s>>>%s Insert the Ventoy stick (its ISOs stay)\n' "$(_c 5)" "$(_r)" >/dev/tty
+	part="$(_usb_pick _ventoy_list)" || {
+		todo "Recovery stick not signed (no stick): post-install.sh --redo ventoy with the Ventoy stick."
+		return 0
+	}
+	_ventoy_write "$part"
+	_ventoy_sign "$part"
+	umount_usb
+}
+
+# The release tarball into a fresh /tmp directory (tmpfs: gone by the next
+# boot), sha256 pinned, then the stock VTOYEFI image out of it. A cut-off or
+# foreign download fails the checksum and nothing is written anywhere.
+VENTOY_DIR=""
+_ventoy_fetch() {
+	local name="ventoy-${VENTOY_VERSION}-linux.tar.gz" tar
+	VENTOY_DIR="$(mktemp -d /tmp/ventoy.XXXXXX)"
+	tar="$VENTOY_DIR/$name"
+	curl --proto '=https' --tlsv1.2 -fsSL -o "$tar" "https://github.com/ventoy/Ventoy/releases/download/v${VENTOY_VERSION}/${name}"
+	echo "$VENTOY_SHA256  $tar" | sha256sum -c
+	tar xf "$tar" -C "$VENTOY_DIR"
+	xz -dc "$VENTOY_DIR/ventoy-${VENTOY_VERSION}/ventoy/ventoy.disk.img.xz" >"$VENTOY_DIR/vtoyefi.img"
+}
+
+# The VTOYEFI partitions of the removable disks, numbered with their disk, to
+# the terminal; their paths to stdout. The one partition _usb_list leaves out:
+# here it is the target.
+_ventoy_list() {
+	local line NAME SIZE FSTYPE LABEL HOTPLUG TYPE PKNAME disk n=0
+	udevadm settle -t 3 || true
+	printf 'Ventoy sticks:\n' >/dev/tty
+	while IFS= read -r line; do
+		eval "$line" # lsblk -P: shell-quoted key="value" pairs
+		[[ "$HOTPLUG" == 1 && "$TYPE" == part && "$LABEL" == VTOYEFI ]] || continue
+		disk="$(lsblk -dno SIZE,VENDOR,MODEL "$PKNAME" | tr -s ' ')"
+		printf '  %d) %s  %s  %s  (on %s %s)\n' $((++n)) "$NAME" "$SIZE" "$LABEL" "$PKNAME" "$disk" >/dev/tty
+		printf '%s\n' "$NAME"
+	done < <(lsblk -Ppo NAME,SIZE,FSTYPE,LABEL,HOTPLUG,TYPE,PKNAME)
+	((n)) || printf '  (none found)\n' >/dev/tty
+}
+
+# VTOYEFI written again from the image and compared. The stick has to carry
+# the image's Ventoy version (grub/grub.cfg names it): the UEFI chain lives on
+# that partition alone, but the boot code in the disk's first sectors is the
+# installer's, so another version is a Ventoy2Disk.sh -u first, which rewrites
+# both. Everything of the stick is unmounted before the write (udisks mounts
+# under /run/media).
+_ventoy_write() {
+	local part="$1" img="$VENTOY_DIR/vtoyefi.img" disk mp version
+	disk="/dev/$(lsblk -no PKNAME "$part")"
+	while IFS= read -r mp; do
+		[[ -z "$mp" ]] || sudo umount "$mp"
+	done < <(lsblk -no MOUNTPOINTS "$disk")
+	_usb_mount "$part"
+	version="$(sed -n 's/^set VENTOY_VERSION="\([^"]*\)".*/\1/p' "$USB_MNT/grub/grub.cfg" 2>/dev/null || true)" # no file = no version, refused below
+	sudo umount "$USB_MNT"
+	[[ "$version" == "$VENTOY_VERSION" ]] || {
+		err "$part carries Ventoy ${version:-of unknown version}, the image here is $VENTOY_VERSION: cd $VENTOY_DIR/ventoy-$VENTOY_VERSION && sudo sh Ventoy2Disk.sh -u $disk (the ISOs stay; the script insists on its own directory), then post-install.sh --redo ventoy."
+		return 1
+	}
+	[[ "$(lsblk -bno SIZE "$part")" == "$(stat -c %s "$img")" ]] || {
+		err "$part is not the image's size ($(stat -c %s "$img") bytes): not a VTOYEFI partition as Ventoy2Disk.sh makes it."
+		return 1
+	}
+	sudo dd if="$img" of="$part" bs=1M conv=fsync status=none
+	sudo cmp "$part" "$img"
+	success "VTOYEFI on $part written from the stock $VENTOY_VERSION image."
+}
+
+# shim (BOOTX64.EFI, Microsoft-signed twice) and Ventoy's loader (fbx64.efi)
+# get this machine's db signature; grubx64_real.efi is hash-checked by that
+# loader and stays as it is. sbctl sign without -s: the stick never enters
+# sbctl's file list, the pacman hook never looks for it. verify is landlocked
+# to the ESP, sign is not. Each file has to read "is signed" (verify exits 0
+# for an unsigned file, as in _check_secure_boot).
+_ventoy_sign() {
+	local part="$1" f out rc=0
+	local files=("$USB_MNT/EFI/BOOT/BOOTX64.EFI" "$USB_MNT/EFI/BOOT/fbx64.efi")
+	_usb_mount "$part"
+	for f in "${files[@]}"; do
+		sudo sbctl sign "$f"
+	done
+	out="$(sudo sbctl --disable-landlock verify "${files[@]}" 2>&1)" || rc=$?
+	printf '%s\n' "$out"
+	for f in "${files[@]}"; do
+		[[ $rc -eq 0 && "$out" == *"$f is signed"* ]] || {
+			err "$f did not verify as signed by this machine's key (above); the stick holds the stock, unsigned VTOYEFI now: fix the cause, then post-install.sh --redo ventoy."
+			umount_usb
+			return 1
+		}
+	done
+	success "Recovery stick signed: F12 → the USB entry → Ventoy's menu, Secure Boot on."
+}
+
 do_list() {
 	local entry name
 	for entry in "${STEPS[@]}"; do
@@ -1263,8 +1375,6 @@ main() {
 
   Reboot → unlock LUKS (FIDO2 PIN + touch) → TTY1: touch the key, or unplug it and type the password → Sway.
   Re-run a step:  post-install.sh --redo <step>
-  A Ventoy stick signed for an earlier install no longer boots with Secure Boot on: this install made new
-  keys. Write its second partition again and sign it (README, Recovery stick).
 
 EOF
 	_print_todos
