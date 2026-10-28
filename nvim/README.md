@@ -21,11 +21,11 @@ Core principles:
 
 - **16 LSP servers** - Python (basedpyright + ruff), TypeScript (tsgo), Go (gopls), Lua, JSON, YAML, HTML, CSS, TOML, SQL, Docker, Bash, QML (qmlls), plus grammar/spell checking (harper-ls, typos-lsp)
 - **Format on save** - ruff (Python), prettierd (JS/TS/HTML/CSS/JSON/YAML/Markdown), stylua (Lua), goimports + gofmt (Go), shfmt (Shell), pgformatter (SQL)
-- **Completion** - blink.cmp v1 with LSP, buffer, path, snippets, and cmdline sources. Rust fuzzy matcher, ghost text, signature help
+- **Completion** - blink.cmp 1.x (latest release tag: its prebuilt Rust matcher only downloads on a tag) with LSP, buffer, path, snippets, and cmdline sources. Rust fuzzy matcher, ghost text, signature help
 - **Fuzzy picker** - fzf-lua for files, grep, symbols, commands, keymaps, git, code actions, spell suggestions. Inherits system `FZF_DEFAULT_OPTS`
 - **Git** - gitsigns (gutter signs, hunk staging/reset, inline blame, diff) + lazygit via tmux popup
 - **Treesitter** - arborist.nvim for parser management, textobjects (`af/if/ac/ic/aa/ia`), sticky context header, autotag for HTML/JSX
-- **Session** - auto-save on quit, auto-restore on bare `nvim`
+- **Session** - auto-save on quit, auto-restore on bare `nvim` (`nvim <dir>` opens yazi there and leaves the session alone)
 - **Colorscheme** - catppuccin-mocha
 - **File explorer** - yazi.nvim with LSP-aware rename/move (auto-updates imports)
 
@@ -40,7 +40,7 @@ Core principles:
 | Pinned parsers, no popular set     | 14 parsers compile at first start, the rest on first open; revisions move with the plugin's lock, `:ArboristUpdate` by hand. |
 | fzf-lua over telescope             | Telescope unmaintained (452 issues). fzf-lua: fastest, 8 issues, leverages system fzf.   |
 | conform.nvim for formatting        | Sequencing (ruff: organize + fix + format), external tools + LSP fallback, minimal-diff. |
-| blink.cmp v1 over nvim-cmp         | Rust fuzzy matcher, built-in cmdline, 0.5-4ms async, community standard.                 |
+| blink.cmp 1.x over nvim-cmp        | Rust fuzzy matcher, built-in cmdline, 0.5-4ms async, community standard.                 |
 | mini.nvim family for UI            | Consistent ecosystem: tabline, statusline, icons, indentscope, surround.                 |
 | Explicit clipboard                 | No `clipboard=unnamedplus`. System clipboard via `<leader>y/Y/P` only.                   |
 
@@ -53,7 +53,7 @@ Core principles:
 | **nvim-treesitter-context**     | Sticky function/class header        | Eager                       |
 | **nvim-treesitter-textobjects** | `af/if/ac/ic/aa/ia` + `]f/[f/]c/[c` | Eager                       |
 | **nvim-ts-autotag**             | Auto-close/rename HTML/JSX tags     | On filetype                 |
-| **blink.cmp** (v1)              | Completion engine                   | Eager (before LSP)          |
+| **blink.cmp** (1.x)             | Completion engine                   | Eager (before LSP)          |
 | **friendly-snippets**           | Snippet collection                  | Eager                       |
 | **conform.nvim**                | Format on save                      | Eager                       |
 | **nvim-autopairs**              | Auto-close brackets/quotes          | On InsertEnter              |

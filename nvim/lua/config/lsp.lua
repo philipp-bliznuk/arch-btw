@@ -32,7 +32,9 @@ vim.diagnostic.config({
 -- Completion engine (must load before LSP for capabilities)
 local pack = require("config.pack")
 pack.add("https://github.com/rafamadriz/friendly-snippets")
-pack.add({ src = "https://github.com/saghen/blink.cmp", version = "v1" })
+-- Latest 1.x release tag, not the v1 branch: the prebuilt fuzzy matcher only
+-- downloads when the checkout sits on a tag
+pack.add({ src = "https://github.com/saghen/blink.cmp", version = vim.version.range("1.*") })
 
 -- Global defaults inherited by all servers
 local blink_ok, blink = pcall(require, "blink.cmp")
