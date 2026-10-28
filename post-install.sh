@@ -4,9 +4,11 @@
 #   ~/projects/dotfiles/post-install.sh
 #
 # TTY1 runs `exec sway` once the dotfiles are linked; TTY2 stays a plain shell.
-# Resumable: markers under ~/.local/state/arch-btw/done/<step>.
+# Resumable: markers under ~/.local/state/arch-btw/done/<step>. A step that
+# has to leave something open (a skipped stick, keys not enrolled) writes
+# ~/.local/state/arch-btw/todo/<step> instead and runs again next time.
 #
-# Flags:  --list          step status
+# Flags:  --list          step status, with what open steps left
 #         --redo <step>   re-run one step
 # Debug:  DEBUG=1 post-install.sh
 
@@ -17,6 +19,7 @@ readonly DOTFILES
 readonly XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 readonly STATE_DIR="$HOME/.local/state/arch-btw"
 readonly DONE_DIR="$STATE_DIR/done"
+readonly TODO_DIR="$STATE_DIR/todo"
 readonly LOG_FILE="$STATE_DIR/post-install.log"
 readonly REPO_SSH="git@pb:philipp-bliznuk/arch-btw.git"
 
@@ -77,44 +80,87 @@ _ask() {
 	_var="$_ans"
 }
 
-# Echoes the mountpoint; returns 1 on skip, 2 when the mount fails. Callers
-# run it inside $(...) on the left of ||, where set -e is off, so every
-# command that matters carries its own || return.
+# mount_usb PURPOSE [NEED]: echoes the mountpoint; returns 1 on skip, 2 when
+# the mount fails. NEED is a path the stick has to hold: a stick without it is
+# unmounted and the list comes back. Callers run it inside $(...) on the left
+# of ||, where set -e is off, so every command that matters carries its own
+# || return. Prompts and messages go to /dev/tty: through run_step's tee they
+# could land after the next prompt.
 USB_MNT="/mnt/usb"
 mount_usb() {
-	pause "Insert the USB stick, then press Enter"
-	echo "Removable partitions:" >/dev/tty
-	local line NAME SIZE FSTYPE LABEL HOTPLUG TYPE offered=()
+	local purpose="$1" need="${2:-}" part
+	printf '%s>>>%s Insert the USB stick for %s\n' "$(_c 5)" "$(_r)" "$purpose" >/dev/tty
+	while :; do
+		part="$(_usb_pick)" || return 1
+		_usb_mount "$part" || return 2
+		if [[ -z "$need" || -e "$USB_MNT/$need" ]]; then
+			printf '%s\n' "$USB_MNT"
+			return 0
+		fi
+		warn "$part has no $need - not the stick for this, pick another." 2>/dev/tty
+		sudo umount "$USB_MNT" || return 2
+	done
+}
+
+# Echoes the partition picked by number or path from a list made fresh each
+# round, so a stick plugged in after the prompt shows up on Enter; returns 1
+# on "s". Listed ones only: a typo like /dev/sda1 must not mount the system's
+# own ESP.
+_usb_pick() {
+	local ans p offered=()
+	while :; do
+		mapfile -t offered < <(_usb_list)
+		printf 'Number or path (Enter rescans, s skips): ' >/dev/tty
+		read -r ans </dev/tty || return 1
+		case "$ans" in
+		s) return 1 ;;
+		"" | r) continue ;;
+		esac
+		if [[ "$ans" =~ ^[1-9][0-9]?$ ]] && ((ans <= ${#offered[@]})); then
+			printf '%s\n' "${offered[ans - 1]}"
+			return 0
+		fi
+		for p in "${offered[@]}"; do
+			if [[ "$ans" == "$p" ]]; then
+				printf '%s\n' "$p"
+				return 0
+			fi
+		done
+		printf 'Not one of the partitions listed: %s\n' "$ans" >/dev/tty
+	done
+}
+
+# Prints the removable partitions that carry a filesystem, numbered, to the
+# terminal and their paths to stdout. Ventoy's VTOYEFI is left out: files
+# have no business on the signed boot partition.
+_usb_list() {
+	local line NAME SIZE FSTYPE LABEL HOTPLUG TYPE PKNAME model n=0
+	udevadm settle -t 3 || true
+	printf 'Removable partitions:\n' >/dev/tty
 	while IFS= read -r line; do
 		eval "$line" # lsblk -P: shell-quoted key="value" pairs
-		[[ "$HOTPLUG" == "1" && "$TYPE" == "part" && -n "$FSTYPE" ]] || continue
-		offered+=("$NAME")
-		printf '  %s  %s  %s  %s\n' "$NAME" "$SIZE" "$FSTYPE" "$LABEL" >/dev/tty
-	done < <(lsblk -Ppo NAME,SIZE,FSTYPE,LABEL,HOTPLUG,TYPE)
+		[[ "$HOTPLUG" == 1 && "$TYPE" == part && -n "$FSTYPE" && "$LABEL" != VTOYEFI ]] || continue
+		model="$(lsblk -dno VENDOR,MODEL "$PKNAME" | tr -s ' ')"
+		printf '  %d) %s  %s  %s  %s  %s\n' $((++n)) "$NAME" "$SIZE" "$FSTYPE" "$LABEL" "$model" >/dev/tty
+		printf '%s\n' "$NAME"
+	done < <(lsblk -Ppo NAME,SIZE,FSTYPE,LABEL,HOTPLUG,TYPE,PKNAME)
+	((n)) || printf '  (none found)\n' >/dev/tty
+}
 
-	# Listed ones only: a typo like /dev/sda1 must not mount the system's own ESP.
-	local part
-	while :; do
-		printf 'USB partition (e.g. /dev/sdb1), or "s" to skip: ' >/dev/tty
-		read -r part </dev/tty
-		[[ "$part" == "s" ]] && return 1
-		[[ -n "$part" && "$part" != *" "* && " ${offered[*]} " == *" $part "* ]] && break
-		err "Not one of the removable partitions above: $part"
-	done
-
-	sudo mkdir -p "$USB_MNT" || return 2
-	# A run that died with the stick mounted leaves it so; the stale mount goes first.
-	! mountpoint -q "$USB_MNT" || sudo umount "$USB_MNT" || return 2
-	local fstype opts=nosuid,nodev,noexec
-	fstype="$(lsblk -no FSTYPE "$part")"
+# Mounts the partition at USB_MNT, owned by the user for FAT/exFAT. A run
+# that died with the stick mounted leaves it so; the stale mount goes first.
+_usb_mount() {
+	local part="$1" fstype opts=nosuid,nodev,noexec
+	sudo mkdir -p "$USB_MNT" || return
+	! mountpoint -q "$USB_MNT" || sudo umount "$USB_MNT" || return
+	fstype="$(lsblk -no FSTYPE "$part")" || return
 	case "$fstype" in
-	vfat | exfat) sudo mount -o "$opts,uid=$(id -u),gid=$(id -g)" "$part" "$USB_MNT" || return 2 ;;
+	vfat | exfat) sudo mount -o "$opts,uid=$(id -u),gid=$(id -g)" "$part" "$USB_MNT" ;;
 	*)
-		warn "$fstype stick - files may be unreadable as $USER; prefer FAT/exFAT."
-		sudo mount -o "$opts" "$part" "$USB_MNT" || return 2
+		warn "$fstype stick - files may be unreadable as $USER; prefer FAT/exFAT." 2>/dev/tty
+		sudo mount -o "$opts" "$part" "$USB_MNT"
 		;;
 	esac
-	printf '%s\n' "$USB_MNT"
 }
 
 umount_usb() {
@@ -128,6 +174,42 @@ umount_usb() {
 
 is_done() { [[ -f "$DONE_DIR/$1" ]]; }
 mark_done() { touch "$DONE_DIR/$1"; }
+
+# For what a step has to leave open (a skipped stick, keys not enrolled, no
+# ESP): warns, appends the reason to todo/<step> and returns 0, so the
+# run goes on while the step stays open: not marked done, taken again by the
+# next run, named by --list and the closing banner. Not an exit code: main
+# runs under set -e and the ERR trap, any non-zero status ends the run.
+todo() {
+	warn "$*"
+	printf '%s\n' "$*" >>"$TODO_DIR/$CURRENT_STEP"
+}
+
+finish_step() {
+	if [[ -e "$TODO_DIR/$1" ]]; then
+		warn "$1 left open: the next post-install.sh run takes it again (or --redo $1)."
+	else
+		mark_done "$1"
+	fi
+}
+
+_todo_reasons() {
+	if [[ -e "$TODO_DIR/$1" ]]; then sed 's/^/      /' "$TODO_DIR/$1"; fi
+}
+
+_print_todos() {
+	local entry name shown=0
+	for entry in "${STEPS[@]}"; do
+		name="${entry%%:*}"
+		[[ -e "$TODO_DIR/$name" ]] || continue
+		if ((! shown)); then
+			warn "Still to do (post-install.sh again takes these steps, --redo <step> one of them):"
+			shown=1
+		fi
+		printf '  %s\n' "$name"
+		_todo_reasons "$name"
+	done
+}
 
 sudo_keepalive() {
 	sudo -v
@@ -143,6 +225,7 @@ CURRENT_STEP=""
 run_step() {
 	local name="$1" fn="$2"
 	CURRENT_STEP="$name"
+	rm -f "$TODO_DIR/$name"
 	banner "$name"
 	(
 		trap - ERR
@@ -170,7 +253,7 @@ step_bootloader() {
 	local esp_uuid
 	esp_uuid="$(findmnt -no PARTUUID /boot/efi || true)"
 	[[ -n "$esp_uuid" ]] || {
-		warn "No ESP mounted at /boot/efi - the entry and Secure Boot checks need it; inspect \`efibootmgr\` and \`sudo sbctl verify\` by hand."
+		todo "No ESP mounted at /boot/efi - the entry and Secure Boot checks need it; inspect \`efibootmgr\` and \`sudo sbctl verify\` by hand."
 		return 0
 	}
 	info "Current ESP partuuid: $esp_uuid"
@@ -218,25 +301,55 @@ _sync_boot_entries() {
 
 _efi_byte() { od -An -tu1 -j4 -N1 "/sys/firmware/efi/efivars/$1-8be4df61-93ca-11d2-aa0d-00e098032b8c" 2>/dev/null | tr -d ' '; }
 
-# install.sh enrolls the keys only when the firmware is in Setup Mode; any
-# other state at first boot means signed UKIs that nothing verifies yet,
+# install.sh enrolls the keys only when the firmware is in Setup Mode and
+# sbctl agrees; Setup Mode at first boot gets the offer again here. Any other
+# state short of enforcing means signed UKIs that nothing verifies yet,
 # unless install.sh warned that keys or signing failed: enroll-keys then
 # fails (no keys) or locks the UKIs out (keys, unsigned UKI). Exit code for
-# a key hierarchy that fails to load, text for an unsigned, absent or
-# truncated UKI: sbctl verify exits 0 for those.
+# a key hierarchy that fails to load; sbctl verify exits 0 for an unsigned,
+# absent, truncated or unreadable UKI, so each one has to read "<path> is
+# signed", as in install.sh. Short of enforcing, the step stays open.
 _check_secure_boot() {
-	local verify rc=0 bad='is not signed|does not exist|is not a valid EFI binary'
-	verify="$(sudo sbctl verify /boot/efi/EFI/Linux/arch-linux.efi /boot/efi/EFI/BOOT/BOOTX64.EFI 2>&1)" || rc=$?
-	if [[ $rc -ne 0 || "$verify" =~ $bad ]]; then
+	local uki verify rc=0 unsigned=0
+	local ukis=(/boot/efi/EFI/Linux/arch-linux.efi /boot/efi/EFI/BOOT/BOOTX64.EFI)
+	verify="$(sudo sbctl verify "${ukis[@]}" 2>&1)" || rc=$?
+	for uki in "${ukis[@]}"; do
+		[[ "$verify" == *"$uki is signed"* ]] || unsigned=1
+	done
+	if ((rc != 0 || unsigned)); then
 		printf '%s\n' "$verify"
-		warn "Keys or signatures missing (sbctl verify above): Fresh keys (README, Recovery) before anything enrolls; with the keys already in the firmware, sudo mkinitcpio -P re-signs."
+		todo "Keys or signatures missing (sbctl verify above): Fresh keys (README, Recovery) before anything enrolls; with the keys already in the firmware, sudo mkinitcpio -P re-signs."
 	elif [[ "$(_efi_byte SetupMode)" == 1 ]]; then
-		warn "Firmware in Setup Mode, keys not enrolled: sudo sbctl enroll-keys -i, then reboot."
+		_offer_enroll
 	elif [[ "$(_efi_byte SecureBoot)" != 1 ]]; then
-		warn "Secure Boot is off: F1 → Security → Secure Boot → On. A Secure Boot Violation after that means the keys are not in: Reset to Setup Mode, boot, sudo sbctl enroll-keys -i (README, Recovery)."
+		todo "Secure Boot not enforcing: keys enrolled during this boot take effect after a reboot; otherwise F1 → Security → Secure Boot → On. A Secure Boot Violation after that means the keys are not in: Reset to Setup Mode, boot, sudo sbctl enroll-keys -i (README, Recovery)."
 	else
 		success "Secure Boot enforcing."
 	fi
+}
+
+# Never --microsoft (the point) and never --yes-this-might-brick-my-machine.
+# An option ROM in the TPM event log is firmware on some device that the new
+# db would not let run: which device it is decides between -i --tpm-eventlog
+# (its hash into db) and no enrollment, so the step names the way to find it.
+_offer_enroll() {
+	local out rc=0
+	if ! confirm "Firmware in Setup Mode, keys not enrolled. Enroll them now (sudo sbctl enroll-keys -i)?"; then
+		todo "Keys not enrolled (Setup Mode): sudo sbctl enroll-keys -i, then reboot; or post-install.sh --redo bootloader."
+		return 0
+	fi
+	out="$(sudo sbctl enroll-keys -i 2>&1)" || rc=$?
+	printf '%s\n' "$out"
+	if ((rc == 0)); then
+		success "Keys enrolled."
+		todo "Reboot with Secure Boot On (README, Step 0), then post-install.sh again: it checks that Secure Boot enforces and closes this step."
+		return 0
+	fi
+	case "$out" in
+	*"Found OptionROM"*) todo "sbctl found an option ROM in the TPM event log (above; of the flags it lists only --tpm-eventlog fits here). Find the device first: sudo pacman -S tpm2-tools; sudo tpm2_eventlog /sys/kernel/security/tpm0/binary_bios_measurements | grep -A25 EV_EFI_BOOT_SERVICES_DRIVER. Hardware that belongs: sudo sbctl enroll-keys -i --tpm-eventlog (README, Recovery)." ;;
+	*"Could not find any TPM Eventlog"*) todo "No TPM event log, sbctl refuses: F1 → Security → Security Chip → On (README, Step 0), boot, post-install.sh --redo bootloader." ;;
+	*) todo "sbctl enroll-keys -i failed (above): fix the cause, then post-install.sh --redo bootloader." ;;
+	esac
 }
 
 # The firmware boots the UKIs directly; same two entries, same order as
@@ -321,11 +434,11 @@ step_luks_header() {
 	info "LUKS partition: $luks"
 
 	local dest rc=0
-	dest="$(mount_usb)" || rc=$?
+	dest="$(mount_usb "the LUKS header backup (any FAT/exFAT stick, the image goes to its root)")" || rc=$?
 	case "$rc" in
 	0) ;;
 	1)
-		warn "Skipped - back up the LUKS header later."
+		todo "LUKS header not backed up (USB skipped)."
 		return 0
 		;;
 	*)
@@ -574,6 +687,10 @@ step_aur_helper() {
 		PKGDEST=/tmp/makepkg
 		PKGEXT='.pkg.tar'
 	EOF
+	# Before yay's first run (webapps): yay makes ~/.config/yay a real
+	# directory when it finds none, which the dotfiles step then refuses to
+	# replace. That step links it again, the same link.
+	link "$DOTFILES/yay" "$XDG_CONFIG_HOME/yay"
 	if pacman -Q yay >/dev/null 2>&1; then
 		echo "yay already installed"
 		return 0
@@ -847,15 +964,15 @@ EOF
 	chmod 700 "$HOME/.ssh"
 
 	# "s" at the USB prompt skips the import only; the card export, ~/.ssh/config
-	# and the remote still happen, a later --redo keys picks the import up.
+	# and the remote still happen, and the step stays open for the import.
 	local usb rc=0
-	usb="$(mount_usb)" || rc=$?
+	usb="$(mount_usb "the key import (the one with keys/gpg and keys/ssh, README Step 2)" keys/)" || rc=$?
 	case "$rc" in
 	0)
 		_keys_import "$usb"
 		umount_usb
 		;;
-	1) warn "Skipped key import - later: post-install.sh --redo keys" ;;
+	1) todo "Key import skipped (USB): post-install.sh --redo keys with the key stick and a YubiKey." ;;
 	*)
 		err "USB mount failed - fix the stick, then: post-install.sh --redo keys"
 		return 1
@@ -877,7 +994,7 @@ EOF
 		chmod 644 "$HOME/.ssh/id_ed25519_ic_yubikey.pub"
 		success "Exported YubiKey SSH public key."
 	else
-		warn "No card SSH key - later, with the YubiKey in: post-install.sh --redo keys"
+		todo "No card SSH key (YubiKey not seen): post-install.sh --redo keys with a YubiKey and the key stick."
 	fi
 
 	cat >"$HOME/.ssh/config" <<'EOF'
@@ -1029,14 +1146,19 @@ do_list() {
 	local entry name
 	for entry in "${STEPS[@]}"; do
 		name="${entry%%:*}"
-		if is_done "$name"; then printf '  [x] %s\n' "$name"; else printf '  [ ] %s\n' "$name"; fi
+		if is_done "$name"; then
+			printf '  [x] %s\n' "$name"
+		else
+			printf '  [ ] %s\n' "$name"
+			_todo_reasons "$name"
+		fi
 	done
 }
 
 # --- entry -----------------------------------------------------------------
 
 main() {
-	mkdir -p "$DONE_DIR"
+	mkdir -p "$DONE_DIR" "$TODO_DIR"
 	: >>"$LOG_FILE"
 	sudo_keepalive
 
@@ -1049,15 +1171,18 @@ main() {
 			continue
 		fi
 		run_step "$name" "$fn"
-		mark_done "$name"
+		finish_step "$name"
 	done
 	banner "Done"
 	cat <<'EOF'
 
   Reboot → unlock LUKS (FIDO2 PIN + touch) → TTY1: touch the key, or unplug it and type the password → Sway.
   Re-run a step:  post-install.sh --redo <step>
+  A Ventoy stick signed for an earlier install no longer boots with Secure Boot on: this install made new
+  keys. Write its second partition again and sign it (README, Recovery stick).
 
 EOF
+	_print_todos
 }
 
 redo_one() {
@@ -1066,12 +1191,12 @@ redo_one() {
 		name="${entry%%:*}"
 		fn="${entry##*:}"
 		if [[ "$name" == "$target" ]]; then
-			mkdir -p "$DONE_DIR"
+			mkdir -p "$DONE_DIR" "$TODO_DIR"
 			: >>"$LOG_FILE"
 			sudo_keepalive
 			rm -f "$DONE_DIR/$name"
 			run_step "$name" "$fn"
-			mark_done "$name"
+			finish_step "$name"
 			return 0
 		fi
 	done

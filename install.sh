@@ -103,7 +103,7 @@ _setup_mode() {
 _sb_plan() {
 	_setup_mode || { echo 'not in Setup Mode - UKIs signed, enroll later'; return 0; }
 	[[ -e $TPM_EVENTLOG ]] || { echo 'no TPM event log - UKIs signed, enroll later'; return 0; }
-	echo 'Setup Mode - own keys enrolled'
+	echo 'Setup Mode - own keys enrolled (if sbctl refuses: offered again at first boot)'
 }
 
 on_error() {
@@ -580,7 +580,7 @@ _enroll_keys() {
 	((rc == 0)) && ENROLLED=1 # before anything else can fail: on_error keys its hint on it
 	printf '%s\n' "$out" | tee -a "$LOG_FILE" || true
 	((rc == 0)) || {
-		warn_log "Keys not enrolled (above): Secure Boot stays off until sudo sbctl enroll-keys -i succeeds. No TPM event log means the chip is off (README, Step 0); an option ROM in it takes -i --tpm-eventlog (README, Recovery)."
+		warn_log "Keys not enrolled (above): the firmware stays in Setup Mode and post-install.sh (step 1, bootloader) offers sudo sbctl enroll-keys -i at first boot. No TPM event log means the chip is off (README, Step 0). An option ROM: -i --tpm-eventlog only if the installed system's boot reports one too, and only after identifying the device (README, Recovery)."
 		return 0
 	}
 	success_log "Secure Boot keys enrolled."
