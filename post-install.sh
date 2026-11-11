@@ -731,6 +731,18 @@ ignore nou2f
 # ~/.local/share/applications/*.desktop without a dialog.
 dbus-user.own org.mpris.MediaPlayer2.firefox.*
 dbus-user.talk org.freedesktop.portal.Desktop
+# Links of other schemes (slack://, zoommtg://) and downloaded files open on
+# the host through the portal's OpenURI, not in here: a handler started inside
+# the jail runs inside it (firejail in firejail adds no sandbox) with this
+# jail's home, so a slack:// login never reached the running Slack. GLib asks
+# the portal only when it finds no local handler, hence no application
+# directories in the jail; GIO_USE_PORTALS=1 allows the fallback outside
+# Flatpak. librewolf.overrides.cfg has Firefox's half. The portal asks GIO on
+# the host for the handler, which reads a user-dir entry's types from
+# ~/.local/share/applications/mimeinfo.cache alone (the firecfg hook keeps it).
+nowhitelist ${HOME}/.local/share/applications
+nowhitelist /usr/share/applications
+env GIO_USE_PORTALS=1
 EOF
 	mkdir -p "$cfg" "$HOME/.librewolf"
 	cat >"$cfg/librewolf.overrides.cfg" <<'EOF'
@@ -759,6 +771,15 @@ defaultPref("media.av1.enabled", false);
 // also block connect-src, i.e. uBlock Origin's filter-list updates.
 defaultPref("extensions.webextensions.base-content-security-policy",
             "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';");
+// Other schemes and downloads get the "System Handler": the OpenURI portal
+// (librewolf.local hides the application directories, so GLib falls through
+// to it). The host opens slack:// with the running Slack, a downloaded file
+// with its default app. The portal takes a file by fd and refuses one it
+// cannot see from outside, which is everything under this jail's private
+// /tmp, where librewolf.cfg stages a download opened rather than saved;
+// ~/Downloads is the same directory on both sides.
+defaultPref("widget.use-xdg-desktop-portal.mime-handler", 1);
+defaultPref("browser.download.start_downloads_in_tmp_dir", false);
 EOF
 	ln -sfn "$cfg/librewolf.overrides.cfg" "$HOME/.librewolf/librewolf.overrides.cfg"
 	success "librewolf.overrides.cfg written to $cfg (legacy ~/.librewolf symlinked)."
@@ -771,7 +792,13 @@ step_firecfg() {
 	# (curl, git, nvim, tmux, node) run unconfined. Add or remove names in
 	# /etc/firejail/firecfg.d/*.conf (`!name` removes), never in firecfg.config.
 	# The hook re-runs it after every transaction that touches /usr/bin, so AUR
-	# packages installed later (slack, zoom) get their symlink and fixed .desktop.
+	# packages installed later (slack, zoom) get their symlink and fixed .desktop,
+	# then refreshes ~/.local/share/applications/mimeinfo.cache for the same user
+	# firecfg wrote for ($SUDO_USER, as firecfg's --fix; setpriv, not runuser:
+	# no PAM session, so no lastlog2 "Last login" rewrite per transaction): GIO
+	# reads a user-dir entry's types from that cache alone, and the portal asks
+	# GIO on the host whether a slack:// handler exists, so a stale cache meant
+	# none at all.
 	sudo tee /etc/pacman.d/hooks/firecfg.hook >/dev/null <<'EOF'
 [Trigger]
 Operation = Install
@@ -784,9 +811,43 @@ Target = usr/bin/*
 Description = Refreshing firejail symlinks (firecfg)...
 Depends = firejail
 When = PostTransaction
-Exec = /usr/bin/firecfg
+Exec = /bin/sh -c '/usr/bin/firecfg; if [ -n "$SUDO_USER" ]; then setpriv --reuid="$SUDO_USER" --regid="$(id -g "$SUDO_USER")" --init-groups -- update-desktop-database "$(getent passwd "$SUDO_USER" | cut -d: -f6)/.local/share/applications"; fi'
 EOF
+	# Slack's "Sign in to Slack" hands the login URL to xdg-open (Electron's
+	# shell.openExternal), which the stock private-bin leaves out; a browser
+	# started inside the jail would be a stranger anyway (tmpfs home, no
+	# profile). flatpak-xdg-utils' xdg-open is one OpenURI portal call, the host
+	# opens the URL in the running LibreWolf. The way back (slack:// from the
+	# browser) is librewolf.local's portal route plus the hook's cache refresh.
+	sudo pacman -S --needed --noconfirm flatpak-xdg-utils
+	sudo install -D -o root -g root -m 644 /dev/stdin /etc/firejail/slack.local <<-'EOF'
+		# Written by post-install.sh (firecfg): URLs go to the host's browser
+		# through the OpenURI portal. Electron runs xdg-open, absent from the
+		# stock private-bin; this one is a D-Bus call to the portal. The portal
+		# checks the bus peer's /proc/<pid>/root, so `noroot` here breaks it
+		# unless `dbus-user filter` with a talk rule for
+		# org.freedesktop.portal.Desktop comes along (xdg-dbus-proxy becomes
+		# the peer).
+		env PATH=/usr/lib/flatpak-xdg-utils:/usr/local/bin:/usr/bin
+	EOF
+	# Zoom: same hand-off, different gap. Its profile keeps /usr/bin, so Zoom's
+	# `xdg-open <login url>` ran xdg-utils' script, which started a LibreWolf
+	# inside the jail: fresh profile, no proxy, Okta fails. The zoommtg:// reply
+	# arrives as a second `zoom` in a new jail that must find the running one's
+	# singleton socket, kept under ~/.config/zoom; the stock profile leaves that
+	# dir on the jail's tmpfs, so each reply started another full Zoom.
+	sudo install -D -o root -g root -m 644 /dev/stdin /etc/firejail/zoom.local <<-'EOF'
+		# Written by post-install.sh (firecfg): URLs go to the host's browser
+		# through the OpenURI portal; see slack.local for the `noroot` caveat.
+		env PATH=/usr/lib/flatpak-xdg-utils:/usr/local/bin:/usr/bin
+		# qtsingleapp-zoom-<uid> socket and lockfile: the real dir, shared by
+		# every zoom jail, so `zoom zoommtg://...` from the portal reaches the
+		# running instance instead of starting a second one.
+		mkdir ${HOME}/.config/zoom
+		whitelist ${HOME}/.config/zoom
+	EOF
 	sudo firecfg
+	update-desktop-database "$HOME/.local/share/applications" # same reason as the hook's, for this run
 }
 
 # Web apps (launcher Packages > Add web app, bin/qs-webapp) open in Brave
