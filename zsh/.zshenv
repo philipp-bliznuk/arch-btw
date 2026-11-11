@@ -11,7 +11,8 @@ export ZDOTDIR=${ZDOTDIR:-$XDG_CONFIG_HOME/zsh}
 # puts its shims in UV_TOOL_BIN_DIR (~/.local/bin is the repo's bin/), go
 # install (install.sh ships go) its binaries in ~/go/bin, the opencode
 # installer its own in ~/.opencode/bin. /usr/local/bin is in PATH already;
-# listed so firecfg's wrappers there stay ahead of anything those install.
+# listed so the firejail symlinks there (post-install.sh firecfg: slack, zoom)
+# stay ahead of anything those install.
 export UV_TOOL_BIN_DIR=${UV_TOOL_BIN_DIR:-$XDG_DATA_HOME/uv/bin}
 path=(
   $HOME/.local/bin(N)

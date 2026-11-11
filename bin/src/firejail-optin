@@ -1,0 +1,71 @@
+#!/bin/sh
+# firejail-optin NAME...: the firejail opt-in list, applied. For each NAME with
+# a /usr/bin/NAME: /usr/local/bin/NAME -> /usr/bin/firejail (ahead of /usr/bin
+# on PATH, so /etc/firejail/NAME.profile and NAME.local apply), and a copy of
+# every /usr/share/applications entry whose Exec spells /usr/bin/NAME out in the
+# desktop user's ~/.local/share/applications with the bare name instead: the
+# absolute path would bypass the symlink. Symlinks to firejail and copies (this
+# script's and firecfg's, by their first line) for names not listed, or no
+# longer installed, are removed, and the copies are rewritten on every run, so
+# a package's new .desktop file comes through; a file of the user's own in
+# either place is left alone and named. Root does the symlinks, then the
+# copies as $SUDO_USER (sudo sets it, so yay and post-install.sh have it; a
+# pacman run by root itself keeps the copies as they are). Installed to
+# /usr/local/bin by post-install.sh (firecfg), which runs it, as does its
+# pacman hook with the same names.
+set -eu
+
+for p in "$@"; do
+	case $p in
+	'' | *[!A-Za-z0-9_-]*)
+		echo "firejail-optin: not a program name: $p" >&2
+		exit 1
+		;;
+	esac
+done
+
+if [ "$(id -u)" -eq 0 ]; then
+	for l in /usr/local/bin/*; do
+		[ -L "$l" ] && [ "$(readlink "$l")" = /usr/bin/firejail ] || continue
+		n=$(basename "$l")
+		case " $* " in
+		*" $n "*) [ -x "/usr/bin/$n" ] || rm -f "$l" ;;
+		*) rm -f "$l" ;;
+		esac
+	done
+	for p in "$@"; do
+		[ -x "/usr/bin/$p" ] || continue
+		if [ -e "/usr/local/bin/$p" ] && [ ! -L "/usr/local/bin/$p" ]; then
+			echo "firejail-optin: /usr/local/bin/$p is a file, not a symlink: left alone, $p runs unjailed" >&2
+			continue
+		fi
+		ln -sfn /usr/bin/firejail "/usr/local/bin/$p"
+	done
+	[ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != root ] || exit 0
+	exec setpriv --reuid="$SUDO_USER" --regid="$(id -g "$SUDO_USER")" --init-groups -- "$0" "$@"
+fi
+
+apps="$(getent passwd "$(id -un)" | cut -d: -f6)/.local/share/applications"
+mkdir -p "$apps"
+for f in "$apps"/*.desktop; do
+	[ -f "$f" ] && [ ! -L "$f" ] || continue
+	case "$(head -n1 "$f")" in
+	'# converted by firecfg' | '# firejail-optin:'*) rm -f "$f" ;;
+	esac
+done
+for p in "$@"; do
+	[ -x "/usr/bin/$p" ] || continue
+	for src in /usr/share/applications/*.desktop; do
+		grep -qE "^Exec=/usr/bin/$p( |\$)" "$src" || continue
+		dst="$apps/$(basename "$src")"
+		if [ -e "$dst" ] || [ -L "$dst" ]; then
+			echo "firejail-optin: $dst exists and is not a copy of ours: left alone" >&2
+			continue
+		fi
+		{
+			printf '# firejail-optin: %s with the path off Exec, so /usr/local/bin/%s (firejail) runs\n' "$src" "$p"
+			sed -E "s#^(Exec|TryExec)=/usr/bin/$p( |\$)#\\1=$p\\2#; s/^DBusActivatable=true/DBusActivatable=false/" "$src"
+		} >"$dst"
+	done
+done
+update-desktop-database "$apps"
