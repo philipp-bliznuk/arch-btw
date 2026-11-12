@@ -68,6 +68,8 @@ supervise() {
 			if swaymsg -q -t get_version >/dev/null 2>&1; then
 				logger -t qs-session "no shell left: qs-lock holds the session" || true
 				"$here"/qs-lock || true
+			else
+				session_down
 			fi
 			rm -f "$pidfile"
 			return 1
@@ -76,9 +78,20 @@ supervise() {
 		sleep 1
 		# compositor gone (sway exited): stop here, or the next login's sway finds a
 		# shell bound to the dead SWAYSOCK and its own `qs-session start` skips
-		swaymsg -q -t get_version >/dev/null 2>&1 || break
+		swaymsg -q -t get_version >/dev/null 2>&1 || {
+			session_down
+			break
+		}
 	done
 	rm -f "$pidfile"
+}
+
+# sway gone, the user manager maybe not (a tty2 shell or an SSH login keeps it
+# alive): the session target would stay active and the next `start` skip the
+# autostart units whose programs died with the display. Stopping it takes
+# graphical-session.target down, the portals and those units with it.
+session_down() {
+	systemctl --user stop sway-session.target 2>/dev/null || true
 }
 
 # quickshell does not kill its Process children (swaymsg -m, udevadm,
@@ -133,6 +146,24 @@ reapply_toggles() {
 	return 0
 }
 
+# ~/.config/autostart holds the entries programs write for their own "start at
+# login" switch (1Password, Mullvad); a bare sway session never read them.
+# systemd's xdg-autostart generator turns each into app-<name>@autostart.service
+# under xdg-desktop-autostart.target, which refuses a manual start: the session
+# target systemd.special(7) describes pulls it in (systemd/user/
+# sway-session.target, linked by the dotfiles step; BindsTo
+# graphical-session.target, so the portals stop with the session). OnlyShowIn
+# and NotShowIn are checked against XDG_CURRENT_DESKTOP when a service starts,
+# so after import_env; last in start, so 1Password's tray icon registers with
+# the shell's StatusNotifierWatcher up. The target stays active for the session
+# (the supervisor stops it when sway is gone, session_down): a `start` by hand
+# with the session up skips it, instead of relaunching a program the user
+# quit. A failed start is logged, not fatal: the shell is up by then.
+autostart() {
+	systemctl --user is-active --quiet sway-session.target && return 0
+	systemctl --user start sway-session.target || logger -t qs-session "sway-session.target did not start (post-install.sh dotfiles links it; systemctl --user daemon-reload)" || true
+}
+
 case "${1:-start}" in
 start)
 	# fresh sway session: a lock flag left by a session that died must not
@@ -143,6 +174,7 @@ start)
 	start_qs
 	wait_ready
 	reapply_toggles
+	autostart
 	;;
 restart)
 	stop_qs

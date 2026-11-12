@@ -711,7 +711,11 @@ step_aur_helper() {
 # nothing around it: 1Password's app integration (step 1password) has the
 # browser spawn a setgid helper, which no firejail profile allows without
 # giving up seccomp and nonewprivs, i.e. the jail. The librewolf.local of
-# earlier runs goes; the firecfg step jails Slack and Zoom only.
+# earlier runs goes; the firecfg step jails Slack only. Without an explicit
+# default browser GIO takes the first mimeinfo.cache entry, alphabetical:
+# brave-origin.desktop once the webapps step has installed it (that is how the
+# default flipped the day the firecfg copy of librewolf.desktop went). Set when
+# the user has none, left alone afterwards (qs-defaults changes it).
 step_librewolf() {
 	local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/librewolf/librewolf"
 	sudo rm -f /etc/firejail/librewolf.local
@@ -748,37 +752,60 @@ defaultPref("extensions.webextensions.base-content-security-policy",
 // regardless (browser.sessionstore.privacy_level 2 in librewolf.cfg): a site
 // that logs out anyway after this gets that pref next.
 defaultPref("privacy.clearOnShutdown_v2.cookiesAndStorage", false);
+// A manual proxy with credentials asks for them on every browser start. Only
+// the saving of a login is gated by signon.rememberSignons (false above in
+// librewolf.cfg); the lookup of a saved one and this auto-login are not, so
+// once: Settings > Privacy & Security > "Ask to save passwords" on (if the
+// 1Password extension holds that switch, its "default password manager"
+// setting off first), answer the proxy prompt with "remember", switch off
+// again. Firefox's default is false.
+defaultPref("signon.autologin.proxy", true);
 EOF
 	ln -sfn "$cfg/librewolf.overrides.cfg" "$HOME/.librewolf/librewolf.overrides.cfg"
 	success "librewolf.overrides.cfg written to $cfg (legacy ~/.librewolf symlinked)."
+	local mimeapps="${XDG_CONFIG_HOME:-$HOME/.config}/mimeapps.list"
+	if ! awk '/^\[/ {s = $0} s == "[Default Applications]" && /^x-scheme-handler\/http=/ {f = 1} END {exit !f}' "$mimeapps" 2>/dev/null; then
+		xdg-mime default librewolf.desktop x-scheme-handler/http x-scheme-handler/https text/html
+		info "librewolf.desktop is the default browser (none was set in $mimeapps)."
+	fi
 }
 
-# Firejail, opt-in: Slack and Zoom, the two closed-source clients that would
-# otherwise read the whole home, and nothing else. firecfg's own way (a
-# symlink for every installed program among the ~1000 names in firecfg.config,
-# so each new install arrived jailed) cost a profile gap per program: Slack's
-# sign-in, Zoom's sign-in, Zoom's login persistence, 1Password's helper under
-# the browser. The list below is the whole policy, bin/src/firejail-optin
-# applies it: a symlink per name in /usr/local/bin, ahead of /usr/bin, as
-# firecfg makes them, so /etc/firejail/<name>.profile and <name>.local apply
-# and `firejail --list` shows the jails; the symlinks of earlier runs go (a
-# name added here, --redo firecfg; a program without a profile gets
-# default.profile, loose and of little use). A .desktop file whose Exec spells
-# /usr/bin/<name> out bypasses the symlink, so the helper writes a copy with
-# the bare name to ~/.local/share/applications for each jailed program, and
-# removes the copies it and firecfg made for programs not on the list: a copy
-# shadows the package's file for good, and `firecfg --fix` picks programs by
-# profile, not by symlink, so it kept making one for LibreWolf. Then
-# mimeinfo.cache of that directory: GIO takes a user-dir entry's types from
-# that cache alone, so until then the copied slack.desktop was no slack://
-# handler. The hook runs the helper after every transaction that touches
-# /usr/bin (slack and zoom come from the AUR after this step; an upgrade's new
-# .desktop file is copied again, a removal drops symlink and copy); the copies
-# are the desktop user's, $SUDO_USER (setpriv, not runuser: no PAM session, so
-# no lastlog2 "Last login" rewrite per transaction).
+# Firejail, opt-in: Slack, the closed-source client that would otherwise read
+# the whole home, and nothing else. firecfg's own way (a symlink for every
+# installed program among the ~1000 names in firecfg.config, so each new
+# install arrived jailed) cost a profile gap per program: Slack's sign-in,
+# Zoom's sign-in and login persistence, 1Password's helper under the browser.
+# Zoom left the list after its gaps were closed one by one (sign-in hand-off,
+# singleton socket, settings files, all once in zoom.local) and the last stayed:
+# the key of its *.enc.v2.db databases, the session among them, lives in no
+# path the stock profile persists (not zoomus.conf, zoom.conf, ~/.zoom/data or
+# the keyring), so every start in the jail, after a quit from Zoom's own menu
+# too, met `hmac check failed`, set the databases aside as *.decfail and began
+# signed out. The zoom.local of earlier runs goes; the ~/.config/zoomus.conf
+# and zoom.conf symlinks into ~/.config/zoom an earlier run made stay, Qt
+# resolves them and Zoom writes through them unjailed as well. The list below
+# is the whole policy, bin/src/firejail-optin applies it: a symlink per name in
+# /usr/local/bin, ahead of /usr/bin, as firecfg makes them, so
+# /etc/firejail/<name>.profile and <name>.local apply and `firejail --list`
+# shows the jails; the symlinks of earlier runs go (a name added here, --redo
+# firecfg; a program without a profile gets default.profile, loose and of
+# little use). A .desktop file whose Exec spells /usr/bin/<name> out bypasses
+# the symlink, so the helper writes a copy with the bare name to
+# ~/.local/share/applications for each jailed program, and removes the copies
+# it and firecfg made for programs not on the list: a copy shadows the
+# package's file for good, and `firecfg --fix` picks programs by profile, not
+# by symlink, so it kept making one for LibreWolf. Then mimeinfo.cache of that
+# directory: GIO takes a user-dir entry's types from that cache alone, so until
+# then the copied slack.desktop was no slack:// handler. The hook runs the
+# helper after every transaction that touches /usr/bin (slack comes from the
+# AUR after this step; an upgrade's new .desktop file is copied again, a
+# removal drops symlink and copy); the copies are the desktop user's,
+# $SUDO_USER (setpriv, not runuser: no PAM session, so no lastlog2 "Last login"
+# rewrite per transaction).
 step_firecfg() {
-	local -a jailed=(slack zoom)
+	local -a jailed=(slack)
 	local p names="${jailed[*]}"
+	sudo rm -f /etc/firejail/zoom.local
 	sudo install -o root -g root -m 755 "$DOTFILES/bin/src/firejail-optin" /usr/local/bin/firejail-optin
 	sudo tee /etc/pacman.d/hooks/firecfg.hook >/dev/null <<EOF
 [Trigger]
@@ -813,30 +840,6 @@ EOF
 		# the peer).
 		env PATH=/usr/lib/flatpak-xdg-utils:/usr/local/bin:/usr/bin
 	EOF
-	# Zoom: same hand-off, different gap. Its profile keeps /usr/bin, so Zoom's
-	# `xdg-open <login url>` ran xdg-utils' script, which started a LibreWolf
-	# inside the jail: fresh profile, no proxy, Okta fails. The zoommtg:// reply
-	# arrives as a second `zoom` in a new jail that must find the running one's
-	# singleton socket, kept under ~/.config/zoom; the stock profile leaves that
-	# dir on the jail's tmpfs, so each reply started another full Zoom. The
-	# same directory takes the settings files (_zoom_conf_links).
-	sudo install -D -o root -g root -m 644 /dev/stdin /etc/firejail/zoom.local <<-'EOF'
-		# Written by post-install.sh (firecfg): URLs go to the host's browser
-		# through the OpenURI portal; see slack.local for the `noroot` caveat.
-		env PATH=/usr/lib/flatpak-xdg-utils:/usr/local/bin:/usr/bin
-		# qtsingleapp-zoom-<uid> socket and lockfile: the real dir, shared by
-		# every zoom jail, so `zoom zoommtg://...` from the portal reaches the
-		# running instance instead of starting a second one.
-		mkdir ${HOME}/.config/zoom
-		whitelist ${HOME}/.config/zoom
-		# ~/.config/zoomus.conf and zoom.conf are symlinks in here (post-install.sh
-		# made them): the profile's single-file whitelists of the two then mount
-		# nothing, so Qt's rename-over-the-file save works. The targets must
-		# exist, or firejail drops the whitelist of the symlink without a word.
-		mkfile ${HOME}/.config/zoom/zoomus.conf
-		mkfile ${HOME}/.config/zoom/zoom.conf
-	EOF
-	_zoom_conf_links
 	sudo /usr/local/bin/firejail-optin "${jailed[@]}"
 	for p in "${jailed[@]}"; do
 		if [[ -L "/usr/local/bin/$p" ]]; then
@@ -845,39 +848,8 @@ EOF
 			info "$p is not installed; the hook adds the symlink once it is."
 		fi
 	done
-	pgrep -x zoom >/dev/null && warn "Zoom is running with the old files mounted: quit it. The first start after this logs out once more (it saves the device id on exit), the second stays signed in."
+	firejail --list 2>/dev/null | grep -q 'firejail /usr/bin/zoom' && warn "Zoom is running jailed: quit it, the next start runs unconfined."
 	return 0
-}
-
-# Zoom's settings files, ~/.config/zoomus.conf and zoom.conf, are the stock
-# profile's two single-file whitelists, which firejail bind-mounts into the
-# jail's home one by one. Qt saves settings by writing a temporary file and
-# renaming it over the target; a rename over a mount point fails (EBUSY), and
-# both files stayed 0 bytes from the day Zoom was installed. Zoom derives the
-# key of its encrypted sqlite databases from the device id kept there, so every
-# start met databases it could not open (`hmac check failed`, the *.decfail
-# copies in ~/.zoom/data) and began as a new device: signed out. The two
-# become symlinks to files in ~/.config/zoom, the directory zoom.local
-# whitelists: firejail recreates a symlink whose target lies in a whitelisted
-# directory with no mount of its own, Qt resolves symlinks before it writes,
-# so the rename lands in the real directory. A settings file with content
-# (an unjailed past) moves to the target; content on both sides stops the
-# step and names them, nothing is overwritten.
-_zoom_conf_links() {
-	local dir="${XDG_CONFIG_HOME:-$HOME/.config}" f
-	mkdir -p "$dir/zoom"
-	for f in zoomus.conf zoom.conf; do
-		if [[ -f "$dir/$f" && ! -L "$dir/$f" && -s "$dir/$f" ]]; then
-			if [[ -s "$dir/zoom/$f" ]]; then
-				err "$dir/$f and $dir/zoom/$f both have content: keep one as $dir/zoom/$f, remove the other, then post-install.sh --redo firecfg"
-				return 1
-			fi
-			mv -f "$dir/$f" "$dir/zoom/$f"
-		fi
-		touch "$dir/zoom/$f"
-		[[ "$(readlink -- "$dir/$f" 2>/dev/null)" == "$dir/zoom/$f" ]] || ln -sfn "$dir/zoom/$f" "$dir/$f"
-		info "$dir/$f -> $dir/zoom/$f"
-	done
 }
 
 # Web apps (launcher Packages > Add web app, bin/qs-webapp) open in Brave
@@ -885,10 +857,10 @@ _zoom_conf_links() {
 # ~/.local/share/qs-webapp. LibreWolf has no app mode (Firefox dropped it in
 # 86, --kiosk is fullscreen). brave-origin-bin is AUR; yay-git when the AUR is
 # down, like the pacman step's picker. Unconfined like LibreWolf, Chromium's
-# own sandbox (firecfg step: Slack and Zoom only); the firejail files of
-# earlier runs go. The icon directory exists before the shell starts: Qt lists
-# an icon theme's base directories once, one created later is not searched
-# until a restart.
+# own sandbox (firecfg step: Slack only); the firejail files of earlier runs
+# go. The icon directory exists before the shell starts: Qt lists an icon
+# theme's base directories once, one created later is not searched until a
+# restart.
 step_webapps() {
 	sudo rm -f /etc/firejail/brave-origin.profile /etc/firejail/brave-origin.local /etc/firejail/firecfg.d/10-webapps.conf
 	mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/256x256/apps"
@@ -993,6 +965,11 @@ step_dotfiles() {
 	link "$DOTFILES/jj/config.toml" "$XDG_CONFIG_HOME/jj/config.toml"
 	link "$DOTFILES/containers/containers.conf" "$XDG_CONFIG_HOME/containers/containers.conf"
 	link "$DOTFILES/containers/registries.conf" "$XDG_CONFIG_HOME/containers/registries.conf"
+	# One unit, not the dir: `systemctl --user enable` writes its .wants
+	# symlinks next to it. The user manager reads unit files at start and on
+	# daemon-reload (no manager at a chroot or tty-only run: skipped).
+	link "$DOTFILES/systemd/user/sway-session.target" "$XDG_CONFIG_HOME/systemd/user/sway-session.target"
+	systemctl --user daemon-reload 2>/dev/null || true
 	link "$DOTFILES/zsh/.zshenv" "$HOME/.zshenv" # only file in $HOME; bootstraps ZDOTDIR
 	link "$DOTFILES/bin" "$HOME/.local/bin"      # qs-* helper scripts (sway binds + Quickshell call them)
 	local entry

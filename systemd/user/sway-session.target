@@ -1,0 +1,15 @@
+# The session target systemd.special(7) asks a desktop for: qs-session start
+# starts it once the shell is up, its supervisor stops it when sway is gone
+# (the user manager may outlive sway: a tty2 shell or an SSH login keeps it).
+# BindsTo makes graphical-session.target active with it (the portals are PartOf
+# that one and stop with the session), Wants pulls xdg-desktop-autostart.target
+# in, which refuses a manual start and holds the units systemd's xdg-autostart
+# generator made from ~/.config/autostart (1Password, Mullvad: a program's own
+# "start at login" switch). graphical-session-pre.target brings
+# xdg-user-dirs.service, one xdg-user-dirs-update per session start.
+[Unit]
+Description=sway session
+Documentation=man:systemd.special(7)
+BindsTo=graphical-session.target
+Wants=graphical-session-pre.target xdg-desktop-autostart.target
+After=graphical-session-pre.target
