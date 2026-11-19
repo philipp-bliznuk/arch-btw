@@ -715,7 +715,16 @@ step_aur_helper() {
 # default browser GIO takes the first mimeinfo.cache entry, alphabetical:
 # brave-origin.desktop once the webapps step has installed it (that is how the
 # default flipped the day the firecfg copy of librewolf.desktop went). Set when
-# the user has none, left alone afterwards (qs-defaults changes it).
+# the user has none, left alone afterwards (qs-defaults changes it). A manual
+# proxy with credentials (Settings > Network) asks for them on every start and
+# never offers to save them: the first 407 of a start comes from a request
+# without a tab (extension or browser background traffic), a prompt without a
+# tab has no place for the save doorhanger, and the answer is cached for the
+# session, so no tab ever prompts; signon.autologin.proxy would only fill in a
+# login imported by hand (about:logins, url moz-proxy://HOST:PORT with the
+# proxy's realm). The FoxyProxy extension keeps the credentials in its own
+# settings and answers the 407 itself, so the proxy is set up there, nothing
+# here.
 step_librewolf() {
 	local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/librewolf/librewolf"
 	sudo rm -f /etc/firejail/librewolf.local
@@ -752,14 +761,6 @@ defaultPref("extensions.webextensions.base-content-security-policy",
 // regardless (browser.sessionstore.privacy_level 2 in librewolf.cfg): a site
 // that logs out anyway after this gets that pref next.
 defaultPref("privacy.clearOnShutdown_v2.cookiesAndStorage", false);
-// A manual proxy with credentials asks for them on every browser start. Only
-// the saving of a login is gated by signon.rememberSignons (false above in
-// librewolf.cfg); the lookup of a saved one and this auto-login are not, so
-// once: Settings > Privacy & Security > "Ask to save passwords" on (if the
-// 1Password extension holds that switch, its "default password manager"
-// setting off first), answer the proxy prompt with "remember", switch off
-// again. Firefox's default is false.
-defaultPref("signon.autologin.proxy", true);
 EOF
 	ln -sfn "$cfg/librewolf.overrides.cfg" "$HOME/.librewolf/librewolf.overrides.cfg"
 	success "librewolf.overrides.cfg written to $cfg (legacy ~/.librewolf symlinked)."
@@ -770,27 +771,105 @@ EOF
 	fi
 }
 
+# Page-1 HMAC of a Zoom SQLCipher database under the key in $2: page size
+# 1024, PBKDF2-SHA512 with 4000 rounds, HMAC-SHA512 over ciphertext, IV and
+# page number, the parameters Zoom's build uses (they were established against
+# zoomus.zmdb.kvs.enc.db, which random_key opens). Exit 0 when the key fits.
+_zoom_db_opens() {
+	ZOOM_KEY="$2" python3 - "$1" <<-'EOF'
+		import os
+		import sys
+		import hmac
+		import hashlib
+		import pathlib
+
+
+		with pathlib.Path(sys.argv[1]).open("rb") as f:
+		    data = f.read(1024)
+		salt = data[:16]
+		key = hashlib.pbkdf2_hmac("sha512", os.environ["ZOOM_KEY"].encode(), salt, 4000, 32)
+		hkey = hashlib.pbkdf2_hmac("sha512", key, bytes(b ^ 0x3A for b in salt), 2, 32)
+		mac = hmac.new(hkey, data[16:960] + (1).to_bytes(4, "little"), "sha512").digest()
+		sys.exit(0 if hmac.compare_digest(mac, data[960:1024]) else 1)
+	EOF
+}
+
+# Zoom opens its main database ~/.zoom/data/zoomus.enc.v2.db (account,
+# session, meeting history; SQLCipher) with random_key from zoom.conf. When
+# that fails it sets the file aside as .decfail and creates a new one, keyed
+# with the device id (deviceID in zoomus.conf) instead of random_key, so the
+# next open fails the same way: every start begins signed out, jailed or not.
+# The jail of the first days started it: the stock profile bind-mounts the two
+# conf files one by one, Qt's save-by-rename cannot replace a mount point, so
+# zoom.conf stayed 0 bytes and every cold start made a new random_key, the
+# first failed open came from that. Set aside while Zoom is stopped (the main
+# database, zoommeeting.enc.v2.db when it fails the same check, their journals
+# and .decfail files, to ~/.zoom/data.decfail-<timestamp>), the fresh-create
+# path at the next start keys the files with random_key and one sign-in lasts
+# (as long as random_key itself persists: the conf symlinks into
+# ~/.config/zoom, no jail). Per-user databases of accounts first seen under a
+# lost key are re-created once at that account's next sign-in (a burst of
+# `hmac check failed` in ~/.zoom/logs/zoom_stdout_stderr.log, fail_count in
+# zoom.conf counts up), chat and contacts come back from the server;
+# usage_stats_db/usage_stats.db from the first jailed start, which neither key
+# opens, stays: Zoom opens it every 15 minutes (two more `hmac check failed`
+# lines each time) and has never replaced it. Gate: zoomus.zmdb.kvs.enc.db
+# opens with random_key (the parameters fit this build), the main database
+# does not, and its .decfail lies next to it (Zoom itself has declared the
+# failure).
+_zoom_db_repair() {
+	# random_key stays out of the DEBUG=1 trace: the log is world-readable,
+	# zoom.conf is not. The options come back at return.
+	local -
+	{ set +x; } 2>/dev/null
+	local data="$HOME/.zoom/data" conf="$XDG_CONFIG_HOME/zoom/zoom.conf" key bak db
+	[[ -f "$data/zoomus.enc.v2.db.decfail" && -f "$data/zoomus.enc.v2.db" && -f "$data/zoomus.zmdb.kvs.enc.db" && -f "$conf" ]] || return 0
+	command -v python3 >/dev/null || return 0
+	key=$(sed -nE 's/^random_key="?([^"]*)"?$/\1/p' "$conf")
+	if [[ -z $key ]]; then
+		grep -q '^random_key=' "$conf" && warn "random_key in $conf has a shape this step does not read; Zoom's databases left alone."
+		return 0
+	fi
+	if ! _zoom_db_opens "$data/zoomus.zmdb.kvs.enc.db" "$key"; then
+		warn "Zoom's databases do not open with random_key under the known parameters; left alone."
+		return 0
+	fi
+	_zoom_db_opens "$data/zoomus.enc.v2.db" "$key" && return 0
+	if pgrep -x 'zoom|ZoomLauncher' >/dev/null; then
+		warn "Zoom's main database does not open with random_key, and Zoom is running: quit it and --redo firecfg."
+		return 0
+	fi
+	bak="$data.decfail-$(date +%Y%m%d-%H%M%S)"
+	mkdir -p "$bak"
+	for db in zoomus.enc.v2.db zoommeeting.enc.v2.db; do
+		[[ -f "$data/$db.decfail" ]] && mv "$data/$db.decfail" "$bak/"
+		if [[ -f "$data/$db" ]] && ! _zoom_db_opens "$data/$db" "$key"; then
+			mv "$data/$db" "$bak/"
+			[[ -f "$data/$db-journal" ]] && mv "$data/$db-journal" "$bak/"
+		fi
+	done
+	warn "Zoom's main database does not open with random_key while zoomus.zmdb.kvs.enc.db does (the loop of the jailed days, every start began signed out); set aside in $bak. Sign in once at the next start."
+}
+
 # Firejail, opt-in: Slack, the closed-source client that would otherwise read
 # the whole home, and nothing else. firecfg's own way (a symlink for every
 # installed program among the ~1000 names in firecfg.config, so each new
 # install arrived jailed) cost a profile gap per program: Slack's sign-in,
 # Zoom's sign-in and login persistence, 1Password's helper under the browser.
 # Zoom left the list after its gaps were closed one by one (sign-in hand-off,
-# singleton socket, settings files, all once in zoom.local) and the last stayed:
-# the key of its *.enc.v2.db databases, the session among them, lives in no
-# path the stock profile persists (not zoomus.conf, zoom.conf, ~/.zoom/data or
-# the keyring), so every start in the jail, after a quit from Zoom's own menu
-# too, met `hmac check failed`, set the databases aside as *.decfail and began
-# signed out. The zoom.local of earlier runs goes; the ~/.config/zoomus.conf
-# and zoom.conf symlinks into ~/.config/zoom an earlier run made stay, Qt
-# resolves them and Zoom writes through them unjailed as well. The list below
-# is the whole policy, bin/src/firejail-optin applies it: a symlink per name in
-# /usr/local/bin, ahead of /usr/bin, as firecfg makes them, so
-# /etc/firejail/<name>.profile and <name>.local apply and `firejail --list`
-# shows the jails; the symlinks of earlier runs go (a name added here, --redo
-# firecfg; a program without a profile gets default.profile, loose and of
-# little use). A .desktop file whose Exec spells /usr/bin/<name> out bypasses
-# the symlink, so the helper writes a copy with the bare name to
+# singleton socket, settings files, all once in zoom.local), and the damage of
+# the settings-file gap outlived the jail: the lost random_key left the main
+# database keyed wrong and Zoom's own recovery kept it that way,
+# _zoom_db_repair above has the story and the fix. The zoom.local of earlier runs goes; the
+# ~/.config/zoomus.conf and zoom.conf symlinks into ~/.config/zoom an earlier
+# run made stay, Qt resolves them and Zoom writes through them unjailed as
+# well. The list below is the whole policy, bin/src/firejail-optin applies it:
+# a symlink per name in /usr/local/bin, ahead of /usr/bin, as firecfg makes
+# them, so /etc/firejail/<name>.profile and <name>.local apply and
+# `firejail --list` shows the jails; the symlinks of earlier runs go (a name
+# added here, --redo firecfg; a program without a profile gets default.profile,
+# loose and of little use). A .desktop file whose Exec spells /usr/bin/<name>
+# out bypasses the symlink, so the helper writes a copy with the bare name to
 # ~/.local/share/applications for each jailed program, and removes the copies
 # it and firecfg made for programs not on the list: a copy shadows the
 # package's file for good, and `firecfg --fix` picks programs by profile, not
@@ -849,6 +928,7 @@ EOF
 		fi
 	done
 	firejail --list 2>/dev/null | grep -q 'firejail /usr/bin/zoom' && warn "Zoom is running jailed: quit it, the next start runs unconfined."
+	_zoom_db_repair
 	return 0
 }
 
