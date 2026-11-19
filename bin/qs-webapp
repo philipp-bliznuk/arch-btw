@@ -11,6 +11,10 @@
 # URL in X-QsWebApp=; icons go to ~/.local/share/icons/hicolor/256x256/apps
 # under the entry's name. Profiles: ~/.local/share/qs-webapp/<host>, one
 # cookie jar and process per host, so $mod+Ctrl+q ends one web app only.
+# Extensions are per profile: Ctrl+T in a web app opens a normal window of
+# its profile, install from the Web Store there. 1Password then just works:
+# Brave reads the default profile's NativeMessagingHosts for every
+# --user-data-dir, and its helper knows the binary name, brave.
 set -Eeuo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
