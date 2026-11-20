@@ -49,7 +49,7 @@ PACKAGES=(
 	librewolf imv mpv # imv/mpv: the only image and video handlers for xdg-open (LibreWolf registers neither); Setup > Default apps picks
 	xdg-utils desktop-file-utils # xdg-mime, update-desktop-database (bin/qs-defaults, post-install.sh); deps of qt6-base and gtk3 anyway
 	eza fzf fd ripgrep bat zoxide yazi ouch tmux fastfetch git-delta lazygit jujutsu podman
-	poppler ffmpeg 7zip unzip jq go-yq btop tree # go-yq = mikefarah yq; unzip: mason unpacks stylua with it
+	poppler ffmpeg 7zip unzip jq go-yq btop tree # go-yq = mikefarah yq; unzip: mason unpacks stylua with it; jq: librewolf-policies (post-install.sh)
 	tree-sitter-cli nodejs npm go python uv bun
 )
 

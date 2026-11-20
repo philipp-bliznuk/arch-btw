@@ -1,0 +1,191 @@
+/* LibreWolf 160 shell, Catppuccin Mocha. Colours, radii and layout only: the
+   profile's Nova theme keeps its accent (tab line, attention icons, hover
+   tint, Sidebery's active tab) and no pref that privacy.resistFingerprinting
+   covers is involved. post-install.sh (librewolf) links the repo's chrome/
+   into every profile; toolkit.legacyUserProfileCustomizations.stylesheets in
+   librewolf.overrides.cfg makes the profile load it. */
+
+/* --- palette ------------------------------------------------------------
+   LightweightThemeConsumer writes these as inline styles on :root, so
+   !important is the only way past them. Hover and active tints, tab line,
+   focus ring and attention fill stay with the theme. */
+:root {
+  --lwt-accent-color: #11111b !important;
+  --lwt-accent-color-inactive: #11111b !important;
+  --lwt-text-color: #cdd6f4 !important;
+  --lwt-additional-images: none !important;
+  --lwt-header-image: none !important;
+  --toolbar-background-color: #1e1e2e !important;
+  --toolbar-text-color: #cdd6f4 !important;
+  --toolbarbutton-icon-fill: #cdd6f4 !important;
+  --toolbar-field-background-color: #181825 !important;
+  --toolbar-field-background-color-focus: #181825 !important;
+  --toolbar-field-text-color: #cdd6f4 !important;
+  --toolbar-field-text-color-focus: #cdd6f4 !important;
+  --toolbar-field-border-color: #313244 !important;
+  --lwt-toolbar-field-highlight: #45475a !important;
+  --lwt-toolbar-field-highlight-text: #cdd6f4 !important;
+  --urlbarview-background-color: #181825 !important;
+  --panel-background-color: #181825 !important;
+  --panel-text-color: #cdd6f4 !important;
+  --panel-border-color: #313244 !important;
+  --sidebar-background-color: #181825 !important;
+  --sidebar-text-color: #cdd6f4 !important;
+  --sidebar-border-color: #313244 !important;
+  --tabpanel-background-color: #1e1e2e !important;
+  --tabs-navbar-separator-color: #313244 !important;
+  --chrome-content-separator-color: #313244 !important;
+  --toolbarseparator-color: #45475a !important;
+  --content-area-shadow: none !important;
+}
+
+/* urlbar.css defines this one on the field itself, so :root would be shadowed. */
+.urlbar,
+#searchbar {
+  --chrome-box-shadow: transparent !important;
+}
+
+/* --- corners: design tokens to zero, so every rule that reads them follows.
+   --border-radius-circle stays (badges, dots). ------------------------------ */
+:root {
+  --border-radius-xsmall: 0 !important;
+  --border-radius-small: 0 !important;
+  --border-radius-medium: 0 !important;
+  --border-radius-large: 0 !important;
+  --border-radius-xlarge: 0 !important;
+  --button-border-radius: 0 !important;
+  --input-border-radius: 0 !important;
+  --input-search-border-radius: 0 !important;
+  --popup-border-radius: 0 !important;
+  --panel-border-radius: 0 !important;
+  --panel-menuitem-border-radius: 0 !important;
+  --menuitem-border-radius: 0 !important;
+  --card-border-radius: 0 !important;
+  --card-border-radius-compact: 0 !important;
+  --toolbarbutton-border-radius: 0 !important;
+  --urlbar-border-radius: 0 !important;
+  --urlbarview-border-radius: 0 !important;
+  --tab-border-radius: 0 !important;
+  --sidebar-box-start-start-radius: 0 !important;
+  --sidebar-box-start-end-radius: 0 !important;
+  --window-border-radius: 0 !important;
+  --dialog-border-radius: 0 !important;
+  --link-border-radius-focus: 0 !important;
+}
+
+/* --- window: no client-side title bar (browser.tabs.inTitlebar 0 in the
+   overrides; this is the fallback), no bookmarks toolbar. ------------------ */
+.titlebar-buttonbox-container,
+.titlebar-spacer,
+#PersonalToolbar {
+  display: none !important;
+}
+
+/* --- nav bar: the buttons that sell something or duplicate Sidebery. ------ */
+#fxa-toolbar-menu-button,
+#ipprotection-button,
+#firefox-view-button,
+#sidebar-button,
+#alltabs-button,
+#smartwindow-group-tabs-button,
+#ai-window-toggle,
+#star-button-box {
+  display: none !important;
+}
+
+/* --- nav bar: the address bar takes all free space. The default layout puts
+   a flexible spacer on each side of it; in the nav bar those are flex 80
+   against the address bar's 400 and hold up to 112 px per side. They stay in
+   customize mode so they can still be dragged out. ------------------------- */
+#nav-bar:not([customizing]) toolbarspring:not(#vertical-spacer) {
+  display: none !important;
+}
+
+/* --- tabs: the native strip collapses while Sidebery is connected to the
+   window. Sidebery marks the window with the title preface U+200B (managed
+   setting markWindowPreface in policies.d.json); ext-browser.js mirrors the
+   preface into the titlepreface attribute of :root and clears it when the
+   sidebar closes, so the strip comes back the moment Sidebery goes. -------- */
+:root[titlepreface*="\200B"] #TabsToolbar {
+  visibility: collapse !important;
+}
+
+/* --- sidebar: a 40 px favicon strip that overlays the page at 260 px while
+   the pointer is over it or it has keyboard focus. Focus is sticky: a click
+   on a tab leaves it in the sidebar (tabbrowser only moves focus to the page
+   when nothing else took it), so the strip stays wide until the page is
+   clicked or Ctrl+E closes Sidebery, which focuses the page. Hover only:
+   drop :focus-within below. The launcher of the revamp (sidebar-main, its
+   tools) and both panel headers go; the splitter would fight the fixed width.
+   The box keeps the strip width in the flex layout, the inner browser widens
+   past it; the z-index lifts it over the tab box. --------------------------- */
+#sidebar-container,
+#sidebar-launcher-splitter,
+#sidebar-header,
+#sidebar-panel-header {
+  visibility: collapse !important;
+}
+
+#sidebar-splitter {
+  display: none !important;
+}
+
+#browser {
+  --uc-sidebar-width: 40px;
+  --uc-sidebar-hover-width: 260px;
+  --uc-sidebar-collapse-delay: 300ms;
+}
+
+#sidebar-box {
+  position: relative !important;
+  min-width: var(--uc-sidebar-width) !important;
+  width: var(--uc-sidebar-width) !important;
+  max-width: var(--uc-sidebar-width) !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  z-index: var(--browser-area-z-index-sidebar-expand-on-hover, 4) !important;
+  background-color: var(--sidebar-background-color) !important;
+  direction: ltr;
+}
+
+#sidebar-box[sidebar-positionend]:not(:-moz-locale-dir(rtl)) {
+  direction: rtl;
+}
+
+#sidebar {
+  min-width: var(--uc-sidebar-width) !important;
+  will-change: min-width;
+  transition: min-width 0s linear var(--uc-sidebar-collapse-delay) !important;
+  direction: ltr;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  border-inline-end: 1px solid var(--sidebar-border-color) !important;
+}
+
+#sidebar:-moz-locale-dir(rtl) {
+  direction: rtl;
+}
+
+#sidebar-box:is(:hover, :focus-within) > .sidebar-browser-stack > #sidebar {
+  min-width: var(--uc-sidebar-hover-width) !important;
+  transition-delay: 0ms !important;
+}
+
+/* The status panel (link target at the bottom) moves right while the
+   expanded sidebar would cover it. */
+#sidebar-box:not([sidebar-positionend]):is(:hover, :focus-within) ~ #tabbrowser-tabbox #statuspanel {
+  inset-inline: auto 0 !important;
+}
+
+/* --- content area: flush with the chrome, no card; no margin kept free for a
+   launcher that is not there. ------------------------------------------- */
+#tabbrowser-tabbox {
+  margin-inline: 0 !important;
+}
+
+.browserContainer {
+  --content-area-start-radius: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}

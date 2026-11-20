@@ -1,0 +1,43 @@
+{
+  "policies": {
+    "ExtensionSettings": {
+      "{d634138d-c276-4fc8-924b-40a0ea21d284}": {
+        "installation_mode": "normal_installed",
+        "private_browsing": true,
+        "default_area": "navbar"
+      },
+      "adnauseam@rednoise.org": {
+        "installation_mode": "normal_installed",
+        "private_browsing": true,
+        "default_area": "navbar"
+      },
+      "addon@darkreader.org": {
+        "installation_mode": "normal_installed",
+        "private_browsing": true,
+        "default_area": "navbar"
+      },
+      "vimium-c@gdh1995.cn": {
+        "installation_mode": "normal_installed",
+        "private_browsing": true,
+        "default_area": "menupanel"
+      },
+      "{3c078156-979c-498b-8990-85f7987dd929}": {
+        "installation_mode": "normal_installed",
+        "private_browsing": true,
+        "default_area": "menupanel"
+      }
+    },
+    "3rdparty": {
+      "Extensions": {
+        "{3c078156-979c-498b-8990-85f7987dd929}": {
+          "settings": {
+            "markWindow": true,
+            "markWindowPreface": "\u200b",
+            "density": "compact",
+            "animations": false
+          }
+        }
+      }
+    }
+  }
+}

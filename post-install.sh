@@ -707,63 +707,79 @@ step_aur_helper() {
 # LibreWolf ≥ 156 keeps its profile in $XDG_CONFIG_HOME/librewolf/librewolf and
 # reads the overrides from $XDG_CONFIG_HOME/librewolf/librewolf/
 # librewolf.overrides.cfg (yes, twice); the legacy ~/.librewolf path gets a
-# symlink. The browser runs unconfined, Firefox's own content sandbox and
-# nothing around it: 1Password's app integration (step 1password) has the
-# browser spawn a setgid helper, which no firejail profile allows without
-# giving up seccomp and nonewprivs, i.e. the jail. The librewolf.local of
-# earlier runs goes; the firecfg step jails Slack only. Without an explicit
-# default browser GIO takes the first mimeinfo.cache entry, alphabetical:
-# brave-origin.desktop once the webapps step has installed it (that is how the
-# default flipped the day the firecfg copy of librewolf.desktop went). Set when
-# the user has none, left alone afterwards (qs-defaults changes it). A manual
-# proxy with credentials (Settings > Network) asks for them on every start and
-# never offers to save them: the first 407 of a start comes from a request
-# without a tab (extension or browser background traffic), a prompt without a
-# tab has no place for the save doorhanger, and the answer is cached for the
-# session, so no tab ever prompts; signon.autologin.proxy would only fill in a
-# login imported by hand (about:logins, url moz-proxy://HOST:PORT with the
-# proxy's realm). The FoxyProxy extension keeps the credentials in its own
-# settings and answers the 407 itself, so the proxy is set up there, nothing
-# here.
+# symlink. The overrides live in the repo (librewolf/librewolf.overrides.cfg,
+# linked; earlier runs wrote the file itself, that copy goes). Looks come from
+# librewolf/chrome (userChrome.css, userContent.css): autoconfig cannot load
+# them for every profile (general.config.sandbox_enabled is a default pref in
+# omni.ja, left on), so the dir is linked into each profile that has a
+# prefs.js; a profile made later needs `post-install.sh --redo librewolf`.
+# Extensions that every profile gets (1Password, AdNauseam, Dark Reader,
+# Vimium C, Sidebery) and Sidebery's settings come from the system policy file
+# /etc/librewolf/policies/policies.json, which the browser reads INSTEAD of
+# the package's /usr/lib/librewolf/distribution/policies.json: so
+# /usr/local/bin/librewolf-policies (bin/src) merges librewolf/policies.d.json
+# over the package file, root-owned copies under /etc/librewolf (root must not
+# read a user-writable file), and a pacman hook reruns it when the package
+# changes. Never create /etc/librewolf/librewolf.cfg: it would replace
+# LibreWolf's whole hardening cfg the same way; a system-wide pref would go to
+# /etc/librewolf/defaults/pref/*.js. The browser runs unconfined, Firefox's
+# own content sandbox and nothing around it: 1Password's app integration (step
+# 1password) has the browser spawn a setgid helper, which no firejail profile
+# allows without giving up seccomp and nonewprivs, i.e. the jail. The
+# librewolf.local of earlier runs goes; the firecfg step jails Slack only.
+# Without an explicit default browser GIO takes the first mimeinfo.cache
+# entry, alphabetical: brave-origin.desktop once the webapps step has
+# installed it (that is how the default flipped the day the firecfg copy of
+# librewolf.desktop went). Set when the user has none, left alone afterwards
+# (qs-defaults changes it). A manual proxy with credentials (Settings >
+# Network) asks for them on every start and never offers to save them: the
+# first 407 of a start comes from a request without a tab (extension or
+# browser background traffic), a prompt without a tab has no place for the
+# save doorhanger, and the answer is cached for the session, so no tab ever
+# prompts; signon.autologin.proxy would only fill in a login imported by hand
+# (about:logins, url moz-proxy://HOST:PORT with the proxy's realm). The
+# FoxyProxy extension keeps the credentials in its own settings and answers
+# the 407 itself, so the proxy is set up there, nothing here.
 step_librewolf() {
 	local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/librewolf/librewolf"
 	sudo rm -f /etc/firejail/librewolf.local
 	mkdir -p "$cfg" "$HOME/.librewolf"
-	cat >"$cfg/librewolf.overrides.cfg" <<'EOF'
-// librewolf.cfg upgrades private network addresses to HTTPS as well (loopback
-// is always exempt); homelab services speak plain HTTP, so IP literals in
-// private and link-local ranges load as typed (Firefox's default). The
-// internet is still HTTPS-Only. A per-site exception would cover one host at
-// a time; several services on several ports made the global switch cheaper.
-// Cost: on a hostile LAN a typed http://10.x or http://192.168.x URL is not
-// upgraded; https:// URLs are unaffected.
-defaultPref("dom.security.https_only_mode.upgrade_local", false);
-defaultPref("network.http.referer.XOriginPolicy", 2);
-defaultPref("media.autoplay.blocking_policy", 2);
-// LibreWolf's compiled default (StaticPrefs, lw-staticprefs.patch) is true:
-// a site asking for WebGL gets only the URL-bar icon and stays blocked until
-// that is clicked. false shows the doorhanger, so the question is visible.
-defaultPref("librewolf.webgl.prompt.hide", false);
-// Hardware video decode via VA-API (intel-media-driver / libva-mesa-driver).
-// AV1 off: pre-Tiger-Lake iGPUs lack an AV1 decoder, and sites pick AV1 when
-// offered → software decode. Disabling it makes them serve VP9/H.264 instead.
-defaultPref("media.ffmpeg.vaapi.enabled", true);
-defaultPref("media.hardware-video-decoding.force-enabled", true);
-defaultPref("media.av1.enabled", false);
-// Extension base CSP: no remote script or plugin in extension pages (Firefox's
-// MV3 default, applied to MV2 extensions too). default-src 'none' on top would
-// also block connect-src, i.e. uBlock Origin's filter-list updates.
-defaultPref("extensions.webextensions.base-content-security-policy",
-            "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';");
-// librewolf.cfg clears cookies and site data at exit (sanitizeOnShutdown with
-// every item but history), so each browser start logged every profile out of
-// every site. Cookies stay, the cache still goes. Session-only cookies die
-// regardless (browser.sessionstore.privacy_level 2 in librewolf.cfg): a site
-// that logs out anyway after this gets that pref next.
-defaultPref("privacy.clearOnShutdown_v2.cookiesAndStorage", false);
-EOF
+	if [[ -f "$cfg/librewolf.overrides.cfg" && ! -L "$cfg/librewolf.overrides.cfg" ]]; then
+		rm -f "$cfg/librewolf.overrides.cfg" # earlier runs wrote the file itself
+	fi
+	link "$DOTFILES/librewolf/librewolf.overrides.cfg" "$cfg/librewolf.overrides.cfg"
 	ln -sfn "$cfg/librewolf.overrides.cfg" "$HOME/.librewolf/librewolf.overrides.cfg"
-	success "librewolf.overrides.cfg written to $cfg (legacy ~/.librewolf symlinked)."
+	local profile n=0
+	for profile in "$cfg"/*/; do
+		[[ -f "$profile/prefs.js" ]] || continue
+		if link "$DOTFILES/librewolf/chrome" "${profile%/}/chrome"; then
+			n=$((n + 1))
+		else
+			todo "chrome/ not linked into $profile (a real chrome/ dir is there: move it away, then --redo librewolf)."
+		fi
+	done
+	success "librewolf.overrides.cfg linked (legacy ~/.librewolf symlinked); chrome/ linked into $n profile(s)."
+	sudo pacman -S --needed --noconfirm jq
+	sudo install -D -o root -g root -m 644 "$DOTFILES/librewolf/policies.d.json" /etc/librewolf/policies.d.json
+	sudo install -o root -g root -m 644 "$DOTFILES/librewolf/sidebery.css" /etc/librewolf/sidebery.css
+	sudo install -o root -g root -m 755 "$DOTFILES/bin/src/librewolf-policies" /usr/local/bin/librewolf-policies
+	sudo tee /etc/pacman.d/hooks/zz-librewolf-policies.hook >/dev/null <<-'EOF'
+		[Trigger]
+		Operation = Install
+		Operation = Upgrade
+		Type = Package
+		Target = librewolf
+		Target = librewolf-bin
+
+		[Action]
+		Description = Merging the LibreWolf system policies (post-install.sh librewolf)...
+		Depends = jq
+		When = PostTransaction
+		Exec = /usr/local/bin/librewolf-policies
+	EOF
+	sudo /usr/local/bin/librewolf-policies
+	info "Restart LibreWolf. about:policies lists the result (Errors tab empty); Ctrl+E opens Sidebery, the native tab strip hides while it is open."
+	info "Per profile, about:config, reset to default: sidebar.visibility, sidebar.main.tools and sidebar.verticalTabs (the launcher userChrome.css hides must not expand on hover; Firefox's vertical tabs would sit next to Sidebery's)."
 	local mimeapps="${XDG_CONFIG_HOME:-$HOME/.config}/mimeapps.list"
 	if ! awk '/^\[/ {s = $0} s == "[Default Applications]" && /^x-scheme-handler\/http=/ {f = 1} END {exit !f}' "$mimeapps" 2>/dev/null; then
 		xdg-mime default librewolf.desktop x-scheme-handler/http x-scheme-handler/https text/html

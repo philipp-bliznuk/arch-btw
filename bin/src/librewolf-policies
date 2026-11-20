@@ -1,0 +1,41 @@
+#!/bin/sh
+# librewolf-policies [DIST [OVERLAY [CSS [OUT]]]]: writes LibreWolf's system
+# policy file, /etc/librewolf/policies/policies.json, which the browser reads
+# INSTEAD of the package's /usr/lib/librewolf/distribution/policies.json
+# (MOZ_SYSTEM_POLICIES: the system file replaces, it does not extend). So the
+# package file is the base, /etc/librewolf/policies.d.json merges over it
+# (jq's recursive object merge: the overlay's keys win, everything else
+# stays), uBlock Origin's install_url goes (the entry stays: an ID alone
+# installs once from AMO when the extension is absent; an install_url is
+# fetched again on every start whose installed copy came from elsewhere) and
+# /etc/librewolf/sidebery.css becomes Sidebery's managed sidebarCSS. The
+# result is written next to the target, parsed back, then moved over it, so a
+# failed run leaves the previous file; no package file means nothing to do.
+# Installed to /usr/local/bin by post-install.sh (librewolf), which runs it,
+# as does the pacman hook on every librewolf install or upgrade. The paths are
+# arguments so the merge can be exercised without root.
+set -eu
+
+dist=${1:-/usr/lib/librewolf/distribution/policies.json}
+overlay=${2:-/etc/librewolf/policies.d.json}
+css=${3:-/etc/librewolf/sidebery.css}
+out=${4:-/etc/librewolf/policies/policies.json}
+sidebery='{3c078156-979c-498b-8990-85f7987dd929}'
+
+if [ ! -f "$dist" ]; then
+	echo "librewolf-policies: no $dist (librewolf not installed?): nothing to merge" >&2
+	exit 0
+fi
+install -d -m 755 "$(dirname "$out")" # not mkdir -p: that one keeps the caller's umask, and 077 would hide the file from the browser
+tmp=$(mktemp "$(dirname "$out")/.policies.json.XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+jq -s --arg id "$sidebery" --rawfile css "$css" '
+	if length != 2 then error("expected two JSON documents") else .[0] * .[1] end
+	| del(.policies.ExtensionSettings["uBlock0@raymondhill.net"].install_url)
+	| .policies["3rdparty"].Extensions[$id].sidebarCSS = $css
+' "$dist" "$overlay" >"$tmp"
+jq empty "$tmp"
+chmod 644 "$tmp"
+mv -f "$tmp" "$out"
+trap - EXIT
+echo "librewolf-policies: $out written, $(jq '.policies | length' "$out") policies"

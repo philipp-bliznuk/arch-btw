@@ -1,0 +1,29 @@
+/* Sidebery, Catppuccin Mocha. Reaches every profile as the managed sidebarCSS
+   (librewolf-policies puts it into the system policy file under 3rdparty);
+   the Custom CSS field in Sidebery's settings is ignored while it is set.
+   Surfaces only: --s-accent, which Sidebery derives from the profile's Firefox
+   theme (tab_line), still colours the selection and the active tab's edge. */
+#root {
+  --frame-bg: #181825 !important;
+  --frame-fg: #cdd6f4 !important;
+  --toolbar-bg: #1e1e2e !important;
+  --toolbar-fg: #cdd6f4 !important;
+  --active-el-bg: #313244 !important;
+  --active-el-fg: #cdd6f4 !important;
+  --popup-bg: #1e1e2e !important;
+  --popup-fg: #cdd6f4 !important;
+  --popup-shadow: 0 0 0 1px #45475a !important;
+  --border: #313244 !important;
+  --general-border-radius: 0 !important;
+  --status-ok: #a6e3a1 !important;
+  --status-err: #f38ba8 !important;
+  --status-active: #89b4fa !important;
+  --status-notice: #89dceb !important;
+  --badge-bg: #89b4fa !important;
+  --badge-fg: #11111b !important;
+  --badge-urgent-bg: #f38ba8 !important;
+  --badge-urgent-fg: #11111b !important;
+  --frame-scrollbar-color: #45475a !important;
+  --toolbar-scrollbar-color: #45475a !important;
+  --popup-scrollbar-color: #45475a !important;
+}

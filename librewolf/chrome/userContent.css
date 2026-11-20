@@ -1,0 +1,84 @@
+/* Catppuccin Mocha for LibreWolf's own pages, via the design tokens every
+   in-content page reads (toolkit/themes/shared/design-system). Listed pages
+   only: a bare url-prefix("about:") would reach about:blank, which web pages
+   embed and read back, and that is the fingerprint the rest of this setup
+   protects. Linked per profile by post-install.sh (librewolf) next to
+   userChrome.css. */
+@-moz-document url-prefix("about:preferences"),
+  url-prefix("about:addons"),
+  url-prefix("about:config"),
+  url-prefix("about:profiles"),
+  url-prefix("about:logins"),
+  url-prefix("about:downloads"),
+  url-prefix("about:support"),
+  url-prefix("about:debugging"),
+  url-prefix("about:processes"),
+  url-prefix("about:policies"),
+  url-prefix("about:newtab"),
+  url-prefix("about:home"),
+  url-prefix("about:privatebrowsing") {
+  :root {
+    color-scheme: dark !important;
+
+    --background-color-canvas: #1e1e2e !important;
+    --background-color-box: #181825 !important;
+    --background-color-box-info: #181825 !important;
+    --background-color-information: #1e1e2e !important;
+    --card-background-color: #181825 !important;
+    --text-color: #cdd6f4 !important;
+    --text-color-deemphasized: #a6adc8 !important;
+    --text-color-error: #f38ba8 !important;
+    --icon-color: #cdd6f4 !important;
+    --border-color: #313244 !important;
+    --border-color-deemphasized: #313244 !important;
+    --border-color-interactive: #45475a !important;
+    --border-color-interactive-hover: #585b70 !important;
+    --border-color-interactive-active: #6c7086 !important;
+    --color-accent-primary: #89b4fa !important;
+    --color-accent-primary-hover: #b4befe !important;
+    --color-accent-primary-active: #74c7ec !important;
+    --focus-outline-color: #89b4fa !important;
+    --link-color: #89b4fa !important;
+    --link-color-hover: #b4befe !important;
+    --link-color-active: #74c7ec !important;
+    --link-color-visited: #cba6f7 !important;
+    --button-background-color: #313244 !important;
+    --button-background-color-hover: #45475a !important;
+    --button-background-color-active: #585b70 !important;
+    --button-background-color-muted: #313244 !important;
+    --button-background-color-muted-hover: #45475a !important;
+    --button-background-color-muted-active: #585b70 !important;
+    --button-text-color: #cdd6f4 !important;
+    --button-text-color-primary: #11111b !important;
+    --input-background-color: #181825 !important;
+    --input-border-color: #45475a !important;
+    --table-row-background-color: #1e1e2e !important;
+    --table-row-background-color-alternate: #181825 !important;
+    --popup-background-color: #181825 !important;
+    --popup-border-color: #313244 !important;
+
+    --border-radius-xsmall: 0 !important;
+    --border-radius-small: 0 !important;
+    --border-radius-medium: 0 !important;
+    --border-radius-large: 0 !important;
+    --border-radius-xlarge: 0 !important;
+    --button-border-radius: 0 !important;
+    --input-border-radius: 0 !important;
+    --input-search-border-radius: 0 !important;
+    --card-border-radius: 0 !important;
+    --card-border-radius-compact: 0 !important;
+    --popup-border-radius: 0 !important;
+    --panel-border-radius: 0 !important;
+    --dialog-border-radius: 0 !important;
+  }
+}
+
+/* New Tab and Home read the theme's ntp_* colours as their own variables. */
+@-moz-document url-prefix("about:newtab"), url-prefix("about:home") {
+  :root {
+    --newtab-background-color: #1e1e2e !important;
+    --newtab-background-color-secondary: #181825 !important;
+    --newtab-text-primary-color: #cdd6f4 !important;
+    --newtab-primary-action-background: #89b4fa !important;
+  }
+}
