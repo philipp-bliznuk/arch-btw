@@ -4,11 +4,14 @@
 # fullscreens it) on every active output. Started by the shell's idle ladder
 # (lock/Idle.qml), stopped on activity or lock. Without cmatrix or kitty
 # installed start is a no-op. Pure black: cmatrix paints its background with
-# ANSI black, kitty color0, which is grey in the theme.
+# ANSI black, kitty color0, which is grey in the theme. The pointer ends up on
+# the fullscreen window (focus output below warps it there under
+# mouse_warping container) and kitty shows it until mouse_hide_wait passes
+# without mouse input; 0.1 s here instead of the default 3 s.
 set -Eeuo pipefail
 
 app=qs-screensaver
-kitty_opts=(-o confirm_os_window_close=0 -o background=#000000 -o color0=#000000)
+kitty_opts=(-o confirm_os_window_close=0 -o background=#000000 -o color0=#000000 -o mouse_hide_wait=0.1)
 # stop touches the flag for a start still in its loop: the kill only reaches
 # the windows mapped by then, the loop would spawn the rest. start marks its
 # own beginning and obeys a flag not older than that: a stop from the previous
